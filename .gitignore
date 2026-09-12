@@ -1,0 +1,20 @@
+# Maven 构建产物
+target/
+
+# 前端构建产物(web-build 生成,部署前经 make web-build 再生;不入库,muniu web/dist 同款哲学)
+src/main/resources/static/
+
+# 前端工程
+web/node_modules/
+web/dist/
+web/*.tsbuildinfo
+
+# 环境变量与本地配置(真实配置不入库,*.example 模板放行)
+.env
+.env.*
+!*.example
+
+# 编辑器与系统
+.idea/
+.vscode/
+.DS_Store

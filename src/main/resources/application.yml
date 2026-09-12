@@ -1,0 +1,31 @@
+spring:
+  application:
+    name: jinguan
+  datasource:
+    url: ${JINGUAN_DB_URL:jdbc:postgresql://127.0.0.1:5433/jinguan}
+    username: ${JINGUAN_DB_USER:jinguan}
+    password: ${JINGUAN_DB_PASSWORD:jinguan}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate   # schema 权威在 Flyway,禁止 hibernate 建表
+    properties:
+      hibernate.jdbc.time_zone: UTC
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+server:
+  port: ${JINGUAN_PORT:8090}
+
+jinguan:
+  security:
+    # JWT 签名密钥(生产经环境注入,≥32 字节);本地 dev 默认值仅限本机
+    jwt-secret: ${JINGUAN_JWT_SECRET:dev-only-secret-change-me-0123456789abcdef}
+    jwt-ttl-minutes: 720
+  ingest:
+    # muniu IngestSink 投递的 Bearer Token(与 muniu .env 的 ingest token 同值)
+    token: ${JINGUAN_INGEST_TOKEN:dev-ingest-token}
+  payment:
+    order-ttl-minutes: ${JINGUAN_PAYMENT_TTL_MINUTES:60}   # 订单支付有效期(渠道语义)
+    expiry-scan-seconds: ${JINGUAN_PAYMENT_SCAN_SECONDS:30} # 过期收敛扫描间隔(仅状态及时性,资金正确性由回调守门保证)

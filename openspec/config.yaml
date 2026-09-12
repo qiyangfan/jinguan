@@ -1,0 +1,36 @@
+schema: spec-driven
+
+context: |
+  锦官(jinguan)= muniu 平台控制面:用户体系、钱包账本、支付抽象、渠道与价目下发、计量扣账。
+  与数据面(muniu)仅以 HTTP+JSON 契约耦合(三根管子:价目下发 / key 吊销拉取 / 计量 ingest)。
+
+  技术栈:Java 21 · Spring Boot 3.4 · Spring Modulith 1.3(结构门禁进 CI)· JPA · Flyway ·
+  PostgreSQL(权威;测试 H2 兼容模式)· 前端 React 19 + Vite + Tailwind 4(产物入 jar)。
+
+  硬性纪律(全量见仓库根 AGENTS.md,其效力等同本仓宪法):
+  - 文档/注释/commit message 一律简体中文。
+  - Modulith verify() 红 = 禁止合入;跨模块仅引用对外契约类型。
+  - 全库禁 public setter(工厂构造 + 意图方法);词汇统一(*Service=应用服务、*Repository=持久化端口)。
+  - ledger_entries append-only:任何代码路径禁止 UPDATE/DELETE;一切资金写入必经 WalletService。
+  - 三根管子字段名与 muniu 逐字段对齐(UsageRow 为 PascalCase);变更须双方 change 同步。
+  - schema 权威在 Flyway:ddl-auto=validate,迁移文件只增不改。
+  - 测试先行:资金/契约类改动先红后绿;mvn test 全绿(含 JaCoCo 60%/50% 门禁)方可勾选任务。
+
+  契约对齐事实源(跨仓,muniu 侧):
+  - 吊销拉取:muniu internal/auth/auth.go revocationLoop——GET 返回 {"version":int64,"revoked":["key_id",..]},
+    全量快照替换语义,version >= 单调防回退,默认 60s 周期,失败保持上次快照,拉取不带认证头。
+  - 价目下发:GET /control/v1/pricing → {"pricing":[PricingView]},snake_case,μ 去尾零字符串。
+  - 计量 ingest:POST /ingest/usage {"rows":[UsageRow]},Go 无 json tag 故 PascalCase,Bearer 静态 token。
+
+rules:
+  proposal:
+    - 中文撰写;Why 讲清楚证据与被否决备选;明确 Non-goals(防过度设计)。
+  tasks:
+    - 资金/契约类任务先红后绿;每节以 `make check` 全绿收口。
+  operations:
+    apply:
+      guidance:
+        - 逐 change 实施;每个 change 完成即跑 make check,全绿才进下一个。
+    archive:
+      guidance:
+        - 归档前确认 README「演进登记」同步收口。

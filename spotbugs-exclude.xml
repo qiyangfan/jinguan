@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  SpotBugs 排除清单:每条排除必须写明理由与范围,禁止无差别放行。
+-->
+<FindBugsFilter xmlns="https://github.com/spotbugs/filter/3.0.0">
+  <!-- Spring 生态通行豁免:构造器注入的 service 是容器单例,不存在"外部可变对象泄露";
+       record DTO 的 List 访问器是 Jackson 绑定边界,防御性拷贝反而破坏反序列化语义。
+       (Spring 官方各仓对 EI_EXPOSE_REP* 亦同款处理) -->
+  <Match>
+    <Bug pattern="EI_EXPOSE_REP, EI_EXPOSE_REP2"/>
+  </Match>
+</FindBugsFilter>
