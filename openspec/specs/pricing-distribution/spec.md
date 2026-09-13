@@ -14,7 +14,7 @@ ADMIN 可经 `/admin/pricing` 对 alias 做 upsert(整体覆盖,刷新 updated_a
 
 ### Requirement: 下发契约端点
 
-`GET /control/v1/pricing` 必须 (MUST) 返回 `{"pricing":[PricingView]}`,字段 snake_case 逐字段对齐 muniu:alias/source/currency/input/cached_input/output/timezone/time_windows/updated_at;金额 μ 转去尾零十进制字符串(0→"0")。
+`GET /control/v1/pricing` 必须 (MUST) 返回 `{"pricing":[PricingView]}`,字段 snake_case 逐字段对齐 muniu:alias/source/currency/input/cached_input/output/timezone/time_windows/updated_at;金额 credit(1e-9)转去尾零十进制字符串(scale 9,0→"0",与 muniu ParsePrice 口径一致)。
 
 #### Scenario: 逐字段契约
 - **WHEN** muniu 拉取价目
@@ -31,3 +31,9 @@ ADMIN 可经 `/admin/pricing` 对 alias 做 upsert(整体覆盖,刷新 updated_a
 ### Requirement: 改价即时生效
 
 价目变更语义 = 即时生效于下次数据面拉取,无版本化/生效时间窗(历史无审计,当前 (SHALL) 接受该取舍;运营级审计随需求另立)。
+
+#### Scenario: 改价经下次拉取生效
+
+- **GIVEN** muniu 按固定间隔拉取价目
+- **WHEN** ADMIN 经 `/admin/pricing` 更新某 alias 价目
+- **THEN** 数据面下一个拉取周期即取到新价并按其计费,无需锦官或 muniu 任何重启动作

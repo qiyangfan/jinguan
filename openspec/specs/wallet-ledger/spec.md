@@ -1,6 +1,6 @@
 ## Purpose
 
-钱包账本——本服务唯一的领域核心。`ledger_entries` append-only,余额 = SUM(amount_micros),一切资金写入必经 `WalletService`。
+钱包账本——本服务唯一的领域核心。`ledger_entries` append-only,余额 = SUM(amount_credits),一切资金写入必经 `WalletService`。
 
 ## Requirements
 
@@ -10,7 +10,7 @@
 
 #### Scenario: 余额即流水之和
 - **WHEN** 查询任一用户余额
-- **THEN** 返回值恒等于其全部账本分录 amount_micros 之和
+- **THEN** 返回值恒等于其全部账本分录 amount_credits 之和
 
 ### Requirement: refId 幂等
 
@@ -29,7 +29,7 @@
 扣账后余额不得 (MUST NOT) 为负:不足必须 (MUST) 抛 InsufficientFunds 且账本零痕迹;金额必须 (MUST) 为正,≤0 拒绝。
 
 #### Scenario: 超扣拒绝
-- **WHEN** 余额 10μ 时扣 11μ
+- **WHEN** 余额 10,000,000,000 credit(=10 元)时扣 11,000,000,000 credit(=11 元)
 - **THEN** 抛 InsufficientFunds,该用户账本无任何新分录
 
 ### Requirement: per-user 锁内含完整事务
@@ -40,13 +40,13 @@
 - **WHEN** 20 线程并发扣余额仅够 3 笔的账户
 - **THEN** 恰 3 笔成功、17 笔拒绝、每笔恰好一种结局
 
-### Requirement: 管理员手工入账(现状)
+### Requirement: 管理员手工入账
 
-ADMIN 可经 `POST /wallet/admin/credit`(reason=MANUAL_TOPUP)入账,refId 缺省自动生成;当前该通道仅 (SHALL) 支持加钱,账本行不记录操作人。
+ADMIN 可经 `POST /wallet/admin/credit` 入账(reason=MANUAL_TOPUP),refId 缺省自动生成;分录必须 (MUST) 记录操作人(operator_user_id),与「资金操作审计」要求一致——「仅支持加钱、不记操作人」的旧现状已被「管理员调账」与「资金操作审计」取代。
 
 #### Scenario: 手工兜底入账
-- **WHEN** ADMIN 对 userId=1 入账 10,000,000μ
-- **THEN** 产生一行 MANUAL_TOPUP 分录,余额增加,重复同 refId 调用幂等
+- **WHEN** ADMIN 对 userId=1 入账 10,000,000,000 credit(=10 元)
+- **THEN** 产生一行 MANUAL_TOPUP 分录(含操作人),余额增加,重复同 refId 调用幂等
 
 ### Requirement: 管理员调账
 
