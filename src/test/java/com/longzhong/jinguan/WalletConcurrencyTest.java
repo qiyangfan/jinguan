@@ -33,14 +33,15 @@ class WalletConcurrencyTest {
   @Autowired UserRepository users;
   @Autowired ApiKeyBindingRepository bindings;
   @Autowired IngestService ingest;
+  @Autowired com.longzhong.jinguan.ingest.UsageRecordRepository usageRecords;
 
   @Test
   void concurrent_debits_never_overdraw() throws Exception {
     var user = users.save(UserEntity.create("conc-u1", "hash", "USER"));
     long uid = user.getId();
-    wallet.credit(uid, 100, WalletService.REASON_MANUAL_TOPUP, "conc-seed", null);
+    wallet.credit(uid, 100000, WalletService.REASON_MANUAL_TOPUP, "conc-seed", null, null);
 
-    int threads = 20, perDebit = 30; // 余额只够 3 笔
+    int threads = 20, perDebit = 30000; // 余额只够 3 笔
     var latch = new CountDownLatch(1);
     var pool = Executors.newFixedThreadPool(threads);
     var success = new AtomicInteger();
@@ -54,7 +55,7 @@ class WalletConcurrencyTest {
               () -> {
                 latch.await();
                 try {
-                  wallet.debit(uid, perDebit, WalletService.REASON_USAGE, ref, null);
+                  wallet.debit(uid, perDebit, WalletService.REASON_USAGE, ref, null, null);
                   success.incrementAndGet();
                 } catch (InsufficientFundsException e) {
                   rejected.incrementAndGet();
@@ -70,7 +71,7 @@ class WalletConcurrencyTest {
 
     assertEquals(3, success.get(), "成功笔数应恰为余额可覆盖的笔数");
     assertEquals(threads - 3, rejected.get(), "其余应被非负不变量拒绝");
-    assertEquals(10, wallet.balance(uid), "终态余额 = 100 - 3×30");
+    assertEquals(10000, wallet.balance(uid), "终态余额 = 100000 - 3×30000");
     assertEquals(threads, success.get() + rejected.get(), "每笔恰好一种结局(无丢失)");
   }
 
@@ -96,7 +97,7 @@ class WalletConcurrencyTest {
             0,
             0,
             false,
-            999999,
+            999999000,
             "CNY",
             null,
             100,
@@ -123,15 +124,60 @@ class WalletConcurrencyTest {
             0,
             0,
             false,
-            1,
+            1000,
             "CNY",
             null,
             50,
             "2026-09-12T00:00:01Z");
-    // 先手工入账 1μ 保证扣账可行
-    wallet.credit(user.getId(), 1, WalletService.REASON_MANUAL_TOPUP, "conc-seed-2", null);
+    // 先手工入账 1000 credit 保证扣账可行
+    wallet.credit(user.getId(), 1000, WalletService.REASON_MANUAL_TOPUP, "conc-seed-2", null, null);
     var result2 = ingest.accept(List.of(row, good));
     assertEquals(1, result2.skippedInsufficient());
     assertEquals(1, result2.accepted());
+    // 毒丸行明细可见(欠费可对账):skipped_insufficient 投影;正常行 accepted
+    assertEquals(
+        "skipped_insufficient",
+        usageRecords.findByUsageId("poison-1").orElseThrow().getFinalOutcome());
+    assertEquals("accepted", usageRecords.findByUsageId("ok-1").orElseThrow().getFinalOutcome());
+  }
+
+  /** 并发同键写入:唯一约束败方必须收敛为幂等重放(replayed=true),任何一方不得以 500/异常告终。 */
+  @Test
+  void concurrent_sameRefId_credits_replay_notFailure() throws Exception {
+    var user = users.save(UserEntity.create("conc-dup", "hash", "USER"));
+    long uid = user.getId();
+
+    int threads = 20;
+    var latch = new CountDownLatch(1);
+    var pool = Executors.newFixedThreadPool(threads);
+    var accepted = new AtomicInteger();
+    var replayed = new AtomicInteger();
+    var futures = new java.util.ArrayList<Future<?>>();
+
+    for (int i = 0; i < threads; i++) {
+      futures.add(
+          pool.submit(
+              () -> {
+                latch.await();
+                var r =
+                    wallet.credit(
+                        uid, 50000, WalletService.REASON_MANUAL_TOPUP, "conc-dup-ref", null, null);
+                if (r.replayed()) {
+                  replayed.incrementAndGet();
+                } else {
+                  accepted.incrementAndGet();
+                }
+                return null;
+              }));
+    }
+    latch.countDown();
+    for (Future<?> f : futures) {
+      f.get(); // 任一线程抛异常(约束违例裸 500 化)在此即失败
+    }
+    pool.shutdown();
+
+    assertEquals(1, accepted.get(), "恰一笔新写入生效");
+    assertEquals(threads - 1, replayed.get(), "其余并发方应幂等重放,不得异常");
+    assertEquals(50000, wallet.balance(uid), "余额只加一次");
   }
 }

@@ -7,8 +7,8 @@ import jakarta.persistence.Table;
 import java.time.Instant;
 
 /**
- * 渠道价目(运营态):micros 整数存储(与 muniu InputMicro 同义),time_windows 以 最终下发形态的 JSON 数组字符串存储(multiplier 为 ≤4
- * 位小数去尾零字符串)。
+ * 渠道价目(运营态):credits 整数存储(1 credit = 本币 1e-9,与 muniu creditPerUnit=1e9 同基座;1 credit/token = 1 元/百万
+ * tokens),time_windows 以 最终下发形态的 JSON 数组字符串存储(multiplier 为 ≤4 位小数去尾零字符串)。
  */
 @Entity
 @Table(name = "pricing_entries")
@@ -21,14 +21,14 @@ public class PricingEntryEntity {
   @Column(nullable = false, length = 8)
   private String currency;
 
-  @Column(name = "input_micros", nullable = false)
-  private long inputMicros;
+  @Column(name = "input_credits", nullable = false)
+  private long inputCredits;
 
-  @Column(name = "cached_input_micros", nullable = false)
-  private long cachedInputMicros;
+  @Column(name = "cached_input_credits", nullable = false)
+  private long cachedInputCredits;
 
-  @Column(name = "output_micros", nullable = false)
-  private long outputMicros;
+  @Column(name = "output_credits", nullable = false)
+  private long outputCredits;
 
   @Column(nullable = true, length = 64)
   private String timezone;
@@ -44,16 +44,16 @@ public class PricingEntryEntity {
   private PricingEntryEntity(
       String alias,
       String currency,
-      long inputMicros,
-      long cachedInputMicros,
-      long outputMicros,
+      long inputCredits,
+      long cachedInputCredits,
+      long outputCredits,
       String timezone,
       String timeWindowsJson) {
     this.alias = alias;
     this.currency = currency;
-    this.inputMicros = inputMicros;
-    this.cachedInputMicros = cachedInputMicros;
-    this.outputMicros = outputMicros;
+    this.inputCredits = inputCredits;
+    this.cachedInputCredits = cachedInputCredits;
+    this.outputCredits = outputCredits;
     this.timezone = timezone;
     this.timeWindowsJson = timeWindowsJson;
     this.updatedAt = Instant.now();
@@ -62,27 +62,33 @@ public class PricingEntryEntity {
   public static PricingEntryEntity create(
       String alias,
       String currency,
-      long inputMicros,
-      long cachedInputMicros,
-      long outputMicros,
+      long inputCredits,
+      long cachedInputCredits,
+      long outputCredits,
       String timezone,
       String timeWindowsJson) {
     return new PricingEntryEntity(
-        alias, currency, inputMicros, cachedInputMicros, outputMicros, timezone, timeWindowsJson);
+        alias,
+        currency,
+        inputCredits,
+        cachedInputCredits,
+        outputCredits,
+        timezone,
+        timeWindowsJson);
   }
 
   /** 换价(意图方法):整体替换价目内容并刷新 updated_at。 */
   public void update(
       String currency,
-      long inputMicros,
-      long cachedInputMicros,
-      long outputMicros,
+      long inputCredits,
+      long cachedInputCredits,
+      long outputCredits,
       String timezone,
       String timeWindowsJson) {
     this.currency = currency;
-    this.inputMicros = inputMicros;
-    this.cachedInputMicros = cachedInputMicros;
-    this.outputMicros = outputMicros;
+    this.inputCredits = inputCredits;
+    this.cachedInputCredits = cachedInputCredits;
+    this.outputCredits = outputCredits;
     this.timezone = timezone;
     this.timeWindowsJson = timeWindowsJson;
     this.updatedAt = Instant.now();
@@ -96,16 +102,16 @@ public class PricingEntryEntity {
     return currency;
   }
 
-  public long getInputMicros() {
-    return inputMicros;
+  public long getInputCredits() {
+    return inputCredits;
   }
 
-  public long getCachedInputMicros() {
-    return cachedInputMicros;
+  public long getCachedInputCredits() {
+    return cachedInputCredits;
   }
 
-  public long getOutputMicros() {
-    return outputMicros;
+  public long getOutputCredits() {
+    return outputCredits;
   }
 
   public String getTimezone() {

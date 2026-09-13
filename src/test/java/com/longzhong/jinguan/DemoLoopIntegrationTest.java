@@ -36,6 +36,7 @@ class DemoLoopIntegrationTest {
   @Autowired MockMvc mvc;
 
   static String adminToken;
+  static String userBToken;
 
   private static String body(String json) {
     return json;
@@ -69,9 +70,9 @@ class DemoLoopIntegrationTest {
                 .content(
                     body(
                         """
-                            {"userId":1,"amountMicros":10000000,"refId":"seed-1","note":"种子资金"}""")))
+                            {"userId":1,"amountCredits":10000000000,"refId":"seed-1","note":"种子资金"}""")))
         .andExpect(status().isCreated())
-        .andExpect(jsonPath("$.balanceMicros").value(10000000));
+        .andExpect(jsonPath("$.balanceCredits").value("10000000000"));
   }
 
   @Test
@@ -84,9 +85,9 @@ class DemoLoopIntegrationTest {
                 .content(
                     body(
                         """
-                            {"userId":1,"amountMicros":10000000,"refId":"seed-1"}""")))
+                            {"userId":1,"amountCredits":10000000000,"refId":"seed-1"}""")))
         .andExpect(status().isCreated())
-        .andExpect(jsonPath("$.balanceMicros").value(10000000)); // 重放不加钱
+        .andExpect(jsonPath("$.balanceCredits").value("10000000000")); // 重放不加钱
   }
 
   @Test
@@ -101,7 +102,7 @@ class DemoLoopIntegrationTest {
                     .content(
                         body(
                             """
-                            {"provider":"mock","amountMicros":2000000,"currency":"CNY"}""")))
+                            {"provider":"mock","amountCredits":2000000000,"currency":"CNY"}""")))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.payUrl").exists())
             .andReturn();
@@ -112,7 +113,7 @@ class DemoLoopIntegrationTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.replayed").value(false));
     mvc.perform(get("/wallet/balance").header("Authorization", "Bearer " + adminToken))
-        .andExpect(jsonPath("$.balanceMicros").value(12000000));
+        .andExpect(jsonPath("$.balanceCredits").value("12000000000"));
   }
 
   @Test
@@ -134,7 +135,7 @@ class DemoLoopIntegrationTest {
               "Provider":"deepseek","ModelAlias":"deepseek-chat","UpstreamModel":"deepseek-chat",
               "Stream":true,"Status":"ok","ErrorClass":"","PromptTokens":100,
               "CompletionTokens":50,"ReasoningTokens":0,"CachedTokens":0,"Estimated":false,
-              "CostMicro":300000,"Currency":"CNY","LatencyFirstTokenMs":120,
+              "CostCredits":300000000,"Currency":"CNY","LatencyFirstTokenMs":120,
               "LatencyTotalMs":900,"CreatedAt":"2026-09-12T00:00:00Z"}]}""";
     mvc.perform(
             post("/ingest/usage")
@@ -144,7 +145,8 @@ class DemoLoopIntegrationTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.accepted").value(1));
     mvc.perform(get("/wallet/balance").header("Authorization", "Bearer " + adminToken))
-        .andExpect(jsonPath("$.balanceMicros").value(11700000)); // 12_000_000 - 300_000
+        .andExpect(
+            jsonPath("$.balanceCredits").value("11700000000")); // 12_000_000_000 - 300_000_000
     // 同 ID 重投:幂等,余额不变
     mvc.perform(
             post("/ingest/usage")
@@ -154,7 +156,7 @@ class DemoLoopIntegrationTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.replayed").value(1));
     mvc.perform(get("/wallet/balance").header("Authorization", "Bearer " + adminToken))
-        .andExpect(jsonPath("$.balanceMicros").value(11700000));
+        .andExpect(jsonPath("$.balanceCredits").value("11700000000"));
   }
 
   @Test
@@ -180,8 +182,167 @@ class DemoLoopIntegrationTest {
         .content(
             body(
                 """
-                    {"currency":"CNY","inputMicros":1000,"cachedInputMicros":500,
-                     "outputMicros":2000,"timezone":"Asia/Shanghai",
+                    {"currency":"CNY","inputCredits":1000000,"cachedInputCredits":500000,
+                     "outputCredits":2000000,"timezone":"Asia/Shanghai",
                      "timeWindows":[{"window":"peak","multiplier":"1.5"}]}"""));
+  }
+
+  @Test
+  @Order(7)
+  void orderOwnership_enforced_listServerSide() throws Exception {
+    // admin(uid=1)下单
+    MvcResult order =
+        mvc.perform(
+                post("/payments/orders")
+                    .header("Authorization", "Bearer " + adminToken)
+                    .contentType("application/json")
+                    .content(
+                        body(
+                            """
+                            {"provider":"mock","amountCredits":1000000000,"currency":"CNY"}""")))
+            .andExpect(status().isOk())
+            .andReturn();
+    String orderId =
+        com.jayway.jsonpath.JsonPath.read(order.getResponse().getContentAsString(), "$.orderId");
+    // 第二用户(USER):越权查询他人订单 → 404 不泄露存在性
+    MvcResult regB =
+        mvc.perform(
+                post("/auth/register")
+                    .contentType("application/json")
+                    .content(
+                        body(
+                            """
+                            {"username":"order-b","password":"password-123"}""")))
+            .andExpect(status().isCreated())
+            .andReturn();
+    userBToken =
+        com.jayway.jsonpath.JsonPath.read(regB.getResponse().getContentAsString(), "$.token");
+    mvc.perform(
+            get("/payments/orders/{id}", orderId).header("Authorization", "Bearer " + userBToken))
+        .andExpect(status().isNotFound());
+    // 本人查询 → 200
+    mvc.perform(
+            get("/payments/orders/{id}", orderId).header("Authorization", "Bearer " + adminToken))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.status").value("CREATED"));
+    // 订单簿服务端事实源:admin 列表含该单(新→旧,首位),userB 列表为空
+    mvc.perform(get("/payments/orders").header("Authorization", "Bearer " + adminToken))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$[0].orderId").value(orderId));
+    mvc.perform(get("/payments/orders").header("Authorization", "Bearer " + userBToken))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$").isEmpty());
+  }
+
+  @Test
+  @Order(8)
+  void adminDebit_adjusts_audits_operator() throws Exception {
+    // 余额 11,700,000(Order 5 终态);调账扣减 700,000
+    mvc.perform(
+            post("/wallet/admin/debit")
+                .header("Authorization", "Bearer " + adminToken)
+                .contentType("application/json")
+                .content(
+                    body(
+                        """
+                            {"userId":1,"amountCredits":700000000,"refId":"adjust-1","note":"错充修正"}""")))
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.balanceCredits").value("11000000000"));
+    // 同 refId 重放:幂等不双扣
+    mvc.perform(
+            post("/wallet/admin/debit")
+                .header("Authorization", "Bearer " + adminToken)
+                .contentType("application/json")
+                .content(
+                    body(
+                        """
+                            {"userId":1,"amountCredits":700000000,"refId":"adjust-1"}""")))
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.balanceCredits").value("11000000000"));
+    // 余额不足调账:422 且零痕迹
+    mvc.perform(
+            post("/wallet/admin/debit")
+                .header("Authorization", "Bearer " + adminToken)
+                .contentType("application/json")
+                .content(
+                    body(
+                        """
+                            {"userId":1,"amountCredits":99999999999,"refId":"adjust-x"}""")))
+        .andExpect(status().isUnprocessableEntity());
+    // 操作人审计:MANUAL_ADJUST 分录含 operatorUserId=1;USER 调用 → 403
+    mvc.perform(get("/wallet/entries").header("Authorization", "Bearer " + adminToken))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$[0].reason").value("MANUAL_ADJUST"))
+        .andExpect(jsonPath("$[0].operatorUserId").value("1"))
+        .andExpect(jsonPath("$[0].amountCredits").value("-700000000"));
+    mvc.perform(
+            post("/wallet/admin/debit")
+                .header("Authorization", "Bearer " + userBToken)
+                .contentType("application/json")
+                .content(
+                    body(
+                        """
+                            {"userId":1,"amountCredits":1}""")))
+        .andExpect(status().isForbidden());
+  }
+
+  @Test
+  @Order(9)
+  void ingest_wrongToken_rejected() throws Exception {
+    mvc.perform(
+            post("/ingest/usage")
+                .header("Authorization", "Bearer wrong-token")
+                .contentType("application/json")
+                .content(body("{\"rows\":[]}")))
+        .andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  @Order(10)
+  void adminResetPassword_oldPasswordInvalidates() throws Exception {
+    // ADMIN 重置 userB(uid=2)密码;USER 调用 → 403
+    mvc.perform(
+            post("/admin/users/2/reset-password")
+                .header("Authorization", "Bearer " + userBToken)
+                .contentType("application/json")
+                .content(body("{\"newPassword\":\"new-password-123\"}")))
+        .andExpect(status().isForbidden());
+    mvc.perform(
+            post("/admin/users/2/reset-password")
+                .header("Authorization", "Bearer " + adminToken)
+                .contentType("application/json")
+                .content(body("{\"newPassword\":\"new-password-123\"}")))
+        .andExpect(status().isNoContent());
+    // 旧密码失效:统一话术 400(不泄露用户名存在性)
+    mvc.perform(
+            post("/auth/login")
+                .contentType("application/json")
+                .content(body("{\"username\":\"order-b\",\"password\":\"password-123\"}")))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.detail").value("用户名或密码错误"));
+    // 新密码登录成功
+    mvc.perform(
+            post("/auth/login")
+                .contentType("application/json")
+                .content(body("{\"username\":\"order-b\",\"password\":\"new-password-123\"}")))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.token").exists());
+  }
+
+  @Test
+  @Order(11)
+  void usageRecords_persisted_andQueryable() throws Exception {
+    // Order 5 的 ingest 行(u-1,首投 accepted + 重投 replayed):明细留存,投影最终 accepted,attempts=2
+    mvc.perform(get("/wallet/usage").header("Authorization", "Bearer " + adminToken))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$[0].usageId").value("u-1"))
+        .andExpect(jsonPath("$[0].finalOutcome").value("accepted"))
+        .andExpect(jsonPath("$[0].attempts").value(2))
+        .andExpect(jsonPath("$[0].costCredits").value("300000000"))
+        .andExpect(jsonPath("$[0].modelAlias").value("deepseek-chat"));
+    // 管理面按用户查询:uid=2(order-b)无用量 → 空
+    mvc.perform(get("/admin/usage?userId=2").header("Authorization", "Bearer " + adminToken))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$").isEmpty());
   }
 }

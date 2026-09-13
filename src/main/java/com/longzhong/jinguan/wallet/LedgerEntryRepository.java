@@ -14,6 +14,6 @@ public interface LedgerEntryRepository extends JpaRepository<LedgerEntryEntity, 
   Page<LedgerEntryEntity> findByUserIdOrderByIdDesc(Long userId, Pageable pageable);
 
   @Query(
-      "SELECT COALESCE(SUM(e.amountMicros), 0) FROM LedgerEntryEntity e WHERE e.userId = :userId")
+      "SELECT COALESCE(SUM(e.amountCredits), 0) FROM LedgerEntryEntity e WHERE e.userId = :userId")
   long sumByUserId(@Param("userId") Long userId);
 }

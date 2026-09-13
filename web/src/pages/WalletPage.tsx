@@ -18,15 +18,28 @@ import { PageHeader } from "@/components/page-header";
 import { Pagination } from "@/components/pagination";
 import { FormRow } from "@/components/form-row";
 import { QueryErrorAlert } from "@/components/query-error";
+import { StatusBadge, type StatusMeta } from "@/components/status-badge";
 import { errorDetail } from "@/lib/api";
 import { adminCredit, fetchBalance, fetchEntries } from "@/lib/wallet-api";
-import { micros2yuan } from "@/lib/money";
+import { fetchUsage } from "@/lib/usage-api";
+import { credits2yuan, yuan2credits } from "@/lib/money";
+import { formatDateTime, formatNumber } from "@/lib/datetime";
 import { useAuth } from "@/lib/auth-store";
 
 const REASON_LABEL: Record<string, string> = {
   MANUAL_TOPUP: "手工入账",
   PAYMENT_TOPUP: "支付入账",
+  MANUAL_ADJUST: "管理员调账",
   USAGE: "用量扣减",
+};
+
+/* 用量明细处理结果徽章:accepted/replayed 正常;skipped_* 为该行未扣费的解释。 */
+const OUTCOME_META: StatusMeta = {
+  accepted: { label: "已扣费", variant: "secondary" },
+  replayed: { label: "重投", variant: "outline" },
+  skipped_unbound: { label: "未绑定", variant: "outline" },
+  skipped_free: { label: "零成本", variant: "outline" },
+  skipped_insufficient: { label: "余额不足", variant: "destructive" },
 };
 
 /* 分页响应为裸数组(无 total/页数):当前页满一页则视为可能还有下一页,页数按此估算。 */
@@ -46,16 +59,23 @@ export default function WalletPage() {
     queryKey: ["wallet", "entries", page],
     queryFn: () => fetchEntries(page, PAGE_SIZE),
   });
+  const [usagePage, setUsagePage] = useState(0);
+  const usage = useQuery({
+    queryKey: ["wallet", "usage", usagePage],
+    queryFn: () => fetchUsage(usagePage, PAGE_SIZE),
+  });
+  const usageItems = usage.data ?? [];
+  const usagePageCount = usagePage + 1 + (usageItems.length >= PAGE_SIZE ? 1 : 0);
 
   const credit = useMutation({
     mutationFn: () =>
       adminCredit({
-        userId: balance.data?.userId ?? 0,
-        amountMicros: Math.round(parseFloat(amount) * 1_000_000),
+        userId: Number(balance.data?.userId ?? 0),
+        amountCredits: yuan2credits(amount),
         refId: refId || undefined,
       }),
     onSuccess: (out) => {
-      setSuccess(`已入账,当前余额 ¥${micros2yuan(out.balanceMicros)}`);
+      setSuccess(`已入账,当前余额 ¥${credits2yuan(out.balanceCredits)}`);
       setError("");
       setAmount("");
       setRefId("");
@@ -71,6 +91,8 @@ export default function WalletPage() {
     e.preventDefault();
     setSuccess("");
     setError("");
+    const yuan = parseFloat(amount);
+    if (!Number.isFinite(yuan) || yuan <= 0) return;
     credit.mutate();
   }
 
@@ -85,7 +107,7 @@ export default function WalletPage() {
       <Card>
         <CardHeader>
           <CardTitle>当前余额</CardTitle>
-          <CardDescription>用户 #{balance.data?.userId ?? "…"}</CardDescription>
+          <CardDescription>用户 ID {balance.data?.userId ?? "…"}</CardDescription>
         </CardHeader>
         <CardContent>
           {balance.isError ? (
@@ -94,7 +116,7 @@ export default function WalletPage() {
             <Skeleton className="h-9 w-32" />
           ) : (
             <div className="text-3xl font-semibold">
-              ¥{micros2yuan(balance.data?.balanceMicros ?? 0)}
+              ¥{credits2yuan(balance.data?.balanceCredits ?? 0)}
             </div>
           )}
         </CardContent>
@@ -104,7 +126,7 @@ export default function WalletPage() {
         <Card>
           <CardHeader>
             <CardTitle>手工入账(管理员兜底)</CardTitle>
-            <CardDescription>与支付入账走同一账本,refId 幂等(重复提交不重复入账)</CardDescription>
+            <CardDescription>账本只增不改;重复提交不会重复入账</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={submitCredit} className="flex flex-wrap items-end gap-3">
@@ -112,7 +134,7 @@ export default function WalletPage() {
                 <Input
                   id="amount"
                   type="number"
-                  step="0.000001"
+                  step="0.01"
                   min="0"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
@@ -120,13 +142,13 @@ export default function WalletPage() {
                   required
                 />
               </FormRow>
-              <FormRow label="幂等 ref(留空自动)" htmlFor="ref">
+              <FormRow label="参考号(可选,留空自动生成)" htmlFor="ref">
                 <Input
                   id="ref"
                   value={refId}
                   onChange={(e) => setRefId(e.target.value)}
                   className="w-56"
-                  placeholder="manual-…"
+                  placeholder="选填,如手动补录的备注"
                 />
               </FormRow>
               <Button type="submit" disabled={credit.isPending || !amount || !balance.data}>
@@ -143,7 +165,7 @@ export default function WalletPage() {
         <CardHeader>
           <CardTitle>账本流水</CardTitle>
           <CardDescription>
-            append-only 分录;amount 有符号(+入账/-扣账),幂等 ref 全局唯一
+            金额带正负:+ 为入账、- 为扣费;账本只增不改,重复提交不会重复入账
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -160,10 +182,10 @@ export default function WalletPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>#</TableHead>
+                    <TableHead>流水号</TableHead>
                     <TableHead>变动(元)</TableHead>
                     <TableHead>类型</TableHead>
-                    <TableHead>幂等 ref</TableHead>
+                    <TableHead>参考号</TableHead>
                     <TableHead>备注</TableHead>
                     <TableHead>时间</TableHead>
                   </TableRow>
@@ -171,17 +193,31 @@ export default function WalletPage() {
                 <TableBody>
                   {items.map((entry) => (
                     <TableRow key={entry.id}>
-                      <TableCell>{entry.id}</TableCell>
+                      <TableCell>
+                        {/* 流水号为内部主键,对账时有用;截断展示、悬停看全量 */}
+                        <span className="block max-w-28 truncate" title={String(entry.id)}>
+                          {entry.id}
+                        </span>
+                      </TableCell>
                       <TableCell
-                        className={entry.amountMicros >= 0 ? "text-success" : "text-destructive"}
+                        className={
+                          entry.amountCredits.startsWith("-") ? "text-destructive" : "text-success"
+                        }
                       >
-                        {entry.amountMicros >= 0 ? "+" : ""}
-                        {micros2yuan(entry.amountMicros)}
+                        {entry.amountCredits.startsWith("-") ? "" : "+"}
+                        {credits2yuan(entry.amountCredits)}
                       </TableCell>
                       <TableCell>{REASON_LABEL[entry.reason] ?? entry.reason}</TableCell>
-                      <TableCell className="font-mono text-2xs">{entry.refId}</TableCell>
+                      <TableCell>
+                        <span
+                          className="block max-w-40 truncate font-mono text-2xs"
+                          title={entry.refId}
+                        >
+                          {entry.refId}
+                        </span>
+                      </TableCell>
                       <TableCell>{entry.note ?? ""}</TableCell>
-                      <TableCell>{new Date(entry.createdAt).toLocaleString()}</TableCell>
+                      <TableCell>{formatDateTime(entry.createdAt)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -192,6 +228,62 @@ export default function WalletPage() {
                 page={page + 1}
                 pageCount={pageCount}
                 onPageChange={(p) => setPage(p - 1)}
+              />
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>用量明细</CardTitle>
+          <CardDescription>每次调用的模型、tokens 与费用明细,以及扣费结果</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {usage.isError ? (
+            <QueryErrorAlert text={errorDetail(usage.error)} />
+          ) : usage.isPending ? (
+            <div className="space-y-2">
+              <Skeleton className="h-10" />
+              <Skeleton className="h-10" />
+            </div>
+          ) : usageItems.length === 0 ? (
+            <p className="text-sm text-muted-foreground">暂无用量</p>
+          ) : (
+            <>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>模型</TableHead>
+                    <TableHead>Tokens(输入/输出)</TableHead>
+                    <TableHead>费用(元)</TableHead>
+                    <TableHead>结果</TableHead>
+                    <TableHead>时间</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {usageItems.map((u) => (
+                    <TableRow key={u.usageId}>
+                      <TableCell className="font-mono text-2xs">
+                        {u.modelAlias ?? u.upstreamModel ?? "-"}
+                      </TableCell>
+                      <TableCell>
+                        {formatNumber(u.promptTokens)} / {formatNumber(u.completionTokens)}
+                      </TableCell>
+                      <TableCell>¥{credits2yuan(u.costCredits)}</TableCell>
+                      <TableCell>
+                        <StatusBadge meta={OUTCOME_META} value={u.finalOutcome} />
+                      </TableCell>
+                      <TableCell>{formatDateTime(u.lastAttemptAt)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              <Pagination
+                className="mt-3"
+                page={usagePage + 1}
+                pageCount={usagePageCount}
+                onPageChange={(p) => setUsagePage(p - 1)}
               />
             </>
           )}

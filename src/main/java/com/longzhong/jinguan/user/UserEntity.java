@@ -32,6 +32,10 @@ public class UserEntity {
   @Column(name = "created_at", nullable = false)
   private Instant createdAt;
 
+  /** 欠费停服标记(业务暂态):ingest 余额不足置位、入账清除;置位/恢复经 SuspensionService 条件 UPDATE 原子裁决。 */
+  @Column(name = "suspended_at")
+  private Instant suspendedAt;
+
   protected UserEntity() {} // JPA
 
   private UserEntity(String username, String passwordHash, String role) {
@@ -44,6 +48,11 @@ public class UserEntity {
   /** 注册工厂:角色由应用层按注册序裁决(首用户 ADMIN)。 */
   public static UserEntity create(String username, String passwordHash, String role) {
     return new UserEntity(username, passwordHash, role);
+  }
+
+  /** 重置密码(ADMIN 通道):仅经意图方法变更,无 public setter。 */
+  public void updatePasswordHash(String newPasswordHash) {
+    this.passwordHash = newPasswordHash;
   }
 
   public Long getId() {
@@ -64,5 +73,9 @@ public class UserEntity {
 
   public Instant getCreatedAt() {
     return createdAt;
+  }
+
+  public Instant getSuspendedAt() {
+    return suspendedAt;
   }
 }

@@ -1,8 +1,8 @@
-/* 支付页:mock 渠道下单 → 模拟收银台支付 → 状态查询(本地会话订单簿;
-   服务端订单列表端点为演进项)。金额录入单位=元,提交换算 μ。 */
+/* 支付页:mock 渠道下单 → 模拟收银台支付 → 状态查询;订单簿以服务端列表为唯一事实源
+   (useQuery + 变更后失效重取)。金额录入单位=元,提交换算 credits(1e-9,与 muniu 同基座)。 */
 
 import { useState, type FormEvent } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -15,12 +15,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { PageHeader } from "@/components/page-header";
+import { Pagination } from "@/components/pagination";
 import { FormRow } from "@/components/form-row";
+import { QueryErrorAlert } from "@/components/query-error";
 import { StatusBadge, type StatusMeta } from "@/components/status-badge";
 import { errorDetail } from "@/lib/api";
-import { createOrder, mockPay, queryOrder } from "@/lib/payment-api";
-import type { PaymentOrderCreated } from "@/lib/api-types.gen";
-import { micros2yuan } from "@/lib/money";
+import { createOrder, listOrders, mockPay } from "@/lib/payment-api";
+import { credits2yuan, yuan2credits } from "@/lib/money";
+import { formatDateTime } from "@/lib/datetime";
 
 /* 契约 status 为 string(状态机:CREATED → PAID / EXPIRED,收敛扫描关闭超时单);
    未知值由 StatusBadge 回落 outline + 原文。 */
@@ -30,143 +32,162 @@ const STATUS_META: StatusMeta = {
   EXPIRED: { label: "已过期", variant: "destructive" },
 };
 
-interface LocalOrder {
-  orderId: string;
-  amountMicros: number;
-  status: string; // CREATED | PAID | EXPIRED | unknown
-}
+const PAGE_SIZE = 50;
 
 export default function PaymentsPage() {
-  const [amount, setAmount] = useState("");
-  const [orders, setOrders] = useState<LocalOrder[]>([]);
-  const [error, setError] = useState("");
-
-  const create = useMutation({
-    mutationFn: () => createOrder("mock", Math.round(parseFloat(amount) * 1_000_000), "CNY"),
-    onSuccess: (created: PaymentOrderCreated) => {
-      setOrders((prev) => [
-        { orderId: created.orderId, amountMicros: created.amountMicros, status: "CREATED" },
-        ...prev,
-      ]);
-      setAmount("");
-      setError("");
-    },
-    onError: (err) => setError(errorDetail(err)),
+  const queryClient = useQueryClient();
+  const [page, setPage] = useState(0);
+  // 订单端点只回数组不回总数:满页 +1 估算是否还有下一页(与账本流水同法)
+  const orders = useQuery({
+    queryKey: ["payments", "orders", page],
+    queryFn: () => listOrders(page, PAGE_SIZE),
   });
+  const pageCount = page + 1 + ((orders.data?.length ?? 0) >= PAGE_SIZE ? 1 : 0);
 
   const pay = useMutation({
     mutationFn: (orderId: string) => mockPay(orderId),
-    onSuccess: (result) => {
-      setOrders((prev) =>
-        prev.map((o) => (o.orderId === result.orderId ? { ...o, status: result.status } : o)),
-      );
-      setError("");
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["payments", "orders"] });
     },
-    onError: (err) => setError(errorDetail(err)),
   });
 
-  const refresh = useMutation({
-    mutationFn: (orderId: string) => queryOrder(orderId),
-    onSuccess: (q) => {
-      setOrders((prev) =>
-        prev.map((o) => (o.orderId === q.orderId ? { ...o, status: q.status } : o)),
-      );
-      setError(""); // 与 create/pay onSuccess 成对清错:旧错误不跨成功动作残留
+  function handleCreated() {
+    // 订单按创建倒序,新单在第 1 页:翻页状态下下单后回首页才能看到新单
+    setPage(0);
+    queryClient.invalidateQueries({ queryKey: ["payments", "orders"] });
+  }
+
+  return (
+    <section className="space-y-6">
+      <PageHeader title="支付" description="当前为演示渠道,不产生真实扣款" />
+
+      <Card>
+        <CardHeader>
+          <CardTitle>创建支付单</CardTitle>
+          <CardDescription>
+            下单后通过演示收银台完成支付;订单创建后 60 分钟内未支付将自动关闭
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <AmountForm onCreated={handleCreated} />
+          {pay.error && <p className="mt-2 text-sm text-destructive">{errorDetail(pay.error)}</p>}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>我的订单</CardTitle>
+          <CardDescription>订单创建后 60 分钟内未支付将自动关闭;支付成功即时到账</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {orders.isError ? (
+            <QueryErrorAlert text={errorDetail(orders.error)} />
+          ) : orders.isPending ? (
+            <p className="text-sm text-muted-foreground">加载中…</p>
+          ) : orders.data && orders.data.length > 0 ? (
+            <>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>订单号</TableHead>
+                    <TableHead>金额(元)</TableHead>
+                    <TableHead>状态</TableHead>
+                    <TableHead>创建时间</TableHead>
+                    <TableHead>过期 / 支付时间</TableHead>
+                    <TableHead>操作</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {orders.data.map((o) => (
+                    <TableRow key={o.orderId}>
+                      <TableCell>
+                        {/* 长单号截断展示,悬停看全量(对账仍可复制) */}
+                        <span
+                          className="block max-w-40 truncate font-mono text-2xs"
+                          title={o.orderId}
+                        >
+                          {o.orderId}
+                        </span>
+                      </TableCell>
+                      <TableCell>¥{credits2yuan(o.amountCredits)}</TableCell>
+                      <TableCell>
+                        <StatusBadge meta={STATUS_META} value={o.status} />
+                      </TableCell>
+                      <TableCell>{formatDateTime(o.createdAt)}</TableCell>
+                      <TableCell>
+                        {/* 待支付/已过期显关单截止,已支付显实际支付时间 */}
+                        {formatDateTime(o.status === "PAID" ? o.paidAt : o.expiresAt)}
+                      </TableCell>
+                      <TableCell className="space-x-2">
+                        {o.status === "CREATED" && (
+                          <Button
+                            size="sm"
+                            disabled={pay.isPending}
+                            onClick={() => pay.mutate(o.orderId)}
+                          >
+                            {pay.isPending ? "…" : "模拟支付"}
+                          </Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              <Pagination
+                className="mt-3"
+                page={page + 1}
+                pageCount={pageCount}
+                onPageChange={(p) => setPage(p - 1)}
+              />
+            </>
+          ) : (
+            <p className="text-sm text-muted-foreground">暂无订单</p>
+          )}
+        </CardContent>
+      </Card>
+    </section>
+  );
+}
+
+/* 金额表单(独立组件):受控输入与下单错误局部化;下单成功才清空金额,失败保留现值便于修正重试。 */
+function AmountForm({ onCreated }: { onCreated: () => void }) {
+  const [amount, setAmount] = useState("");
+  const [error, setError] = useState("");
+  const create = useMutation({
+    mutationFn: (amountCredits: number) => createOrder("mock", amountCredits, "CNY"),
+    onSuccess: () => {
+      setAmount("");
+      setError("");
+      onCreated();
     },
     onError: (err) => setError(errorDetail(err)),
   });
 
   function submit(e: FormEvent) {
     e.preventDefault();
-    setError(""); // 提交前预清,与 KeysPage/WalletPage 的「提交前双清」范式一致
-    create.mutate();
+    const yuan = parseFloat(amount);
+    if (!Number.isFinite(yuan) || yuan <= 0) return;
+    create.mutate(yuan2credits(amount));
   }
 
   return (
-    <section className="space-y-6">
-      <PageHeader title="支付(mock 渠道演示)" />
+    <form onSubmit={submit} className="flex flex-wrap items-end gap-3">
+      <FormRow label="金额(元)" htmlFor="amount">
+        <Input
+          id="amount"
+          type="number"
+          step="0.01"
+          min="0"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          className="w-48"
+          placeholder="0.01"
+        />
+      </FormRow>
+      <Button type="submit" disabled={create.isPending || !amount}>
+        {create.isPending ? "下单中…" : "创建支付单"}
+      </Button>
       {error && <p className="text-sm text-destructive">{error}</p>}
-
-      <Card>
-        <CardHeader>
-          <CardTitle>创建支付单</CardTitle>
-          <CardDescription>
-            下单后通过模拟收银台完成支付;订单 60 分钟未支付将过期关闭
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={submit} className="flex flex-wrap items-end gap-3">
-            <FormRow label="金额(元)" htmlFor="amount">
-              <Input
-                id="amount"
-                type="number"
-                step="0.000001"
-                min="0"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                className="w-48"
-                placeholder="0.01"
-              />
-            </FormRow>
-            <Button type="submit" disabled={create.isPending || !amount}>
-              {create.isPending ? "下单中…" : "创建支付单"}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
-
-      {orders.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>本会话订单</CardTitle>
-            <CardDescription>
-              状态机:CREATED → PAID / EXPIRED;超时订单由收敛扫描关闭
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>订单号</TableHead>
-                  <TableHead>金额(元)</TableHead>
-                  <TableHead>状态</TableHead>
-                  <TableHead>操作</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {orders.map((o) => (
-                  <TableRow key={o.orderId}>
-                    <TableCell className="font-mono text-2xs">{o.orderId}</TableCell>
-                    <TableCell>¥{micros2yuan(o.amountMicros)}</TableCell>
-                    <TableCell>
-                      <StatusBadge meta={STATUS_META} value={o.status} />
-                    </TableCell>
-                    <TableCell className="space-x-2">
-                      {o.status === "CREATED" && (
-                        <Button
-                          size="sm"
-                          disabled={pay.isPending}
-                          onClick={() => pay.mutate(o.orderId)}
-                        >
-                          {pay.isPending ? "…" : "模拟支付"}
-                        </Button>
-                      )}
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={refresh.isPending}
-                        onClick={() => refresh.mutate(o.orderId)}
-                      >
-                        查询
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
-    </section>
+    </form>
   );
 }

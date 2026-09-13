@@ -19,7 +19,7 @@ export default function KeysPage() {
   const bind = useMutation({
     mutationFn: () => bindKey({ keyId: keyId.trim(), userId: Number(userId) }),
     onSuccess: (out) => {
-      setSuccess(`已绑定 ${out.keyId} → 用户 #${out.userId}`);
+      setSuccess(`密钥 ${out.keyId} 已绑定到用户(ID ${out.userId})`);
       setError("");
       setKeyId("");
     },
@@ -38,23 +38,23 @@ export default function KeysPage() {
 
   return (
     <section className="space-y-6">
-      <PageHeader title="Key 绑定" />
+      <PageHeader title="密钥绑定" />
       <Card>
         <CardHeader>
-          <CardTitle>绑定 muniu key 到用户</CardTitle>
+          <CardTitle>将密钥绑定到用户</CardTitle>
           <CardDescription>
-            计量 ingest 按 UsageRow.APIKeyID 归账;未绑定的 key 上报将被跳过(skipped_unbound)并计数
+            用量按密钥归属自动记账;未绑定用户的密钥产生的用量不会计入账单
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={submit} className="flex flex-wrap items-end gap-3">
-            <FormRow label="muniu key 标识" htmlFor="keyId">
+            <FormRow label="密钥标识" htmlFor="keyId">
               <Input
                 id="keyId"
                 value={keyId}
                 onChange={(e) => setKeyId(e.target.value)}
                 className="w-64"
-                placeholder="mk-…"
+                placeholder="请粘贴以 mk- 开头的密钥"
                 required
               />
             </FormRow>

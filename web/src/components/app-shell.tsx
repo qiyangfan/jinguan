@@ -13,8 +13,14 @@ const NAV_ITEMS = [
   { to: "/wallet", label: "钱包", icon: Wallet, admin: false },
   { to: "/payments", label: "支付", icon: MessageSquareText, admin: false },
   { to: "/pricing", label: "价目管理", icon: Tags, admin: true },
-  { to: "/keys", label: "Key 绑定", icon: KeyRound, admin: true },
+  { to: "/keys", label: "密钥绑定", icon: KeyRound, admin: true },
 ];
+
+/** 角色显示名(后端角色全集 USER|ADMIN,见 jinguan UserEntity;未收录值回落原文)。 */
+const ROLE_LABELS: Record<string, string> = {
+  ADMIN: "管理员",
+  USER: "普通用户",
+};
 
 export function AppShell() {
   const { user, logout } = useAuth();
@@ -33,7 +39,7 @@ export function AppShell() {
           <div>
             <div className="text-lg font-semibold text-primary">锦官 · 控制面</div>
             <div className="hidden text-3xs text-muted-foreground md:block">
-              muniu 平台 用户 · 钱包 · 计价
+              木牛平台 用户 · 钱包 · 计价
             </div>
           </div>
           <Button variant="ghost" size="icon" onClick={toggle} aria-label="切换深浅主题">
@@ -50,14 +56,14 @@ export function AppShell() {
         </nav>
         <div className="hidden border-t p-3 md:block">
           <div className="mb-2 text-2xs text-muted-foreground">
-            {user?.username} · {user?.role}
+            {user ? `${user.username} · ${ROLE_LABELS[user.role] ?? user.role}` : ""}
           </div>
           <Button
             variant="outline"
             size="sm"
             className="w-full"
             onClick={() => {
-              logout();
+              void logout();
               navigate("/login");
             }}
           >

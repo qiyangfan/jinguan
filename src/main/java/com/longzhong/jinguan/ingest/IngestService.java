@@ -8,16 +8,20 @@ import org.springframework.stereotype.Service;
 /**
  * 计量 ingest → 账本扣账:按 muniu UsageRow 的 APIKeyID 归属用户,以 UsageRow.ID 为账本幂等键(refId)扣减——muniu
  * 侧重投/缓冲续传天然幂等。 未绑定 key 的行跳过并计数(无法归账;管理员补绑定后待 muniu 下轮投递)。 失败行/零成本行不扣账(计费语义与 muniu cost=0 一致)。
+ * 余额不足的行跳过并计欠费停服(独立小事务幂等置位,数据面一个拉取周期内停止放行;充值后 WalletService 入账自动恢复)。
  */
 @Service
 public class IngestService {
 
   private final ApiKeyBindingRepository bindings;
   private final WalletService wallet;
+  private final UsageRecordService usageRecords;
 
-  public IngestService(ApiKeyBindingRepository bindings, WalletService wallet) {
+  public IngestService(
+      ApiKeyBindingRepository bindings, WalletService wallet, UsageRecordService usageRecords) {
     this.bindings = bindings;
     this.wallet = wallet;
+    this.usageRecords = usageRecords;
   }
 
   public record IngestResult(
@@ -42,30 +46,39 @@ public class IngestService {
         skippedInsufficient = 0;
     for (IngestUsageRow row : rows) {
       received++;
-      if (!row.isSuccess() || row.CostMicro() <= 0) {
+      if (!row.isSuccess() || row.CostCredits() <= 0) {
         skippedFree++;
+        usageRecords.record(row, UsageRecordService.OUTCOME_SKIPPED_FREE, null);
         continue;
       }
       var binding = bindings.findById(row.APIKeyID());
       if (binding.isEmpty()) {
         skippedUnbound++;
+        usageRecords.record(row, UsageRecordService.OUTCOME_SKIPPED_UNBOUND, null);
         continue;
       }
+      long boundUser = binding.get().getUserId();
       try {
         var result =
             wallet.debit(
-                binding.get().getUserId(),
-                row.CostMicro(),
+                boundUser,
+                row.CostCredits(),
                 WalletService.REASON_USAGE,
                 "usage:" + row.ID(),
-                "用量 " + row.Provider() + "/" + row.ModelAlias());
+                "用量 " + row.Provider() + "/" + row.ModelAlias(),
+                null);
         if (result.replayed()) {
           replayed++;
+          usageRecords.record(row, UsageRecordService.OUTCOME_REPLAYED, boundUser);
         } else {
           accepted++;
+          usageRecords.record(row, UsageRecordService.OUTCOME_ACCEPTED, boundUser);
         }
       } catch (InsufficientFundsException e) {
         skippedInsufficient++;
+        // 欠费停服联动已内聚 WalletService.debit(锁内置位,与并发入账串行);
+        // 此处仅做明细投影:数据面最迟下一拉取周期(默认 60s)收敛停止放行
+        usageRecords.record(row, UsageRecordService.OUTCOME_SKIPPED_INSUFFICIENT, boundUser);
       }
     }
     return new IngestResult(

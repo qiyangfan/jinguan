@@ -1,6 +1,8 @@
 package com.longzhong.jinguan.ingest;
 
 import jakarta.validation.Valid;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
@@ -31,7 +33,11 @@ public class IngestController {
   public Object accept(
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @RequestBody Envelope envelope) {
-    if (authorization == null || !authorization.equals("Bearer " + expectedToken)) {
+    // 恒时比较(MessageDigest.isEqual):消除按位短路带来的时序侧信道
+    byte[] expected = ("Bearer " + expectedToken).getBytes(StandardCharsets.UTF_8);
+    byte[] actual =
+        authorization == null ? new byte[0] : authorization.getBytes(StandardCharsets.UTF_8);
+    if (!MessageDigest.isEqual(expected, actual)) {
       return ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, "ingest token 无效");
     }
     return ingest.accept(envelope.rows() == null ? List.of() : envelope.rows());

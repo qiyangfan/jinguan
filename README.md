@@ -34,6 +34,11 @@ Spring Boot + **Spring Modulith**(模块依赖 CI 门禁 + 模块间领域事件
 ⚠ muniu 的两个拉取目前不带认证头(数据面现实),`/control/v1/*` 依赖部署网络
 隔离保护;为数据面增加拉取认证头是双方演进项。ingest 已带 Bearer。
 
+key 吊销下发已实现(2026-09-12):**终态吊销**(`key_revocations` append-only,
+ADMIN `POST /admin/keys/{id}/revoke`,不可逆)+ **欠费停服**(`users.suspended_at`,
+ingest 余额不足自动置位、任何入账同事务自动清除——充值即恢复)合并为全量快照,
+版本经 `sync_watermarks` 与状态变更同事务单调递增;重绑已吊销 key 返回 409。
+
 ## 演示闭环(一条龙)
 
 ```bash
@@ -54,6 +59,10 @@ curl -s :8090/wallet/balance -H "Authorization: Bearer $T"   # 余额已变
 mvn spring-boot:run          # Flyway 自动建表
 mvn test                     # 全绿含:演示闭环集成测试 + Modulith 结构门禁
 ```
+
+容器化(本机 podman 形态):`make docker-build` 构建自包含镜像(web 产物入 jar,
+仓库不提交静态构建残留);`make docker-up` 起 PG 16 + 应用(数据落命名卷
+jinguan-pgdata,`make docker-down` 保留卷);冒烟:`curl :8090/actuator/health`。
 
 技术栈:Java 21 · Spring Boot 3.4 · Spring Modulith 1.3 · JPA · Flyway · PostgreSQL
 (测试 H2 兼容模式,列类型避开 PG 专有;生产 PG 权威)。

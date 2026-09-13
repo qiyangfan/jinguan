@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { FormRow } from "@/components/form-row";
+import { errorDetail } from "@/lib/api";
 import { useAuth } from "@/lib/auth-store";
 
 export default function LoginPage() {
@@ -29,7 +30,7 @@ export default function LoginPage() {
       }
       navigate("/wallet");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "请求失败");
+      setError(errorDetail(err));
     } finally {
       setBusy(false);
     }
@@ -41,7 +42,7 @@ export default function LoginPage() {
         <CardHeader>
           <CardTitle className="text-primary">锦官 · 控制面</CardTitle>
           <CardDescription>
-            {mode === "login" ? "登录以管理钱包与计价" : "注册新账号(首个注册用户为管理员)"}
+            {mode === "login" ? "登录以管理钱包与计价" : "注册新账号;首个注册的用户将成为管理员"}
           </CardDescription>
         </CardHeader>
         <CardContent>

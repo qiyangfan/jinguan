@@ -28,7 +28,8 @@ public class JwtAuthFilter extends OncePerRequestFilter {
       throws ServletException, IOException {
     String header = request.getHeader("Authorization");
     if (header != null && header.startsWith("Bearer ")) {
-      JwtService.LoginUser user = jwtService.verify(header.substring(7));
+      // 仅认 access:refresh 凭证(typ=refresh)不可当 Bearer 使用
+      JwtService.LoginUser user = jwtService.verifyAccess(header.substring(7));
       if (user != null && SecurityContextHolder.getContext().getAuthentication() == null) {
         var auth =
             new UsernamePasswordAuthenticationToken(

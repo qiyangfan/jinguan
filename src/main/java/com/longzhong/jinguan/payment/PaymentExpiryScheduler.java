@@ -10,7 +10,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 过期收敛扫描器:游标批量(keyset)推进,单轮至多 batch 笔,满批即继续—— 积压场景下以固定速率消化而非单轮锁死。职责边界——只做【展示与状态及时性】
@@ -51,8 +50,10 @@ public class PaymentExpiryScheduler {
     return backlog;
   }
 
-  /** 生产入口:按配置批量上限推进。 */
-  @Transactional
+  /**
+   * 生产入口:按配置批量上限推进。刻意不加方法级事务:expireIfCreated 为原子条件 UPDATE(自带 CAS
+   * 语义,每轮独立短事务提交),避免积压场景多轮循环在同一事务内长时间持有过期订单行锁、阻塞并发回调。
+   */
   @Scheduled(
       fixedDelayString = "${jinguan.payment.expiry-scan-seconds:30}",
       initialDelayString = "${jinguan.payment.expiry-scan-seconds:30}",
@@ -73,8 +74,14 @@ public class PaymentExpiryScheduler {
           do { // 满批继续推进:积压按 batch 步进消化;空批/不满批即收敛完成
             var candidates = orders.findOverdue("CREATED", now, PageRequest.of(0, batchLimit));
             batch = candidates.size();
-            candidates.forEach(MockOrderEntity::expire);
-            total += batch;
+            if (batch == 0) {
+              break;
+            }
+            // 条件批量迁移(与回调 CAS 对称):updated 可能 < fetched(并发已被支付),收敛计数以实际迁移为准
+            int updated =
+                orders.expireIfCreated(
+                    candidates.stream().map(MockOrderEntity::getOrderId).toList());
+            total += updated;
             rounds++;
           } while (batch == batchLimit);
           backlog = orders.countByStatusAndExpiresAtBefore("CREATED", now);

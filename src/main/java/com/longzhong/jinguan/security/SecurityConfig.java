@@ -29,6 +29,9 @@ public class SecurityConfig {
             auth ->
                 auth.requestMatchers("/auth/**", "/actuator/health")
                     .permitAll()
+                    // OpenAPI 契约端点匿名可读:三根管子跨仓契约比对与前端类型生成的数据源
+                    .requestMatchers("/v3/api-docs/**")
+                    .permitAll()
                     // SPA 页面骨架与静态资源匿名可取(认证由前端路由守卫 + API 层承担)
                     .requestMatchers(HttpMethod.GET, "/", "/index.html", "/assets/**")
                     .permitAll()

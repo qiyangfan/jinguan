@@ -45,9 +45,9 @@ public class PricingService {
 
   public record UpsertCommand(
       String currency,
-      long inputMicros,
-      long cachedInputMicros,
-      long outputMicros,
+      long inputCredits,
+      long cachedInputCredits,
+      long outputCredits,
       String timezone,
       List<TimeWindow> timeWindows) {}
 
@@ -64,9 +64,9 @@ public class PricingService {
             e ->
                 e.update(
                     cmd.currency(),
-                    cmd.inputMicros(),
-                    cmd.cachedInputMicros(),
-                    cmd.outputMicros(),
+                    cmd.inputCredits(),
+                    cmd.cachedInputCredits(),
+                    cmd.outputCredits(),
                     cmd.timezone(),
                     windowsJson),
             () ->
@@ -74,9 +74,9 @@ public class PricingService {
                     PricingEntryEntity.create(
                         alias,
                         cmd.currency(),
-                        cmd.inputMicros(),
-                        cmd.cachedInputMicros(),
-                        cmd.outputMicros(),
+                        cmd.inputCredits(),
+                        cmd.cachedInputCredits(),
+                        cmd.outputCredits(),
                         cmd.timezone(),
                         windowsJson)));
   }
@@ -99,9 +99,9 @@ public class PricingService {
         e.getAlias(),
         "db",
         e.getCurrency(),
-        microsToDecimal(e.getInputMicros()),
-        microsToDecimal(e.getCachedInputMicros()),
-        microsToDecimal(e.getOutputMicros()),
+        creditsToDecimal(e.getInputCredits()),
+        creditsToDecimal(e.getCachedInputCredits()),
+        creditsToDecimal(e.getOutputCredits()),
         e.getTimezone(),
         parseWindows(e.getTimeWindowsJson()),
         e.getUpdatedAt());
@@ -137,11 +137,11 @@ public class PricingService {
     }
   }
 
-  /** μ → 去尾零十进制字符串(与 muniu FormatPrice 输出一致);0 → "0"。 */
-  static String microsToDecimal(long micros) {
-    if (micros == 0) {
+  /** credit(1e-9 本币)→ 去尾零十进制字符串(muniu ParsePrice ≤9 位小数同刻度);0 → "0"。 */
+  static String creditsToDecimal(long credits) {
+    if (credits == 0) {
       return "0";
     }
-    return BigDecimal.valueOf(micros, 6).stripTrailingZeros().toPlainString();
+    return BigDecimal.valueOf(credits, 9).stripTrailingZeros().toPlainString();
   }
 }

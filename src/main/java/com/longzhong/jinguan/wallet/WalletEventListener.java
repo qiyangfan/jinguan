@@ -22,9 +22,10 @@ public class WalletEventListener {
   public void onPaymentPaid(PaymentPaidEvent event) {
     wallet.credit(
         event.userId(),
-        event.amountMicros(),
+        event.amountCredits(),
         WalletService.REASON_PAYMENT_TOPUP,
         event.ledgerRefId(),
-        "支付入账 " + event.currency());
+        "支付入账 " + event.currency(),
+        null); // 支付入账无管理员操作人(审计列仅管理员资金操作填写)
   }
 }

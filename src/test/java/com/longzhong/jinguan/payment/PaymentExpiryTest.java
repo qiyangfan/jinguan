@@ -62,7 +62,7 @@ class PaymentExpiryTest {
     login(uid, "exp-u1");
     // 直接过期形态(expires_at 已过去):守门不依赖扫描任务是否执行过
     String orderId = "po-exp-past";
-    orders.save(MockOrderEntity.create(orderId, uid, 500, "CNY", Instant.now().minusSeconds(1)));
+    orders.save(MockOrderEntity.create(orderId, uid, 500000, "CNY", Instant.now().minusSeconds(1)));
 
     mvc.perform(post("/payments/mock/{id}/pay", orderId))
         .andExpect(status().isConflict())
@@ -77,12 +77,10 @@ class PaymentExpiryTest {
     long uid = seedUser("exp-u1b");
     login(uid, "exp-u1b");
     String orderId = "po-exp-converged";
-    var order = MockOrderEntity.create(orderId, uid, 500, "CNY", Instant.now().minusSeconds(1));
+    var order = MockOrderEntity.create(orderId, uid, 500000, "CNY", Instant.now().minusSeconds(1));
     orders.save(order);
     // 模拟扫描已收敛为 EXPIRED:迟到的回调不得把终态订单翻成 PAID(守门漏洞钉子)
-    var converged = orders.findById(orderId).orElseThrow();
-    converged.expire();
-    orders.save(converged);
+    orders.expireIfCreated(java.util.List.of(orderId));
 
     mvc.perform(post("/payments/mock/{id}/pay", orderId))
         .andExpect(status().isConflict())
@@ -98,7 +96,7 @@ class PaymentExpiryTest {
   void unexpiredOrder_payable() throws Exception {
     long uid = seedUser("exp-u2");
     login(uid, "exp-u2");
-    var created = provider.createOrder("po-exp-2", uid, 500, "CNY");
+    var created = provider.createOrder("po-exp-2", uid, 500000, "CNY");
     mvc.perform(post("/payments/mock/{id}/pay", orderIdOf(created)))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.status").value("PAID"));
@@ -108,9 +106,10 @@ class PaymentExpiryTest {
   @Transactional
   void scheduler_convergesOverdueCreated_toExpired() {
     long uid = seedUser("exp-u3");
-    orders.save(MockOrderEntity.create("po-exp-3", uid, 500, "CNY", Instant.now().minusSeconds(1)));
     orders.save(
-        MockOrderEntity.create("po-live-3", uid, 500, "CNY", Instant.now().plusSeconds(3600)));
+        MockOrderEntity.create("po-exp-3", uid, 500000, "CNY", Instant.now().minusSeconds(1)));
+    orders.save(
+        MockOrderEntity.create("po-live-3", uid, 500000, "CNY", Instant.now().plusSeconds(3600)));
 
     scheduler.expireOverdueOrders(500);
 
@@ -125,16 +124,12 @@ class PaymentExpiryTest {
     long uid = seedUser("exp-u4");
     Instant past = Instant.now().minusSeconds(1);
     for (int i = 0; i < 5; i++) {
-      orders.save(MockOrderEntity.create("po-batch-" + i, uid, 100, "CNY", past));
+      orders.save(MockOrderEntity.create("po-batch-" + i, uid, 100000, "CNY", past));
     }
     // 单轮上限 2:第一轮恰好 2 笔(满批信号),剩余积压留给下轮
     var first = orders.findOverdue("CREATED", Instant.now(), PageRequest.of(0, 2));
     assertEquals(2, first.size(), "单轮应受 batch 上限约束");
-    first.forEach(
-        o -> {
-          o.expire();
-          orders.save(o);
-        });
+    orders.expireIfCreated(first.stream().map(MockOrderEntity::getOrderId).toList());
     assertEquals(3, orders.countByStatusAndExpiresAtBefore("CREATED", Instant.now()), "满批后应留积压给下轮");
 
     // 多轮推进:batch=2 直至收敛完成(2+2+1)

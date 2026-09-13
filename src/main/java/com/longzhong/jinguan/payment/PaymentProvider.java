@@ -12,7 +12,7 @@ public interface PaymentProvider {
   String name();
 
   /** 创建支付单:渠道侧下单,返回渠道引用与支付跳转/凭证信息。 */
-  CreatedOrder createOrder(String orderId, long userId, long amountMicros, String currency);
+  CreatedOrder createOrder(String orderId, long userId, long amountCredits, String currency);
 
   /** 验签并解析回调载荷。真实渠道在此校验签名/证书;回调非法抛 IllegalArgumentException, 由调用方拒绝。返回 true 表示渠道确认支付成功(终态 PAID)。 */
   boolean verifyCallback(String orderId, CallbackPayload payload);

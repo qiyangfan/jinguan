@@ -44,27 +44,27 @@ public class PaymentService {
   /** 创建支付单:orderId 服务端生成(不信任客户端),渠道策略执行下单。 */
   @Transactional
   public Map<String, Object> createOrder(
-      String providerName, long userId, long amountMicros, String currency) {
-    if (amountMicros <= 0) {
-      throw new IllegalArgumentException("金额必须为正(micros)");
+      String providerName, long userId, long amountCredits, String currency) {
+    if (amountCredits <= 0) {
+      throw new IllegalArgumentException("金额必须为正(credits)");
     }
     String orderId = "po-" + uuidV7Safe();
     PaymentProvider.CreatedOrder created =
-        provider(providerName).createOrder(orderId, userId, amountMicros, currency);
+        provider(providerName).createOrder(orderId, userId, amountCredits, currency);
     return Map.of(
         "orderId",
         orderId,
         "provider",
         providerName,
-        "amountMicros",
-        amountMicros,
+        "amountCredits",
+        String.valueOf(amountCredits),
         "payUrl",
         created.payUrl());
   }
 
   /**
-   * 处理渠道回调(经渠道适配器验签):订单 CREATED → PAID 并发布支付成功事件。 超时守门(懒过期):过期订单拒绝置 PAID——资金正确性不依赖扫描调度,
-   * 即使收敛任务延迟,过期支付也不会入账。幂等:已 PAID 的订单重推回调直接返回成功。
+   * 处理渠道回调(经渠道适配器验签):订单状态原子迁移 CREATED → PAID(条件 UPDATE 行锁串行化并发回调), 仅首次转换发布支付成功事件。超时守门(懒过期):过期订单拒绝置
+   * PAID——资金正确性不依赖扫描调度, 即使收敛任务延迟,过期支付也不会入账。幂等:已 PAID 订单重推回调直接返回成功(replayed)。
    */
   @Transactional
   public Map<String, Object> handleCallback(
@@ -78,26 +78,31 @@ public class PaymentService {
     if (order.isExpired(Instant.now()) || "EXPIRED".equals(order.getStatus())) {
       throw new OrderExpiredException(orderId);
     }
-    if (order.isPaid()) {
-      return Map.of("orderId", orderId, "status", "PAID", "replayed", true);
+    Instant paidAt = Instant.now();
+    int updated = mockOrders.markPaidIfCreated(orderId, paidAt);
+    if (updated == 0) {
+      // 并发败方/重推:确认终态——PAID 走幂等重放;窗口内被扫描收敛为 EXPIRED 则仍守门拒绝
+      String status =
+          mockOrders
+              .findById(orderId)
+              .map(MockOrderEntity::getStatus)
+              .orElseThrow(() -> new NotFoundException("订单不存在: " + orderId));
+      if ("EXPIRED".equals(status)) {
+        throw new OrderExpiredException(orderId);
+      }
+      return Map.of("orderId", orderId, "status", status, "replayed", true);
     }
-    boolean firstTransition = order.markPaid();
-    if (firstTransition) { // 仅首次转换发布入账事件(并发/重推回调不产生重复事件)
-      events.publishEvent(
-          new PaymentPaidEvent(
-              order.getOrderId(),
-              order.getUserId(),
-              order.getAmountMicros(),
-              order.getCurrency(),
-              order.getPaidAt()));
-    }
-    return Map.of("orderId", orderId, "status", "PAID", "replayed", !firstTransition);
+    // 仅首次原子转换发布入账事件(并发/重推回调不产生重复事件);订单行锁已串行化,同 refId 不会并发入账
+    events.publishEvent(
+        new PaymentPaidEvent(
+            orderId, order.getUserId(), order.getAmountCredits(), order.getCurrency(), paidAt));
+    return Map.of("orderId", orderId, "status", "PAID", "replayed", false);
   }
 
+  /** 订单详情(本人):非本人订单以 404 拒绝(不泄露存在性)。 */
   @Transactional(readOnly = true)
-  public Map<String, Object> query(String providerName, String orderId) {
-    MockOrderEntity order =
-        mockOrders.findById(orderId).orElseThrow(() -> new NotFoundException("订单不存在: " + orderId));
+  public Map<String, Object> query(String providerName, String orderId, long requesterUid) {
+    MockOrderEntity order = ownedOrder(orderId, requesterUid);
     return Map.of(
         "orderId",
         orderId,
@@ -105,8 +110,26 @@ public class PaymentService {
         provider(providerName).queryStatus(orderId),
         "status",
         order.getStatus(),
-        "amountMicros",
-        order.getAmountMicros());
+        "amountCredits",
+        String.valueOf(order.getAmountCredits()));
+  }
+
+  /** 本人订单簿(新→旧,分页;orderId 含时间前缀,字典序即时序)。 */
+  @Transactional(readOnly = true)
+  public org.springframework.data.domain.Page<MockOrderEntity> list(
+      long userId, int page, int size) {
+    return mockOrders.findByUserIdOrderByOrderIdDesc(
+        userId, org.springframework.data.domain.PageRequest.of(page, Math.min(size, 200)));
+  }
+
+  private MockOrderEntity ownedOrder(String orderId, long requesterUid) {
+    MockOrderEntity order =
+        mockOrders.findById(orderId).orElseThrow(() -> new NotFoundException("订单不存在: " + orderId));
+    if (order.getUserId() != requesterUid) {
+      // 水平越权:与非存在订单同响应(404),不泄露他人订单存在性
+      throw new NotFoundException("订单不存在: " + orderId);
+    }
+    return order;
   }
 
   /** 简易 UUIDv7 形态(时间前缀可排序);不强依赖外部库。 */

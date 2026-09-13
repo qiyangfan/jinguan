@@ -1,0 +1,36 @@
+# 锦官本地编排:PG 16(权威存储)+ 控制面应用。
+# 卷删除须显式 `podman compose down -v`(默认 down 保留数据,见 Makefile docker-down 注释)。
+services:
+  db:
+    image: docker.io/library/postgres:16-alpine
+    environment:
+      POSTGRES_DB: jinguan
+      POSTGRES_USER: jinguan
+      POSTGRES_PASSWORD: jinguan
+    volumes:
+      - jinguan-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jinguan -d jinguan"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  app:
+    build: .
+    # 与 Makefile docker-build 的镜像标签一致:compose 直接复用,避免同内容重 build
+    image: localhost/jinguan:latest
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      JINGUAN_DB_URL: jdbc:postgresql://db:5432/jinguan
+      JINGUAN_DB_USER: jinguan
+      JINGUAN_DB_PASSWORD: jinguan
+      # 生产经环境注入覆盖(≥32 字节);本地 dev 缺省仅限本机
+      JINGUAN_JWT_SECRET: ${JINGUAN_JWT_SECRET:-dev-only-secret-change-me-0123456789abcdef}
+      JINGUAN_INGEST_TOKEN: ${JINGUAN_INGEST_TOKEN:-dev-ingest-token}
+    ports:
+      - "127.0.0.1:8090:8090"
+
+volumes:
+  jinguan-pgdata: {}

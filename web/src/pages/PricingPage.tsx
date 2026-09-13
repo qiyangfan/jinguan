@@ -1,5 +1,6 @@
-/* 价目管理(ADMIN):渠道价目运营(μ 整数录入,下发契约自动转去尾零字符串);
-   time_windows 动态行编辑(multiplier ≤4 位小数字符串)。 */
+/* 价目管理(ADMIN):渠道价目运营。录入与展示口径 =「元 / 百万 tokens」;存储 = credit/token
+   (1 credit = 本币 1e-9,故 1 元/百万 = 1000 credit/token,提交 ×1000、回填 ÷1000);
+   下发契约为去尾零十进制字符串(元/token,≤9 位小数,同 muniu ParsePrice)。time_windows 动态行编辑。 */
 
 import { useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -7,6 +8,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -29,28 +37,65 @@ import { PageHeader } from "@/components/page-header";
 import { FormRow } from "@/components/form-row";
 import { QueryErrorAlert } from "@/components/query-error";
 import { errorDetail } from "@/lib/api";
+import { yuanPerMillion2credits } from "@/lib/money";
 import { adminList, remove, upsert } from "@/lib/pricing-api";
-import type { PricingView, TimeWindow } from "@/lib/api-types.gen";
+import type { PricingView, TimeWindow } from "@/lib/pricing-api";
 
 interface UpsertForm {
   alias: string;
   currency: string;
-  inputMicros: string;
-  cachedInputMicros: string;
-  outputMicros: string;
+  inputCredits: string;
+  cachedInputCredits: string;
+  outputCredits: string;
   timezone: string;
   windows: TimeWindow[];
 }
 
+/** 时区选项只用固定偏移:数据面(muniu ParseZoneOffset)仅认 "UTC"/"±HH:MM",IANA 名会被拒。 */
+const TIMEZONES = [
+  { value: "UTC", label: "UTC(协调世界时)" },
+  { value: "+08:00", label: "UTC+08:00(北京、新加坡)" },
+  { value: "+09:00", label: "UTC+09:00(东京、首尔)" },
+  { value: "+07:00", label: "UTC+07:00(曼谷、雅加达)" },
+  { value: "+05:30", label: "UTC+05:30(印度)" },
+  { value: "-05:00", label: "UTC-05:00(美东)" },
+  { value: "-08:00", label: "UTC-08:00(美西)" },
+];
+
 const EMPTY: UpsertForm = {
   alias: "",
   currency: "CNY",
-  inputMicros: "",
-  cachedInputMicros: "0",
-  outputMicros: "",
-  timezone: "Asia/Shanghai",
+  inputCredits: "",
+  cachedInputCredits: "0",
+  outputCredits: "",
+  timezone: "+08:00",
   windows: [],
 };
+
+/** 倍率规则与后端 PricingAdminController 同式:正数、最多 4 位小数。 */
+const MULTIPLIER_RE = /^\d+(\.\d{1,4})?$/;
+
+/** 时段窗 "HH:MM-HH:MM":起点须早于 24:00,终点可到 24:00,起止相同无效;终点早于起点=跨零点窗(与数据面 ParseWindowMinutes 一致)。 */
+function validWindow(s: string): boolean {
+  const m = /^(\d{2}):(\d{2})-(\d{2}):(\d{2})$/.exec(s);
+  if (!m) return false;
+  const [h1, m1, h2, m2] = [Number(m[1]), Number(m[2]), Number(m[3]), Number(m[4])];
+  const startOk = h1 < 24 && m1 < 60;
+  const endOk = (h2 < 24 && m2 < 60) || (h2 === 24 && m2 === 0);
+  return startOk && endOk && h1 * 60 + m1 !== h2 * 60 + m2;
+}
+
+/** 下发契约十进制串(元/token,如 "0.000008")→ 百万 tokens 口径整数(8);先取整消浮点尾差。 */
+function contract2Million(s: string): number {
+  return Math.round(parseFloat(s) * 1_000_000);
+}
+
+/** 价目币种符号(契约 currency 为自由串,未知币种原样显示代码)。 */
+function currencySymbol(c: string): string {
+  if (c === "CNY") return "¥";
+  if (c === "USD") return "$";
+  return `${c} `;
+}
 
 export default function PricingPage() {
   const queryClient = useQueryClient();
@@ -63,11 +108,14 @@ export default function PricingPage() {
     mutationFn: () =>
       upsert(form.alias, {
         currency: form.currency,
-        inputMicros: Number(form.inputMicros),
-        cachedInputMicros: Number(form.cachedInputMicros),
-        outputMicros: Number(form.outputMicros),
+        inputCredits: yuanPerMillion2credits(form.inputCredits),
+        cachedInputCredits: yuanPerMillion2credits(form.cachedInputCredits),
+        outputCredits: yuanPerMillion2credits(form.outputCredits),
         timezone: form.timezone || undefined,
-        time_windows: form.windows,
+        timeWindows: form.windows.map((w) => ({
+          window: w.window.trim(),
+          multiplier: w.multiplier.trim(),
+        })),
       }),
     onSuccess: () => {
       setError("");
@@ -89,6 +137,19 @@ export default function PricingPage() {
   function submit(e: FormEvent) {
     e.preventDefault();
     setError("");
+    // 时段窗/倍率与数据面校验同规则(muniu ParseMultiplier 只认 (0,10]):
+    // 不合格提前拦截,避免保存成功但 muniu 拉取时静默跳过、该价目永不生效
+    const bad = form.windows.find((w) => {
+      if (!validWindow(w.window.trim())) return true;
+      const n = parseFloat(w.multiplier.trim());
+      return !MULTIPLIER_RE.test(w.multiplier.trim()) || !(n > 0 && n <= 10);
+    });
+    if (bad) {
+      setError(
+        "分时段窗口须为 HH:MM-HH:MM(如 21:00-24:00),倍率须大于 0 且不超过 10、最多 4 位小数(如 1.5)",
+      );
+      return;
+    }
     upsertMut.mutate();
   }
 
@@ -96,13 +157,19 @@ export default function PricingPage() {
     setForm({
       alias: v.alias,
       currency: v.currency,
-      inputMicros: String(Math.round(parseFloat(v.input) * 1_000_000)),
-      cachedInputMicros: String(Math.round(parseFloat(v.cached_input) * 1_000_000)),
-      outputMicros: String(Math.round(parseFloat(v.output) * 1_000_000)),
+      inputCredits: String(contract2Million(v.input)),
+      cachedInputCredits: String(contract2Million(v.cached_input)),
+      outputCredits: String(contract2Million(v.output)),
       timezone: v.timezone ?? "",
       windows: [...v.time_windows],
     });
   }
+
+  /* 时区下拉项:现值不在常用清单时原样保留(如历史 IANA 名),空值只出 placeholder */
+  const timezoneOptions =
+    form.timezone && !TIMEZONES.some((t) => t.value === form.timezone)
+      ? [...TIMEZONES, { value: form.timezone, label: form.timezone }]
+      : TIMEZONES;
 
   return (
     <section className="space-y-6">
@@ -113,8 +180,8 @@ export default function PricingPage() {
         <CardHeader>
           <CardTitle>价目录入 / 编辑</CardTitle>
           <CardDescription>
-            单价单位 μ(每 token);time_windows multiplier ≤4 位小数(如 1.5);保存后由 muniu
-            下轮拉取生效(零重启)
+            单价按每百万 tokens 计;分时段倍率大于 0 且不超过 10(最多 4 位小数,如
+            1.5);保存后约一分钟内自动生效
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -129,59 +196,95 @@ export default function PricingPage() {
                   required
                 />
               </FormRow>
-              <FormRow label="币种" htmlFor="currency">
-                <Input
-                  id="currency"
+              <FormRow
+                label="币种"
+                htmlFor="currency"
+                help="价目币种;数据面目前支持 CNY(人民币)与 USD(美元)"
+              >
+                <Select
                   value={form.currency}
-                  onChange={(e) => setForm({ ...form, currency: e.target.value })}
-                  className="w-24"
-                  required
-                />
+                  onValueChange={(v) => setForm({ ...form, currency: v })}
+                >
+                  <SelectTrigger id="currency" className="w-36">
+                    <SelectValue placeholder="选择币种" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="CNY">CNY(人民币)</SelectItem>
+                    <SelectItem value="USD">USD(美元)</SelectItem>
+                  </SelectContent>
+                </Select>
               </FormRow>
-              <FormRow label="输入价(μ)" htmlFor="inputMicros">
+              <FormRow
+                label="输入单价(元 / 百万 tokens)"
+                htmlFor="inputCredits"
+                help="每百万 tokens 收取的金额;系统以十亿分之一元(credit/token)存储,无需换算"
+              >
                 <Input
-                  id="inputMicros"
+                  id="inputCredits"
                   type="number"
                   min="0"
-                  value={form.inputMicros}
-                  onChange={(e) => setForm({ ...form, inputMicros: e.target.value })}
+                  value={form.inputCredits}
+                  onChange={(e) => setForm({ ...form, inputCredits: e.target.value })}
                   className="w-32"
                   required
                 />
               </FormRow>
-              <FormRow label="缓存输入价(μ)" htmlFor="cachedInputMicros">
+              <FormRow
+                label="缓存输入单价(元 / 百万 tokens)"
+                htmlFor="cachedInputCredits"
+                help="命中缓存的输入 tokens 适用此价;每百万 tokens 收取的金额,0 表示与输入同价"
+              >
                 <Input
-                  id="cachedInputMicros"
+                  id="cachedInputCredits"
                   type="number"
                   min="0"
-                  value={form.cachedInputMicros}
-                  onChange={(e) => setForm({ ...form, cachedInputMicros: e.target.value })}
+                  value={form.cachedInputCredits}
+                  onChange={(e) => setForm({ ...form, cachedInputCredits: e.target.value })}
                   className="w-32"
                 />
               </FormRow>
-              <FormRow label="输出价(μ)" htmlFor="outputMicros">
+              <FormRow
+                label="输出单价(元 / 百万 tokens)"
+                htmlFor="outputCredits"
+                help="每百万 tokens 收取的金额;系统以十亿分之一元(credit/token)存储,无需换算"
+              >
                 <Input
-                  id="outputMicros"
+                  id="outputCredits"
                   type="number"
                   min="0"
-                  value={form.outputMicros}
-                  onChange={(e) => setForm({ ...form, outputMicros: e.target.value })}
+                  value={form.outputCredits}
+                  onChange={(e) => setForm({ ...form, outputCredits: e.target.value })}
                   className="w-32"
                   required
                 />
               </FormRow>
-              <FormRow label="时区" htmlFor="timezone">
-                <Input
-                  id="timezone"
-                  value={form.timezone}
-                  onChange={(e) => setForm({ ...form, timezone: e.target.value })}
-                  className="w-40"
-                  placeholder="Asia/Shanghai"
-                />
+              <FormRow
+                label="时区"
+                htmlFor="timezone"
+                help="分时段窗口按此时区判断;仅支持固定偏移(UTC 或 ±HH:MM),有夏令时的地区请按实际偏移填写;留空按 UTC"
+              >
+                <Select
+                  value={form.timezone || undefined}
+                  onValueChange={(v) => setForm({ ...form, timezone: v })}
+                >
+                  <SelectTrigger id="timezone" className="w-56">
+                    <SelectValue placeholder="未设置(按 UTC)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {timezoneOptions.map((t) => (
+                      <SelectItem key={t.value} value={t.value}>
+                        {t.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </FormRow>
             </div>
 
-            <FormRow label="分时段倍率">
+            <FormRow
+              label="分时段倍率"
+              help="时段窗格式 HH:MM-HH:MM:起点须早于 24:00,终点可到 24:00,起止相同无效,终点早于起点表示跨零点窗口;倍率大于 0 且不超过 10,最多 4 位小数,如 1.5(高峰 1.5 倍、低谷 0.8 倍)"
+            >
               {form.windows.map((w, i) => (
                 <div key={i} className="flex items-center gap-2">
                   <Input
@@ -195,7 +298,8 @@ export default function PricingPage() {
                       })
                     }
                     className="w-40"
-                    placeholder="窗口名(peak)"
+                    placeholder="21:00-24:00"
+                    aria-label={`第 ${i + 1} 档时段窗口`}
                   />
                   <Input
                     value={w.multiplier}
@@ -209,6 +313,7 @@ export default function PricingPage() {
                     }
                     className="w-28"
                     placeholder="1.5"
+                    aria-label={`第 ${i + 1} 档倍率`}
                   />
                   <Button
                     type="button"
@@ -244,9 +349,7 @@ export default function PricingPage() {
       <Card>
         <CardHeader>
           <CardTitle>现有效期目</CardTitle>
-          <CardDescription>
-            input/output 为下发契约形态(去尾零十进制字符串);编辑可回填表单
-          </CardDescription>
+          <CardDescription>单价精确到小数点后 6 位;点「编辑」可回填表单修改</CardDescription>
         </CardHeader>
         <CardContent>
           {list.isError ? (
@@ -263,9 +366,9 @@ export default function PricingPage() {
                 <TableRow>
                   <TableHead>别名</TableHead>
                   <TableHead>币种</TableHead>
-                  <TableHead>输入(元)</TableHead>
-                  <TableHead>缓存输入(元)</TableHead>
-                  <TableHead>输出(元)</TableHead>
+                  <TableHead>输入单价(元 / 百万 tokens)</TableHead>
+                  <TableHead>缓存输入单价(元 / 百万 tokens)</TableHead>
+                  <TableHead>输出单价(元 / 百万 tokens)</TableHead>
                   <TableHead>分时段</TableHead>
                   <TableHead>操作</TableHead>
                 </TableRow>
@@ -275,9 +378,18 @@ export default function PricingPage() {
                   <TableRow key={v.alias}>
                     <TableCell>{v.alias}</TableCell>
                     <TableCell>{v.currency}</TableCell>
-                    <TableCell>¥{v.input}</TableCell>
-                    <TableCell>¥{v.cached_input}</TableCell>
-                    <TableCell>¥{v.output}</TableCell>
+                    <TableCell>
+                      {currencySymbol(v.currency)}
+                      {contract2Million(v.input)}
+                    </TableCell>
+                    <TableCell>
+                      {currencySymbol(v.currency)}
+                      {contract2Million(v.cached_input)}
+                    </TableCell>
+                    <TableCell>
+                      {currencySymbol(v.currency)}
+                      {contract2Million(v.output)}
+                    </TableCell>
                     <TableCell>
                       {v.time_windows.length === 0
                         ? "—"
@@ -312,7 +424,7 @@ export default function PricingPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>删除价目</AlertDialogTitle>
             <AlertDialogDescription>
-              确认删除「{pendingDelete}」的价目?删除后 muniu 下轮拉取即按新价目生效,操作不可撤销。
+              {`确认删除「${pendingDelete}」的价目?删除后约一分钟内数据面即按删除后价目生效,操作不可撤销。`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

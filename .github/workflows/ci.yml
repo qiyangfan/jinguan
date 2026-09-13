@@ -22,6 +22,12 @@ jobs:
           java-version: "21"
           cache: maven
       - run: mvn -B verify
+      # ── 契约漂移门禁:重新导出根级 openapi.json,与入库版本不一致即红 ──
+      - name: openapi contract drift gate
+        run: |
+          git ls-files --error-unmatch openapi.json
+          mvn -B -q -Popenapi verify -DskipTests -Djacoco.skip=true -Dpmd.skip=true -Dspotbugs.skip=true
+          git diff --exit-code -- openapi.json
 
   # ── 门禁 2:前端(TypeScript) ────────────────────────────
   web:
@@ -35,7 +41,7 @@ jobs:
           package_json_file: web/package.json
       - uses: actions/setup-node@v7
         with:
-          node-version: "24"
+          node-version: "22"
           cache: pnpm
           cache-dependency-path: web/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
@@ -47,6 +53,8 @@ jobs:
       - run: pnpm lint:css
         working-directory: web
       - run: pnpm format:check
+        working-directory: web
+      - run: pnpm test
         working-directory: web
       - run: pnpm build
         working-directory: web

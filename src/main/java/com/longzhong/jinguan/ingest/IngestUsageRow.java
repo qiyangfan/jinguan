@@ -20,7 +20,7 @@ public record IngestUsageRow(
     long ReasoningTokens,
     long CachedTokens,
     boolean Estimated,
-    long CostMicro,
+    long CostCredits,
     String Currency,
     Long LatencyFirstTokenMs,
     long LatencyTotalMs,

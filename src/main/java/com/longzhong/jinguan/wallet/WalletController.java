@@ -30,12 +30,19 @@ public class WalletController {
   }
 
   public record CreditRequest(
-      @NotNull Long userId, @Positive long amountMicros, String refId, String note) {}
+      @NotNull Long userId, @Positive long amountCredits, String refId, String note) {}
 
-  /** 当前用户余额(micros)。 */
+  public record DebitRequest(
+      @NotNull Long userId, @Positive long amountCredits, String refId, String note) {}
+
+  /** 当前用户余额(credits,1 credit = 本币 1e-9,与 muniu 同基座)。 */
   @GetMapping("/balance")
   public Map<String, Object> balance(@AuthenticationPrincipal JwtService.LoginUser user) {
-    return Map.of("userId", user.uid(), "balanceMicros", wallet.balance(user.uid()));
+    return Map.of(
+        "userId",
+        String.valueOf(user.uid()),
+        "balanceCredits",
+        String.valueOf(wallet.balance(user.uid())));
   }
 
   /** 当前用户账本流水(新→旧)。 */
@@ -47,22 +54,57 @@ public class WalletController {
     return wallet.history(user.uid(), page, size).getContent();
   }
 
-  /** 管理员手工入账(兜底通道;与支付入账走同一账本,refId 幂等)。目标用户按 userId。 */
+  /** 管理员手工入账(兜底通道;与支付入账走同一账本,refId 幂等)。目标用户按 userId;分录记录操作人。 */
   @PostMapping("/admin/credit")
   @PreAuthorize("hasRole('ADMIN')")
-  public ResponseEntity<Map<String, Object>> credit(@RequestBody @Validated CreditRequest req) {
+  public ResponseEntity<Map<String, Object>> credit(
+      @RequestBody @Validated CreditRequest req,
+      @AuthenticationPrincipal JwtService.LoginUser admin) {
     String refId =
         req.refId() == null || req.refId().isBlank() ? "manual-" + UUID.randomUUID() : req.refId();
     LedgerEntryEntity entry =
         wallet
             .credit(
                 req.userId(),
-                req.amountMicros(),
+                req.amountCredits(),
                 WalletService.REASON_MANUAL_TOPUP,
                 refId,
-                req.note())
+                req.note(),
+                admin.uid())
             .entry();
     return ResponseEntity.status(HttpStatus.CREATED)
-        .body(Map.of("refId", entry.getRefId(), "balanceMicros", wallet.balance(req.userId())));
+        .body(
+            Map.of(
+                "refId",
+                entry.getRefId(),
+                "balanceCredits",
+                String.valueOf(wallet.balance(req.userId()))));
+  }
+
+  /** 管理员调账扣减(错充修正等;refId 幂等)。复用 WalletService.debit 全部不变量——余额不足时拒绝且零痕迹, 负余额被禁止(非负不变量神圣);分录记录操作人。 */
+  @PostMapping("/admin/debit")
+  @PreAuthorize("hasRole('ADMIN')")
+  public ResponseEntity<Map<String, Object>> debit(
+      @RequestBody @Validated DebitRequest req,
+      @AuthenticationPrincipal JwtService.LoginUser admin) {
+    String refId =
+        req.refId() == null || req.refId().isBlank() ? "adjust-" + UUID.randomUUID() : req.refId();
+    LedgerEntryEntity entry =
+        wallet
+            .debit(
+                req.userId(),
+                req.amountCredits(),
+                WalletService.REASON_MANUAL_ADJUST,
+                refId,
+                req.note(),
+                admin.uid())
+            .entry();
+    return ResponseEntity.status(HttpStatus.CREATED)
+        .body(
+            Map.of(
+                "refId",
+                entry.getRefId(),
+                "balanceCredits",
+                String.valueOf(wallet.balance(req.userId()))));
   }
 }

@@ -22,7 +22,16 @@ jinguan:
   security:
     # JWT 签名密钥(生产经环境注入,≥32 字节);本地 dev 默认值仅限本机
     jwt-secret: ${JINGUAN_JWT_SECRET:dev-only-secret-change-me-0123456789abcdef}
-    jwt-ttl-minutes: 720
+    # 双 token:access 短 TTL(API 认证,前端内存态);refresh 长 TTL(httpOnly cookie,仅 /auth/refresh 轮换)
+    jwt-access-ttl-minutes: ${JINGUAN_JWT_ACCESS_TTL_MINUTES:30}
+    jwt-refresh-ttl-days: ${JINGUAN_JWT_REFRESH_TTL_DAYS:7}
+    # refresh cookie Secure 标志(生产 HTTPS 环境注入 true;本地 dev http 为 false)
+    refresh-cookie-secure: ${JINGUAN_REFRESH_COOKIE_SECURE:false}
+    # 登录/注册防爆破:per-IP 固定窗口;trusted-proxy=true 才采信 X-Forwarded-For
+    rate-limit:
+      login-per-minute: ${JINGUAN_RATE_LIMIT_LOGIN:10}
+      register-per-minute: ${JINGUAN_RATE_LIMIT_REGISTER:3}
+      trusted-proxy: ${JINGUAN_TRUSTED_PROXY:false}
   ingest:
     # muniu IngestSink 投递的 Bearer Token(与 muniu .env 的 ingest token 同值)
     token: ${JINGUAN_INGEST_TOKEN:dev-ingest-token}

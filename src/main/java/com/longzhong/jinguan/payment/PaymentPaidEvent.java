@@ -7,7 +7,7 @@ import java.time.Instant;
  * orderId,账本幂等键——回调重推/事件重放由账本唯一约束兜底。
  */
 public record PaymentPaidEvent(
-    String orderId, long userId, long amountMicros, String currency, Instant paidAt) {
+    String orderId, long userId, long amountCredits, String currency, Instant paidAt) {
 
   public String ledgerRefId() {
     return "pay:" + orderId;

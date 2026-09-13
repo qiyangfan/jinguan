@@ -1,0 +1,16 @@
+.git/
+# 构建上下文瘦身:构建产物/依赖/密钥绝不进镜像
+target/
+web/node_modules/
+web/dist/
+web/*.tsbuildinfo
+src/main/resources/static/
+.github/
+docs/
+openspec/
+scripts/
+*.md
+!README.md
+.env
+.env.*
+.gitignore

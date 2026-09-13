@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Navigate, Route, Routes } from "react-router";
 import { AppShell } from "@/components/app-shell";
 import { useAuth } from "@/lib/auth-store";
@@ -14,7 +15,16 @@ function RequireAdmin({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
-  const { user } = useAuth();
+  const { user, booted, bootstrap } = useAuth();
+
+  // 挂载静默续期:凭 refresh cookie 恢复会话(页面刷新不掉登录)
+  useEffect(() => {
+    void bootstrap();
+  }, [bootstrap]);
+
+  if (!booted) {
+    return null; // 续期判定中,避免登录页闪烁
+  }
 
   if (!user) {
     return <LoginPage />;

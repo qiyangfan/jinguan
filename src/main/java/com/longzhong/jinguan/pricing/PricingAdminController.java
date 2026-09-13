@@ -27,9 +27,9 @@ public class PricingAdminController {
 
   public record UpsertReq(
       @NotBlank String currency,
-      @PositiveOrZero long inputMicros,
-      @PositiveOrZero long cachedInputMicros,
-      @PositiveOrZero long outputMicros,
+      @PositiveOrZero long inputCredits,
+      @PositiveOrZero long cachedInputCredits,
+      @PositiveOrZero long outputCredits,
       String timezone,
       List<TimeWindowReq> timeWindows) {}
 
@@ -56,9 +56,9 @@ public class PricingAdminController {
         alias,
         new PricingService.UpsertCommand(
             req.currency(),
-            req.inputMicros(),
-            req.cachedInputMicros(),
-            req.outputMicros(),
+            req.inputCredits(),
+            req.cachedInputCredits(),
+            req.outputCredits(),
             req.timezone(),
             windows));
   }

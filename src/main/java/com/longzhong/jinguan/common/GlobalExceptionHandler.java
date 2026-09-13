@@ -25,6 +25,11 @@ public class GlobalExceptionHandler {
     return problem(HttpStatus.CONFLICT, e.getMessage());
   }
 
+  @ExceptionHandler(KeyRevokedException.class)
+  public ProblemDetail keyRevoked(KeyRevokedException e) {
+    return problem(HttpStatus.CONFLICT, e.getMessage());
+  }
+
   @ExceptionHandler(InsufficientFundsException.class)
   public ProblemDetail unprocessable(InsufficientFundsException e) {
     return problem(HttpStatus.UNPROCESSABLE_ENTITY, e.getMessage());
