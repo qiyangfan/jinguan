@@ -4,6 +4,22 @@
  */
 
 export interface paths {
+    "/admin/topology": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["current"];
+        put: operations["replace"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/pricing/{alias}": {
         parameters: {
             query?: never;
@@ -276,6 +292,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/control/v1/topology": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["topology"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/control/v1/pricing": {
         parameters: {
             query?: never;
@@ -344,6 +376,44 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        CapabilityDef: {
+            provider?: string;
+            model?: string;
+            drop_params?: string[];
+            thinking_lock?: boolean;
+            /** Format: int64 */
+            max_output_tokens?: number;
+        };
+        KeyRef: {
+            env?: string;
+            /** Format: int32 */
+            weight?: number;
+        };
+        ProviderDef: {
+            name?: string;
+            adapter?: string;
+            base_url?: string;
+            keys?: components["schemas"]["KeyRef"][];
+            /** Format: int64 */
+            weight?: number;
+            /** Format: int64 */
+            priority?: number;
+        };
+        RouteCandidate: {
+            provider?: string;
+            model?: string;
+            /** Format: int64 */
+            priority?: number;
+            /** Format: int64 */
+            weight?: number;
+        };
+        TopologyPayload: {
+            providers?: components["schemas"]["ProviderDef"][];
+            model_routes?: {
+                [key: string]: components["schemas"]["RouteCandidate"][];
+            };
+            models?: components["schemas"]["CapabilityDef"][];
+        };
         TimeWindowReq: {
             window: string;
             multiplier: string;
@@ -518,6 +588,48 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    current: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["TopologyPayload"];
+                };
+            };
+        };
+    };
+    replace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TopologyPayload"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     upsert: {
         parameters: {
             query?: never;
@@ -971,6 +1083,28 @@ export interface operations {
                     "*/*": {
                         [key: string]: unknown;
                     };
+                };
+            };
+        };
+    };
+    topology: {
+        parameters: {
+            query?: never;
+            header?: {
+                "If-None-Match"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["TopologyPayload"];
                 };
             };
         };

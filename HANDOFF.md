@@ -2,20 +2,21 @@
 
 > 维护纪律:只写「当前状态 / 下一步 / 开放决策项 / 验收记录」四块,不写变更明细(归 git log),单次更新 ≤30 行。
 
-## 当前状态(2026-09-12,openspec 五 change 批量实施完成)
+## 当前状态(2026-09-13,五 change 归档 + 拓扑下发(第四根管子)落地)
 
 - **五 change 已实施(close-revocation-loop / harden-money-ops / delivery-pipeline / harden-auth-session / record-usage-statements)**:`make check` 全绿(后端 33 测试含 JaCoCo/PMD/SpotBugs/Spotless 门禁 + 前端四门禁);迁移 V3-V5 落地;根级 `openapi.json` 导出(16 路径,两次生成 diff 为空=确定性实证)并接通前端 `contracts:gen`(顺带修复 PricingPage 误用 time_windows 的契约漂移);多阶段镜像构建成功 + compose 冒烟全链路通过(终态余额账实相符);前端时间显示统一人类可读(`formatDateTime`,YYYY-MM-DD HH:mm)。清单终态写回各 change tasks.md:**46 完成 / 0 阻塞**。
 - **两项遗留阻塞已由用户解锁后收口(2026-09-12)**:①引入 vitest(前端五门禁就位):api.test.ts 3 组(401 单飞仅一次刷新/刷新失败清态广播/清态后无凭证外泄)+ auth-store.test.ts 4 组(bootstrap 恢复会话/失败回落/登出清态/登录解码)7/7 绿,接入 Makefile check 与 CI web job;②吊销 muniu 联调(独立实例 3s 收敛窗口):mk2 key 基线 502(鉴权过/上游拒连)→锦官吊销→一个拉取周期后 401 auth_failed,跨仓管子端到端打通。
 - **深度复查已完成(2026-09-12,验收记录 2)**:此前审计的全部结论经逐文件亲证**零项被推翻**;新确认 2 个真实缺陷并入既有 change——①同 refId 并发幂等重放撞唯一约束转裸 500(insertOrReplay 先查后插,WalletConcurrencyTest 未覆盖同键并发)→ harden-money-ops 任务 3.2 + wallet-ledger spec MODIFIED;②登录用户名枚举(404/400 双差异)→ harden-auth-session 任务 3.3 + auth spec 增场景。无新增 change。
 - 与 muniu 的三根管子:**全部接通**——价目下发、计量 ingest(契约测试钉死)、key 吊销拉取(本轮补齐,欠费停服+终态吊销)。
+- **五 change 已全部归档(2026-09-13)**:`archive/2026-09-13-*` 五个,主 specs 合并 delta(+5/−3,活动 change 清零);收尾补全 delta 工件欠账——close-revocation-loop 补 REMOVED 两段(「吊销下发未实现(现状)」被「吊销下发端点」取代、「muniu 侧消费契约(对齐基准)」逐字段并入其正文,防合并后新旧矛盾并存),主 spec「key 绑定」补 MUST 关键词(RFC 2119 校验拦截点)。
+- **拓扑下发=第四根管子已落地(2026-09-13,openspec `publish-topology` 已归档,新 capability topology-distribution)**:`GET /control/v1/topology`(ETag=payload 内容哈希双引号、If-None-Match 304、空态 200 空三件套)+ `PUT /admin/topology` 整包替换(V7 三表 topology_providers/routes/models;校验:routes 非空/引用完整/provider weight>0,key 只存 env 引用名绝不明文,相同内容重放 ETag 不变);SecurityConfig 放行同款网络隔离注记;契约测试 10 组逐字段对齐 muniu TopologyPayload;openapi.json 重导出(确定性 diff 空)+ 前端类型同步;**muniu 联调实录**(独立实例,poll=2s):首拉热替换 reused=0/created=1/removed=1 → 变更轮 reused=1/created=0/removed=0(池运行态无损)→ 锦官停机 WARN 保持当前快照、数据面存活;`make check` 全绿。
 
 - **【用户定向】金额基座切换 μ→credit(1e-9)+ 出站 long 统一 string(2026-09-13,验收记录 4)**:muniu 计量契约实为 `CostCredits`(credit=1e-9 本币,muniu 选型注释明确否决 μ 基座),锦官原 `CostMicro`(1e-6)存在字段名+单位双重错位(真实链路将 100% 静默丢行/1000× 错扣)。已全链切换:V6 迁移(rename+存量×1000)、实体/端点/前端字段名、`creditsToDecimal` scale 9(同 muniu ParsePrice)、出站 long(ID+金额)统一 string(`@JsonSerialize(ToStringSerializer)`,JS 2^53 精度安全)、前端 money.ts BigInt 化、价目录入口径「元/百万 ↔ credit/token」×1000 换算(money.ts helper 单源)。
 
 ## 下一步(严格按序;涉及 openspec change 的:实施 → `make check` 全绿 → 审查迭代循环 → 归档)
 
-1. 【用户】git 提交/推送(铁律:须逐次明确指令;工作区含五 change 全部实现 + V3-V5 迁移 + openapi.json + Dockerfile/compose + 删除的 static 产物残留)。push 后确认 CI 三线实跑绿(delivery-pipeline 3.1 的遗留确认点)。
-2. 【执行会话】归档五 change(openspec archive:主 specs 合并 delta)。
-3. 【跨会话】backlog(触发条件到即立项,现在不动):兑换码(商业验证期自助收费,建议排在真实 PSP 之前)→ 真实 PSP adapter(含回调验签真实现 + queryStatus 对账)→ Prometheus 指标 → 邮件自助找回(等门户 email)→ 集群化(行锁/分布式锁/分布式限流)→ 持久化事件总线。README「演进登记」随归档同步收口。
+1. 【用户】git push(e46a974 含五 change 实现;其后的五 change 归档 + publish-topology 拓扑下发已提交入库。铁律:逐次明确指令)。push 后确认 CI 三线实跑绿(delivery-pipeline 3.1 的遗留确认点)。
+2. 【跨会话】backlog(触发条件到即立项,现在不动):兑换码(商业验证期自助收费,建议排在真实 PSP 之前)→ 真实 PSP adapter(含回调验签真实现 + queryStatus 对账)→ Prometheus 指标 → 邮件自助找回(等门户 email)→ 集群化(行锁/分布式锁/分布式限流)→ 持久化事件总线。README「演进登记」随归档同步收口。
 
 ## 开放决策项
 

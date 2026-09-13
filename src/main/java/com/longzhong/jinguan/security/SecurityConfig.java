@@ -41,7 +41,10 @@ public class SecurityConfig {
                     // muniu 拉取端点:数据面 GET 无认证头(现实契约),靠部署网络隔离保护;
                     // muniu 侧增加拉取认证头为后续演进项
                     .requestMatchers(
-                        HttpMethod.GET, "/control/v1/pricing", "/control/v1/key-revocations")
+                        HttpMethod.GET,
+                        "/control/v1/pricing",
+                        "/control/v1/key-revocations",
+                        "/control/v1/topology")
                     .permitAll()
                     // ingest 的 Bearer 是独立静态 token(非用户 JWT),由 IngestController 自校验
                     .requestMatchers("/ingest/**")

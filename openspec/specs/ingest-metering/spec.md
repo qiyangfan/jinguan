@@ -6,11 +6,11 @@
 
 ### Requirement: ingest 行契约
 
-`POST /ingest/usage` 必须接受 `{"rows":[UsageRow]}` 负载,行字段名逐字段对齐 muniu UsageRow(PascalCase record,禁止改 camelCase);认证必须 (MUST) 经 Bearer 静态 token(`jinguan.ingest.token`,配置比对)。
+`POST /ingest/usage` 必须接受 `{"rows":[UsageRow]}` 负载,行字段名逐字段对齐 muniu UsageRow(PascalCase record,禁止改 camelCase);认证必须 (MUST) 经 Bearer 静态 token(`jinguan.ingest.token`),token 比对必须 (MUST) 使用常数时间比较(如 MessageDigest.isEqual),消除时序侧信道。
 
 #### Scenario: 错误 token 拒绝
 - **WHEN** Bearer token 与配置不符
-- **THEN** 401,整批不处理
+- **THEN** 401,整批不处理;比对耗时与错误位置无关
 
 ### Requirement: 逐行独立事务与部分成功
 
@@ -28,18 +28,26 @@
 - **WHEN** 同一批行被 muniu 重投
 - **THEN** 已扣行计 replayed,余额不变
 
-### Requirement: 欠费行为(现状)
+### Requirement: 用量明细留存
 
-余额不足的行当前 (SHALL) 跳过并计数,不留账本痕迹,待用户充值后由 muniu 下轮投递自然补账;当前 (SHALL) 无任何停服/吊销联动——欠费用户可继续使用(muniu 侧无余额预检,吊销下发未实现)。
+ingest 收到的每一行必须 (MUST) 先于扣账语义幂等落库到 append-only `usage_records`(usage_id 全局唯一,镜像 UsageRow 关键字段 + 解析出的归属用户),并记录处理结果投影(final_outcome:accepted/replayed/skipped_unbound/skipped_free/skipped_insufficient);重投或充值后补账成功必须 (MUST) 更新投影与尝试计数——投影可更新,不属资金事实,账本 append-only 纪律不约束本表。
 
-#### Scenario: 现状缺口
-- **WHEN** 用户余额耗尽后继续产生用量
-- **THEN** 行被跳过,但数据面继续放行该 key(资金闭环缺最后一环)
+#### Scenario: 每行有解释
+- **WHEN** 任意一行用量被处理(无论结果)
+- **THEN** usage_records 中可查到该行:钱花在哪(accepted)、为什么没花(skipped_insufficient/unbound/free)、是否重投(attempts)
 
-### Requirement: 用量明细留存(现状)
+### Requirement: 账单查询
 
-当前 (SHALL) 仅扣账不留存行明细——用户无法在控制面查看"钱花在哪一行",争议无对账依据。
+用户必须 (MUST) 能分页查询本人用量明细(新→旧);ADMIN 必须 (MUST) 能按用户查询;明细与账本流水可互相印证(USAGE 分录 ↔ accepted 明细行,经 refId="usage:{id}" 关联)。
 
-#### Scenario: 现状缺口
-- **WHEN** 用户查看钱包流水
-- **THEN** 只能看到 USAGE 扣账汇总分录,无模型/token 维度明细
+#### Scenario: 争议对账
+- **WHEN** 用户质疑一笔 USAGE 扣账
+- **THEN** 经分录 refId 定位到明细行,核对模型/token/费用
+
+### Requirement: 欠费停服联动
+
+余额不足的行仍必须 (MUST) 跳过并计 skippedInsufficient(零账本痕迹,充值后由 muniu 重投自然补账);同时必须 (MUST) 自动置位该用户欠费停服(独立小事务、幂等置位),使其名下全部 key 进入吊销下发名单——数据面在一个拉取周期(默认 60s)内停止放行。
+
+#### Scenario: 闭环收敛
+- **WHEN** 欠费用户的用量行到达
+- **THEN** 行被跳过计数,用户进入停服,其 key 最迟下一拉取周期被数据面拒绝

@@ -1,3 +1,13 @@
+## REMOVED Requirements
+
+### Requirement: 吊销下发未实现(现状)
+
+**原因**:契约缺位已由本 change 补齐——「吊销下发端点」ADDED 取代现状缺口记录;欠费/泄露 key 均已可从控制面叫停。
+
+### Requirement: muniu 侧消费契约(对齐基准)
+
+**原因**:消费语义已逐字段并入「吊销下发端点」(全量快照、version 单调、启动即拉、失败保持快照、默认 60s 周期);「拉取当前不带认证头(依赖网络隔离,双方演进项)」登记于 HANDOFF 演进项,不再单独成 Requirement。
+
 ## ADDED Requirements
 
 ### Requirement: 终态吊销

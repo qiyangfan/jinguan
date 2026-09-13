@@ -6,20 +6,32 @@ muniu key 与控制面用户的绑定关系(计量归账的身份映射),及其�
 
 ### Requirement: key 绑定
 
-ADMIN 可经 `POST /admin/key-bindings`(ADMIN 强制)建立 key_id → user_id 绑定,key_id 全局唯一主键;绑定是 ingest 归账的唯一身份依据。
+ADMIN 可经 `POST /admin/key-bindings`(ADMIN 强制)建立 key_id → user_id 绑定;key_id 必须 (MUST) 全局唯一,绑定必须 (MUST) 作为 ingest 归账的唯一身份依据。
 
 #### Scenario: 绑定后归账
 - **WHEN** key "k-1" 绑定到 userId=2 后 ingest 到达 APIKeyID="k-1" 的行
 - **THEN** 扣账落在 userId=2 的账户
 
-### Requirement: 吊销下发未实现(现状)
+### Requirement: 终态吊销
 
-`GET /control/v1/key-revocations` 已在 README 与 SecurityConfig 登记为三根管子之一(permitAll 放行),但当前 (SHALL) 无 Controller/数据模型/管理端点实现——契约缺位:muniu 拉取循环已就绪(全量快照替换、version 单调防回退、默认 60s),控制面无供给。
+ADMIN 必须 (MUST) 能对任意 key 执行终态吊销(`POST /admin/keys/{keyId}/revoke`,reason 必填,记录操作人);吊销必须 (MUST) 落 append-only `key_revocations` 表,重复吊销幂等;已吊销的 key 必须 (MUST) 拒绝重新绑定(409)——吊销是 key_id 的终态。
 
-#### Scenario: 现状缺口
-- **WHEN** muniu 按 ADR-0006 配置 revocations_url 指向锦官
-- **THEN** 404,吊销同步无法建立;欠费/泄露 key 均无法从控制面叫停
+#### Scenario: 吊销泄露 key
+- **WHEN** ADMIN 吊销 key "k-1" 后该 key 出现在下发名单,且尝试重绑 "k-1"
+- **THEN** 名单含 "k-1"、version 增长;重绑返回 409
 
-### Requirement: muniu 侧消费契约(对齐基准)
+### Requirement: 欠费停服(可恢复)
 
-数据面消费语义必须 (MUST) 对齐 muniu revocationLoop:GET 返回 `{"version":int64,"revoked":["key_id",...]}`,**全量快照替换**(非增量),version 单调(`>=` 才应用,防旧快照洗白),拉取失败保持上次快照,默认 60s 周期,启动即拉一次;拉取当前不带认证头(依赖网络隔离,双方演进项)。
+用户余额不足导致 ingest 扣账失败时,必须 (MUST) 自动置位该用户 `suspended_at`(幂等);该用户名下全部已绑定 key 随即进入下发名单;任何成功入账(支付/手工)必须 (MUST) 在同一事务内清除停服——充值即恢复,无需人工介入,不需要重新绑定 key。
+
+#### Scenario: 欠费即停,充值即恢复
+- **WHEN** 用户余额耗尽产生欠费行,随后完成充值
+- **THEN** 欠费后名单含其全部 key,充值后名单移除且 version 单调增长
+
+### Requirement: 吊销下发端点
+
+`GET /control/v1/key-revocations` 必须 (MUST) 返回 `{"version":int64,"revoked":["key_id",...]}`:终态吊销 ∪ 欠费用户名下 key 的**全量快照**(ORDER BY key_id),逐字段对齐 muniu revocationLoop 消费契约(全量替换、version 单调、启动即拉、失败保持上次快照);任何名单变化必须 (MUST) 与 version bump 同事务。
+
+#### Scenario: 契约逐字段
+- **WHEN** muniu 以默认 60s 周期拉取
+- **THEN** 响应被数据面直接接受;空态返回 `{"version":0,"revoked":[]}` 不报错
