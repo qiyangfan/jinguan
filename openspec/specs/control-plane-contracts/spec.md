@@ -1,7 +1,7 @@
 # control-plane-contracts Specification
 
 ## Purpose
-TBD - created by archiving change control-plane-contract-pinning. Update Purpose after archive.
+本 capability 钉死锦官与 muniu 之间四根跨仓管子(价目下发/key 吊销快照/用量上报/拓扑下发)的契约单源:`contracts/control-plane.md` 登记表回答一切契约问答,字段级一致性由聚合层 `scripts/contract-consistency.sh` 机器比对背书,防止双端字段名/单位/形态单边漂移。
 
 ## Requirements
 

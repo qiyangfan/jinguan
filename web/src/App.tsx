@@ -6,6 +6,7 @@ import KeysPage from "@/pages/KeysPage";
 import LoginPage from "@/pages/LoginPage";
 import PaymentsPage from "@/pages/PaymentsPage";
 import PricingPage from "@/pages/PricingPage";
+import TopologyPage from "@/pages/TopologyPage";
 import WalletPage from "@/pages/WalletPage";
 
 /** 角色守卫:ADMIN 专属页对 USER 重定向回钱包。 */
@@ -40,6 +41,14 @@ export default function App() {
           element={
             <RequireAdmin>
               <PricingPage />
+            </RequireAdmin>
+          }
+        />
+        <Route
+          path="/topology"
+          element={
+            <RequireAdmin>
+              <TopologyPage />
             </RequireAdmin>
           }
         />

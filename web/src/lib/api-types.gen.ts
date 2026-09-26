@@ -356,6 +356,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/topology/presets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["presets"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/pricing": {
         parameters: {
             query?: never;
@@ -578,6 +594,20 @@ export interface components {
         TimeWindow: {
             window?: string;
             multiplier?: string;
+        };
+        Preset: {
+            name?: string;
+            display_name?: string;
+            adapter?: string;
+            base_url?: string;
+            env_suggestion?: string;
+            models?: string[];
+            website?: string;
+            region?: string;
+            note?: string;
+        };
+        PresetEnvelope: {
+            presets?: components["schemas"]["Preset"][];
         };
     };
     responses: never;
@@ -1171,6 +1201,26 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["UsageRecordEntity"][];
+                };
+            };
+        };
+    };
+    presets: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PresetEnvelope"];
                 };
             };
         };

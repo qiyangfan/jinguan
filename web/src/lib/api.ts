@@ -155,5 +155,11 @@ export const api = {
       method: "PUT",
       body: body === undefined ? undefined : JSON.stringify(body),
     }).then((r) => unwrap<T>(r)),
+  /** PUT 并取回响应 ETag(拓扑整包替换;失败走统一错误转译)。 */
+  putEtag: async (path: string, body: unknown) => {
+    const resp = await doFetch(path, { method: "PUT", body: JSON.stringify(body) });
+    if (!resp.ok) throw await toStatusError(resp);
+    return resp.headers.get("ETag") ?? "";
+  },
   del: (path: string) => doFetch(path, { method: "DELETE" }).then((r) => unwrap<void>(r)),
 };

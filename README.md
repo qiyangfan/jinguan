@@ -17,19 +17,21 @@ Spring Boot + **Spring Modulith**(模块依赖 CI 门禁 + 模块间领域事件
 | `wallet` | ★ 钱包账本(核心域) | append-only、refId 幂等、余额非负不变量、per-user 条带锁内含完整事务 |
 | `payment` | 支付单状态机 + `PaymentProvider` 出站端口 | mock 渠道演示闭环;订单超时双保险(**懒过期守门保资金正确性 + 游标批量扫描收敛状态**,方案谱系见 [docs/design/payment-timeout.md](docs/design/payment-timeout.md));真实 PSP = 未来一个 adapter |
 | `pricing` | 渠道/价目运营 + 下发契约端点 | 对齐 muniu `admin.PricingView` 逐字段 |
+| `topology` | 拓扑三件套运营 + 下发契约端点(第四根管子) | ETag=内容哈希;官方厂商预设目录(`GET /admin/topology/presets`)供管理页一键回填 |
 | `ingest` | 计量接收 → 账本扣账 | 对齐 muniu `UsageRow` PascalCase 负载,Bearer 静态 token |
 | `security` | JWT + Spring Security(横切) | 无状态;`@AuthenticationPrincipal` 注入 uid |
 
 纪律:全库禁 public setter(工厂+意图方法);词汇统一(`*Service`=应用服务、
 `*Repository`=持久化端口);Modulith `verify()` 进 CI——跨模块依赖违规即红。
 
-## 与 muniu 的契约(三根管子)
+## 与 muniu 的契约(四根管子)
 
 | 契约 | 方向 | 形态 |
 |---|---|---|
 | 价目下发 | 锦官 → muniu 拉取 | `GET /control/v1/pricing` → `{"pricing":[PricingView]}`(input/multiplier 去尾零字符串) |
 | key 吊销 | 锦官 → muniu 拉取 | `GET /control/v1/key-revocations` → `{"version","revoked"}`(版本单调) |
 | 计量 ingest | muniu → 锦官推送 | `POST /ingest/usage` `{"rows":[UsageRow]}`(⚠ Go 无 json tag,PascalCase)+ Bearer |
+| 拓扑下发 | 锦官 → muniu 拉取 | `GET /control/v1/topology` → `TopologyPayload`(providers/model_routes/models;ETag 条件请求 304) |
 
 ⚠ muniu 的两个拉取目前不带认证头(数据面现实),`/control/v1/*` 依赖部署网络
 隔离保护;为数据面增加拉取认证头是双方演进项。ingest 已带 Bearer。
@@ -45,9 +47,9 @@ ingest 余额不足自动置位、任何入账同事务自动清除——充值�
 # 注册(首用户自动 ADMIN) → 手工入账 → mock 支付 → 入账 → 计量扣账
 curl -s :8090/auth/register -d '{"username":"a","password":"password-123"}' | jq .token
 curl -s :8090/wallet/admin/credit -H "Authorization: Bearer $T" \
-  -d '{"userId":1,"amountMicros":10000000,"refId":"seed-1"}'
+  -d '{"userId":1,"amountCredits":10000000000,"refId":"seed-1"}'
 curl -s :8090/payments/orders -H "Authorization: Bearer $T" \
-  -d '{"provider":"mock","amountMicros":2000000,"currency":"CNY"}'
+  -d '{"provider":"mock","amountCredits":2000000000,"currency":"CNY"}'
 curl -s :8090/payments/mock/po-xxx/pay          # 模拟收银台支付 → 账本入账
 curl -s :8090/wallet/balance -H "Authorization: Bearer $T"   # 余额已变
 ```
@@ -71,8 +73,6 @@ jinguan-pgdata,`make docker-down` 保留卷);冒烟:`curl :8090/actuator/health`
 
 - Event Publication Registry(事件持久化+重放):当前支付入账为同事务强一致;
   规模化后切换持久化事件实现最终一致。
-- **拓扑下发端点** `GET /control/v1/topology`(对齐 muniu 3.2 拉取源):需渠道管理数据模型,
-  随渠道管理功能一并排期;当前 muniu 侧文件源为缺省,不受影响。
 - 真实 PSP adapter:契约(`PaymentProvider`)已冻结,商业验证后实现一个渠道。
 - muniu 拉取认证头、key 代签(自校验 key 联动 ADR-0006):双方对齐后排期。
 - 集群化:per-user JVM 条带锁 → 账本行锁/分布式锁。

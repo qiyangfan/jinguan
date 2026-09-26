@@ -1,7 +1,7 @@
 # delivery-pipeline Specification
 
 ## Purpose
-TBD - created by archiving change delivery-pipeline. Update Purpose after archive.
+本 capability 约束「契约 → 构建 → 镜像 → 冒烟」的交付管道:根级 `openapi.json` 作为运行中应用导出的契约权威并接 CI 漂移门禁,前端类型由其生成;多阶段镜像构建与 compose 全链路冒烟保证发布物可运行、账实相符。
 
 ## Requirements
 

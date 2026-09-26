@@ -19,6 +19,7 @@ import { Pagination } from "@/components/pagination";
 import { FormRow } from "@/components/form-row";
 import { QueryErrorAlert } from "@/components/query-error";
 import { StatusBadge, type StatusMeta } from "@/components/status-badge";
+import { MobileCard } from "@/components/mobile-card";
 import { errorDetail } from "@/lib/api";
 import { createOrder, listOrders, mockPay } from "@/lib/payment-api";
 import { credits2yuan, yuan2credits } from "@/lib/money";
@@ -86,53 +87,101 @@ export default function PaymentsPage() {
             <p className="text-sm text-muted-foreground">加载中…</p>
           ) : orders.data && orders.data.length > 0 ? (
             <>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>订单号</TableHead>
-                    <TableHead>金额(元)</TableHead>
-                    <TableHead>状态</TableHead>
-                    <TableHead>创建时间</TableHead>
-                    <TableHead>过期 / 支付时间</TableHead>
-                    <TableHead>操作</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {orders.data.map((o) => (
-                    <TableRow key={o.orderId}>
-                      <TableCell>
-                        {/* 长单号截断展示,悬停看全量(对账仍可复制) */}
-                        <span
-                          className="block max-w-40 truncate font-mono text-2xs"
-                          title={o.orderId}
+              {/* 移动端(md 以下):卡片列表,金额为首要信息 */}
+              <div className="space-y-2 md:hidden">
+                {orders.data.map((o) => (
+                  <MobileCard
+                    key={o.orderId}
+                    headline={
+                      <span className="font-mono text-2xs" title={o.orderId}>
+                        {o.orderId}
+                      </span>
+                    }
+                    headlineClassName="truncate"
+                    headlineEnd={
+                      <span className="font-medium tabular-nums">
+                        ¥{credits2yuan(o.amountCredits)}
+                      </span>
+                    }
+                    rows={[
+                      {
+                        label: "状态",
+                        value: <StatusBadge meta={STATUS_META} value={o.status} />,
+                      },
+                      { label: "创建时间", value: formatDateTime(o.createdAt) },
+                      {
+                        /* 待支付/已过期显关单截止,已支付显实际支付时间 */
+                        label: o.status === "PAID" ? "支付时间" : "关单截止",
+                        value: formatDateTime(o.status === "PAID" ? o.paidAt : o.expiresAt),
+                      },
+                    ]}
+                    footer={
+                      o.status === "CREATED" ? (
+                        <Button
+                          className="h-11 flex-1"
+                          disabled={pay.isPending}
+                          onClick={() => pay.mutate(o.orderId)}
                         >
-                          {o.orderId}
-                        </span>
-                      </TableCell>
-                      <TableCell>¥{credits2yuan(o.amountCredits)}</TableCell>
-                      <TableCell>
-                        <StatusBadge meta={STATUS_META} value={o.status} />
-                      </TableCell>
-                      <TableCell>{formatDateTime(o.createdAt)}</TableCell>
-                      <TableCell>
-                        {/* 待支付/已过期显关单截止,已支付显实际支付时间 */}
-                        {formatDateTime(o.status === "PAID" ? o.paidAt : o.expiresAt)}
-                      </TableCell>
-                      <TableCell className="space-x-2">
-                        {o.status === "CREATED" && (
-                          <Button
-                            size="sm"
-                            disabled={pay.isPending}
-                            onClick={() => pay.mutate(o.orderId)}
-                          >
-                            {pay.isPending ? "…" : "模拟支付"}
-                          </Button>
-                        )}
-                      </TableCell>
+                          {pay.isPending ? "…" : "模拟支付"}
+                        </Button>
+                      ) : undefined
+                    }
+                  />
+                ))}
+              </div>
+
+              {/* 桌面端(md 及以上):表格 */}
+              <div className="hidden md:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>订单号</TableHead>
+                      <TableHead className="text-right">金额(元)</TableHead>
+                      <TableHead>状态</TableHead>
+                      <TableHead>创建时间</TableHead>
+                      <TableHead>过期 / 支付时间</TableHead>
+                      <TableHead>操作</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {orders.data.map((o) => (
+                      <TableRow key={o.orderId}>
+                        <TableCell>
+                          {/* 长单号截断展示,悬停看全量(对账仍可复制) */}
+                          <span
+                            className="block max-w-40 truncate font-mono text-2xs"
+                            title={o.orderId}
+                          >
+                            {o.orderId}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          ¥{credits2yuan(o.amountCredits)}
+                        </TableCell>
+                        <TableCell>
+                          <StatusBadge meta={STATUS_META} value={o.status} />
+                        </TableCell>
+                        <TableCell>{formatDateTime(o.createdAt)}</TableCell>
+                        <TableCell>
+                          {/* 待支付/已过期显关单截止,已支付显实际支付时间 */}
+                          {formatDateTime(o.status === "PAID" ? o.paidAt : o.expiresAt)}
+                        </TableCell>
+                        <TableCell className="space-x-2">
+                          {o.status === "CREATED" && (
+                            <Button
+                              size="sm"
+                              disabled={pay.isPending}
+                              onClick={() => pay.mutate(o.orderId)}
+                            >
+                              {pay.isPending ? "…" : "模拟支付"}
+                            </Button>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
               <Pagination
                 className="mt-3"
                 page={page + 1}
@@ -171,20 +220,28 @@ function AmountForm({ onCreated }: { onCreated: () => void }) {
   }
 
   return (
-    <form onSubmit={submit} className="flex flex-wrap items-end gap-3">
-      <FormRow label="金额(元)" htmlFor="amount">
+    <form
+      onSubmit={submit}
+      className="flex flex-col gap-4 md:flex-row md:flex-wrap md:items-end md:gap-3"
+    >
+      <FormRow label="金额(元)" htmlFor="amount" className="md:w-48">
         <Input
           id="amount"
           type="number"
+          inputMode="decimal"
           step="0.01"
           min="0"
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
-          className="w-48"
+          className="w-full"
           placeholder="0.01"
         />
       </FormRow>
-      <Button type="submit" disabled={create.isPending || !amount}>
+      <Button
+        type="submit"
+        className="h-11 w-full md:h-9 md:w-auto"
+        disabled={create.isPending || !amount}
+      >
         {create.isPending ? "下单中…" : "创建支付单"}
       </Button>
       {error && <p className="text-sm text-destructive">{error}</p>}

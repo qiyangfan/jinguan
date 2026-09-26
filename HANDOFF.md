@@ -2,7 +2,10 @@
 
 > 维护纪律:只写「当前状态 / 下一步 / 开放决策项 / 验收记录」四块,不写变更明细(归 git log),单次更新 ≤30 行。
 
-## 当前状态(2026-09-13,五 change 归档 + 拓扑下发(第四根管子)落地)
+## 当前状态(2026-09-26,provider-presets 归档入库 + 移动端全面重设计落地)
+
+- **本批(2026-09-26,验收记录 6)**:①官方厂商预设目录随 change `archive/2026-09-26-provider-presets` 入库(ProviderPresetCatalog 后端单源,`GET /admin/topology/presets`,契约测试钉死;前端一键回填,协议分支经前端归并收敛进适配器下拉——29 预设/22 厂商,切 anthropic 自动切分支端点,后端契约零改动);②移动端(md 以下)按原生范式全面重设计,弃「桌面等比折降」:app-shell 顶栏+底部标签栏+账户底部弹层(补齐窄屏无登出缺口)、MobileCard 表格/卡片双轨(流水/用量/订单/价目四列表)、SheetContent 底部弹层(max-md 贴底/md+ 居中)、表单单列满宽、金额右对齐 tabular-nums、触控 ≥44px、safe-area + viewport-fit=cover;375/768/1280 三档亮暗两态横向溢出清零(768 折叠点修复 flex item `min-w-0` 陷阱);评审迭代循环单遍收敛(3 处长文本触屏可达性);`make check` 全绿。AGENTS.md 前端宪法响应式条目同步新范式。
+- **specs strict 校验欠账清零(2026-09-26)**:control-plane-contracts / delivery-pipeline / topology-distribution 三主 spec 的占位 Purpose(归档机遗留)补写为真实 Purpose,`openspec validate --specs --strict` 9/9 绿。
 
 - **五 change 已实施(close-revocation-loop / harden-money-ops / delivery-pipeline / harden-auth-session / record-usage-statements)**:`make check` 全绿(后端 33 测试含 JaCoCo/PMD/SpotBugs/Spotless 门禁 + 前端四门禁);迁移 V3-V5 落地;根级 `openapi.json` 导出(16 路径,两次生成 diff 为空=确定性实证)并接通前端 `contracts:gen`(顺带修复 PricingPage 误用 time_windows 的契约漂移);多阶段镜像构建成功 + compose 冒烟全链路通过(终态余额账实相符);前端时间显示统一人类可读(`formatDateTime`,YYYY-MM-DD HH:mm)。清单终态写回各 change tasks.md:**46 完成 / 0 阻塞**。
 - **两项遗留阻塞已由用户解锁后收口(2026-09-12)**:①引入 vitest(前端五门禁就位):api.test.ts 3 组(401 单飞仅一次刷新/刷新失败清态广播/清态后无凭证外泄)+ auth-store.test.ts 4 组(bootstrap 恢复会话/失败回落/登出清态/登录解码)7/7 绿,接入 Makefile check 与 CI web job;②吊销 muniu 联调(独立实例 3s 收敛窗口):mk2 key 基线 502(鉴权过/上游拒连)→锦官吊销→一个拉取周期后 401 auth_failed,跨仓管子端到端打通。
@@ -15,7 +18,7 @@
 
 ## 下一步(严格按序;涉及 openspec change 的:实施 → `make check` 全绿 → 审查迭代循环 → 归档)
 
-1. 【用户】git push(e46a974 含五 change 实现;其后的五 change 归档 + publish-topology 拓扑下发已提交入库。铁律:逐次明确指令)。push 后确认 CI 三线实跑绿(delivery-pipeline 3.1 的遗留确认点)。
+1. 【已收口 2026-09-26】git push 本批执行(provider-presets 归档 + 移动端重设计随批);push 后仍需在平台确认 CI 三线实跑绿(delivery-pipeline 3.1 的遗留确认点,顺延至本批)。
 2. 【跨会话】backlog(触发条件到即立项,现在不动):兑换码(商业验证期自助收费,建议排在真实 PSP 之前)→ 真实 PSP adapter(含回调验签真实现 + queryStatus 对账)→ Prometheus 指标 → 邮件自助找回(等门户 email)→ 集群化(行锁/分布式锁/分布式限流)→ 持久化事件总线。README「演进登记」随归档同步收口。
 
 ## 开放决策项
@@ -30,6 +33,7 @@
 | 2026-09-12 | 操作人审计 | 独立审计表 / 账本加列 | **ledger 加 operator_user_id 可空列**:账本兼作审计是既定纪律,不为非资金操作先建审计表 |
 | 2026-09-12 | 用量明细一致性 | 双写强一致 / 明细先行幂等落库 | **明细先行**(usage_id 唯一,先落明细再扣账):final_outcome 是投影可更新,不属资金事实,账本 append-only 纪律不约束 |
 | 2026-09-12 | mockPay 是否加认证 | 加认证 / 匿名保留 | **匿名保留**:模拟 PSP 托管收银台,orderId 服务端生成不可枚举 = capability URL,与真实渠道形态一致 |
+| 2026-09-26 | 移动端信息架构 | 桌面等比折降(顶部横滚导航+表格横滚) / 移动原生范式(底部标签栏+卡片双轨+底部弹层) | **移动原生范式**(用户定向「移动端需要全面重新设计」):md 折叠点保留,md 以下由 app-shell/MobileCard/SheetContent 三单源承载;病根在信息架构而非断点参数 |
 
 ## 验收记录(阶段闸门时追加:判据 → 证据 → 日期)
 
@@ -38,3 +42,4 @@
 3. **openspec 五 change 批量实施(2026-09-12,单遍批处理)**:判据 = 每 change 任务逐项实现 + `make check` 全绿 + 清单实时写回;资金/契约改动测试先行。证据 = ①吊销闭环:V3 迁移 + 全量快照端点契约测试(空态/单调/并发水位)+ 端到端(欠费→名单→充值→恢复→吊销→重绑 409,RevocationLoopIntegrationTest 独立 H2);②资金加固:归属 404/本人订单簿/V4 operator_user_id/admin debit(422 零痕迹)/恒时 token 比较/原子 markPaidIfCreated(顺带修复 markPaid 读-改-写竞态)/并发同键重放收敛(concurrent_sameRefId_credits_replay_notFailure);③交付管道:springdoc webmvc-api(webmvc-ui 与 SpaWebConfig /** 回退有 PathPattern 冲突,实证后弃用)/openapi.json 根级导出(16 路径,确定性 diff 空)/CI 漂移门禁/多阶段 Dockerfile(首次构建 outDir 修复一次)+ compose 冒烟全链路(余额 8,000,000 账实相符;宿主 rootless 端口转发瞬态丢响应已留证,容器内同请求 100% 成功);④认证会话:双 token(jti 防同秒重复)/cookie 四属性/轮换/AuthSession 集成测试/Caffeine 限流(独立上下文钉 429 边界)/统一登录话术/admin 重置密码;⑤用量明细:V5 usage_records/投影语义(accepted 计费终态不降级)/毒丸行明细可见断言/本人+管理查询/WalletPage 明细视图。遗留 3 阻塞项(需外部输入):吊销 muniu 联调、前端行为实证(无 vitest 基建)、CI 实跑(push 须用户指令)。`make check` 终验全绿(33 测试)。
 4. **主 specs 金额基座回写 μ→credit + 账本规格矛盾清理(2026-09-13,openspec `credit-spec-rewrite`,6 任务全勾)**:判据 = 三主 specs(pricing-distribution/wallet-ledger/ingest-metering)与 V6 后实现口径一致 + grep 清零 + 归档合并成功。证据 = ①delta 归档合并(MODIFIED 4 + RENAMED 1:「管理员手工入账(现状)」经 RENAMED 语法更名「管理员手工入账」,正文对齐「资金操作审计」——修复 harden-money-ops 归档合并时只 ADDED 未 MODIFIED 留下的同文件自相矛盾);②delta 覆盖外残留人工同步 3 处:wallet-ledger Purpose 段 `SUM(amount_credits)`、超扣拒绝场景金额 credit 口径、pricing-distribution「改价即时生效」补缺失 scenario(既有 RFC 2119 欠账,归档校验阻塞物,与 close-revocation-loop 补 MUST 先例同性质);③文档层(README/docs/AGENTS)grep 证明零残留(验收记录 4 全链切换时已同步);④跨仓互引:muniu 仓同名 change 同日镜像执行(其 ADR-0006/主 specs/设计文档 6 处回写),跨仓契约「双方 change 同步」纪律首次双向留痕。归档位:`archive/2026-09-13-credit-spec-rewrite`。
 5. **控制面契约单源钉死(2026-09-13,openspec `control-plane-contract-pinning`,5 任务全勾)**:判据 = 四管子契约有单源登记表 + 一致性脚本 GREEN 且报红自证 + 门禁绿。证据 = ①`contracts/control-plane.md` 契约登记表:四管子(pricing/key-revocations/ingest/topology)逐根登记端点/方向/形态权威方(/control 系=本仓 openapi.json,ingest 行=muniu UsageRow 序列化)/字段清单/金额单位 credit/双端锚点;topology 按已归档 publish-topology 事实登记为「已实现」(立项时的"未实现"前提已被并行会话超越);②聚合层 `scripts/contract-consistency.sh`:三组字段名级比对(UsageRow 20 字段↔IngestUsageRow、PricingView 9 字段↔muniu pricing.go、吊销键名双端、TopologyPayload schema)实跑 GREEN;报红自证 = 临时改名 CostCredits→RED→还原→GREEN;③门禁:`mvn verify` exit 0(零代码变更确认无涟漪)。新 capability `control-plane-contracts` 入主 specs;脚本不入仓(聚合共享层,前端同步脚本先例)。
+6. **移动端全面重设计 + provider-presets 随批入库(2026-09-26,评审迭代循环单遍收敛)**:判据 = 375/768/1280 三档亮暗两态横向溢出清零 + `make check` 全绿 + 触控/安全区基线 + UI 闸门 B 七类自检。证据 = 真实数据浏览器走查(极端数据探针:¥1,000,012,445.66 十亿级余额、32 字别名、40+ 字备注、三档时段;16 张截图逐一目检);375 scrollWidth=375、768=768(修复 md 折叠点 flex item `min-width:auto` 陷阱:main 被表格最小内容宽度撑至 1297);分页/主按钮/底部标签触控 ≥44px;预设协议分支收敛适配器下拉(29 tag→22 厂商,实测 deepseek→anthropic 端点自动切换);评审循环修 3 处长文本触屏可达性(备注/分时段折行、模型名/别名 title);后端侧 provider-presets 以既有契约测试 + `mvn verify` 背书零涟漪;specs strict 校验 9/9(顺带清偿三 spec 占位 Purpose 存量欠账)。

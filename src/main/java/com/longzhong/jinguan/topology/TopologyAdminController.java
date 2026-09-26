@@ -26,6 +26,12 @@ public class TopologyAdminController {
     return topology.current();
   }
 
+  /** 官方厂商预设目录(只读单源,供拓扑管理页一键回填;adapter 口径见 ProviderPresetCatalog)。 */
+  @GetMapping("/presets")
+  public ProviderPresetCatalog.PresetEnvelope presets() {
+    return ProviderPresetCatalog.envelope();
+  }
+
   /** 替换成功返回 200 + 新 ETag(与下发端点同源,客户端可立即做条件请求校验)。 */
   @PutMapping
   public ResponseEntity<Void> replace(@RequestBody TopologyService.TopologyPayload next) {

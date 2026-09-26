@@ -47,29 +47,38 @@ export default function KeysPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={submit} className="flex flex-wrap items-end gap-3">
-            <FormRow label="密钥标识" htmlFor="keyId">
+          {/* 移动单列满宽,md 起回原横排行 */}
+          <form
+            onSubmit={submit}
+            className="flex flex-col gap-4 md:flex-row md:flex-wrap md:items-end md:gap-3"
+          >
+            <FormRow label="密钥标识" htmlFor="keyId" className="md:w-64">
               <Input
                 id="keyId"
                 value={keyId}
                 onChange={(e) => setKeyId(e.target.value)}
-                className="w-64"
+                className="w-full"
                 placeholder="请粘贴以 mk- 开头的密钥"
                 required
               />
             </FormRow>
-            <FormRow label="用户 ID" htmlFor="userId">
+            <FormRow label="用户 ID" htmlFor="userId" className="md:w-32">
               <Input
                 id="userId"
                 type="number"
+                inputMode="numeric"
                 min="1"
                 value={userId}
                 onChange={(e) => setUserId(e.target.value)}
-                className="w-32"
+                className="w-full"
                 required
               />
             </FormRow>
-            <Button type="submit" disabled={bind.isPending || !keyId || !userId}>
+            <Button
+              type="submit"
+              className="h-11 w-full md:h-9 md:w-auto"
+              disabled={bind.isPending || !keyId || !userId}
+            >
               {bind.isPending ? "绑定中…" : "绑定"}
             </Button>
             {error && <p className="text-sm text-destructive">{error}</p>}

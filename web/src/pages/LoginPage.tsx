@@ -37,7 +37,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
+    <div className="flex min-h-screen items-center justify-center bg-background px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
       <Card className="w-full max-w-sm">
         <CardHeader>
           <CardTitle className="text-primary">锦官 · 控制面</CardTitle>
@@ -67,13 +67,13 @@ export default function LoginPage() {
               />
             </FormRow>
             {error && <p className="text-sm text-destructive">{error}</p>}
-            <Button type="submit" className="w-full" disabled={busy}>
+            <Button type="submit" className="h-11 w-full" disabled={busy}>
               {busy ? "提交中…" : mode === "login" ? "登录" : "注册并登录"}
             </Button>
             <Button
               type="button"
               variant="link"
-              className="w-full"
+              className="h-11 w-full"
               onClick={() => setMode(mode === "login" ? "register" : "login")}
             >
               {mode === "login" ? "没有账号?去注册" : "已有账号?去登录"}

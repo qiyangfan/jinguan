@@ -19,12 +19,14 @@ import { Pagination } from "@/components/pagination";
 import { FormRow } from "@/components/form-row";
 import { QueryErrorAlert } from "@/components/query-error";
 import { StatusBadge, type StatusMeta } from "@/components/status-badge";
+import { MobileCard } from "@/components/mobile-card";
 import { errorDetail } from "@/lib/api";
 import { adminCredit, fetchBalance, fetchEntries } from "@/lib/wallet-api";
 import { fetchUsage } from "@/lib/usage-api";
 import { credits2yuan, yuan2credits } from "@/lib/money";
 import { formatDateTime, formatNumber } from "@/lib/datetime";
 import { useAuth } from "@/lib/auth-store";
+import { cn } from "@/lib/utils";
 
 const REASON_LABEL: Record<string, string> = {
   MANUAL_TOPUP: "手工入账",
@@ -115,7 +117,8 @@ export default function WalletPage() {
           ) : balance.isPending ? (
             <Skeleton className="h-9 w-32" />
           ) : (
-            <div className="text-3xl font-semibold">
+            /* 极端长金额(十亿级 + 9 位小数)窄屏降一档字号并允许断行,不顶破容器 */
+            <div className="text-2xl font-semibold break-all tabular-nums md:text-3xl">
               ¥{credits2yuan(balance.data?.balanceCredits ?? 0)}
             </div>
           )}
@@ -129,29 +132,38 @@ export default function WalletPage() {
             <CardDescription>账本只增不改;重复提交不会重复入账</CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={submitCredit} className="flex flex-wrap items-end gap-3">
-              <FormRow label="金额(元)" htmlFor="amount">
+            {/* 移动单列满宽,md 起回原横排行 */}
+            <form
+              onSubmit={submitCredit}
+              className="flex flex-col gap-4 md:flex-row md:flex-wrap md:items-end md:gap-3"
+            >
+              <FormRow label="金额(元)" htmlFor="amount" className="md:w-40">
                 <Input
                   id="amount"
                   type="number"
+                  inputMode="decimal"
                   step="0.01"
                   min="0"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
-                  className="w-40"
+                  className="w-full"
                   required
                 />
               </FormRow>
-              <FormRow label="参考号(可选,留空自动生成)" htmlFor="ref">
+              <FormRow label="参考号(可选,留空自动生成)" htmlFor="ref" className="md:w-56">
                 <Input
                   id="ref"
                   value={refId}
                   onChange={(e) => setRefId(e.target.value)}
-                  className="w-56"
+                  className="w-full"
                   placeholder="选填,如手动补录的备注"
                 />
               </FormRow>
-              <Button type="submit" disabled={credit.isPending || !amount || !balance.data}>
+              <Button
+                type="submit"
+                className="h-11 w-full md:h-9 md:w-auto"
+                disabled={credit.isPending || !amount || !balance.data}
+              >
                 {credit.isPending ? "提交中…" : "入账"}
               </Button>
               {error && <p className="text-sm text-destructive">{error}</p>}
@@ -179,50 +191,98 @@ export default function WalletPage() {
             </div>
           ) : (
             <>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>流水号</TableHead>
-                    <TableHead>变动(元)</TableHead>
-                    <TableHead>类型</TableHead>
-                    <TableHead>参考号</TableHead>
-                    <TableHead>备注</TableHead>
-                    <TableHead>时间</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {items.map((entry) => (
-                    <TableRow key={entry.id}>
-                      <TableCell>
-                        {/* 流水号为内部主键,对账时有用;截断展示、悬停看全量 */}
-                        <span className="block max-w-28 truncate" title={String(entry.id)}>
-                          {entry.id}
-                        </span>
-                      </TableCell>
-                      <TableCell
-                        className={
-                          entry.amountCredits.startsWith("-") ? "text-destructive" : "text-success"
-                        }
+              {/* 移动端(md 以下):卡片列表,金额为首要信息 */}
+              <div className="space-y-2 md:hidden">
+                {items.map((entry) => (
+                  <MobileCard
+                    key={entry.id}
+                    headline={REASON_LABEL[entry.reason] ?? entry.reason}
+                    headlineClassName="truncate"
+                    headlineEnd={
+                      <span
+                        className={cn(
+                          "font-medium tabular-nums",
+                          entry.amountCredits.startsWith("-") ? "text-destructive" : "text-success",
+                        )}
                       >
                         {entry.amountCredits.startsWith("-") ? "" : "+"}
                         {credits2yuan(entry.amountCredits)}
-                      </TableCell>
-                      <TableCell>{REASON_LABEL[entry.reason] ?? entry.reason}</TableCell>
-                      <TableCell>
-                        <span
-                          className="block max-w-40 truncate font-mono text-2xs"
-                          title={entry.refId}
-                        >
-                          {entry.refId}
-                        </span>
-                      </TableCell>
-                      <TableCell>{entry.note ?? ""}</TableCell>
-                      <TableCell>{formatDateTime(entry.createdAt)}</TableCell>
+                      </span>
+                    }
+                    rows={[
+                      {
+                        label: "流水号",
+                        value: <span title={String(entry.id)}>{entry.id}</span>,
+                        valueClassName: "font-mono text-2xs",
+                      },
+                      {
+                        label: "参考号",
+                        value: <span title={entry.refId}>{entry.refId}</span>,
+                        valueClassName: "font-mono text-2xs",
+                      },
+                      {
+                        label: "备注",
+                        /* 长备注折行全显(触屏无 hover tooltip,截断即不可达) */
+                        value: entry.note ?? "—",
+                        valueClassName: "whitespace-normal break-words",
+                      },
+                      { label: "时间", value: formatDateTime(entry.createdAt) },
+                    ]}
+                  />
+                ))}
+                {items.length === 0 && <p className="text-sm text-muted-foreground">暂无流水</p>}
+              </div>
+
+              {/* 桌面端(md 及以上):表格 */}
+              <div className="hidden md:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>流水号</TableHead>
+                      <TableHead className="text-right">变动(元)</TableHead>
+                      <TableHead>类型</TableHead>
+                      <TableHead>参考号</TableHead>
+                      <TableHead>备注</TableHead>
+                      <TableHead>时间</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-              {items.length === 0 && <p className="text-sm text-muted-foreground">暂无流水</p>}
+                  </TableHeader>
+                  <TableBody>
+                    {items.map((entry) => (
+                      <TableRow key={entry.id}>
+                        <TableCell>
+                          {/* 流水号为内部主键,对账时有用;截断展示、悬停看全量 */}
+                          <span className="block max-w-28 truncate" title={String(entry.id)}>
+                            {entry.id}
+                          </span>
+                        </TableCell>
+                        <TableCell
+                          className={cn(
+                            "text-right tabular-nums",
+                            entry.amountCredits.startsWith("-")
+                              ? "text-destructive"
+                              : "text-success",
+                          )}
+                        >
+                          {entry.amountCredits.startsWith("-") ? "" : "+"}
+                          {credits2yuan(entry.amountCredits)}
+                        </TableCell>
+                        <TableCell>{REASON_LABEL[entry.reason] ?? entry.reason}</TableCell>
+                        <TableCell>
+                          <span
+                            className="block max-w-40 truncate font-mono text-2xs"
+                            title={entry.refId}
+                          >
+                            {entry.refId}
+                          </span>
+                        </TableCell>
+                        <TableCell>{entry.note ?? ""}</TableCell>
+                        <TableCell>{formatDateTime(entry.createdAt)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+                {items.length === 0 && <p className="text-sm text-muted-foreground">暂无流水</p>}
+              </div>
               <Pagination
                 className="mt-3"
                 page={page + 1}
@@ -251,34 +311,72 @@ export default function WalletPage() {
             <p className="text-sm text-muted-foreground">暂无用量</p>
           ) : (
             <>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>模型</TableHead>
-                    <TableHead>Tokens(输入/输出)</TableHead>
-                    <TableHead>费用(元)</TableHead>
-                    <TableHead>结果</TableHead>
-                    <TableHead>时间</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {usageItems.map((u) => (
-                    <TableRow key={u.usageId}>
-                      <TableCell className="font-mono text-2xs">
+              {/* 移动端(md 以下):卡片列表,费用为首要信息 */}
+              <div className="space-y-2 md:hidden">
+                {usageItems.map((u) => (
+                  <MobileCard
+                    key={u.usageId}
+                    headline={
+                      /* 长模型名截断 + title(触屏长按可见全量) */
+                      <span title={u.modelAlias ?? u.upstreamModel ?? "-"}>
                         {u.modelAlias ?? u.upstreamModel ?? "-"}
-                      </TableCell>
-                      <TableCell>
-                        {formatNumber(u.promptTokens)} / {formatNumber(u.completionTokens)}
-                      </TableCell>
-                      <TableCell>¥{credits2yuan(u.costCredits)}</TableCell>
-                      <TableCell>
-                        <StatusBadge meta={OUTCOME_META} value={u.finalOutcome} />
-                      </TableCell>
-                      <TableCell>{formatDateTime(u.lastAttemptAt)}</TableCell>
+                      </span>
+                    }
+                    headlineClassName="truncate font-mono"
+                    headlineEnd={
+                      <span className="font-medium tabular-nums">
+                        ¥{credits2yuan(u.costCredits)}
+                      </span>
+                    }
+                    rows={[
+                      {
+                        label: "Tokens(入/出)",
+                        value: `${formatNumber(u.promptTokens)} / ${formatNumber(u.completionTokens)}`,
+                        valueClassName: "tabular-nums",
+                      },
+                      {
+                        label: "结果",
+                        value: <StatusBadge meta={OUTCOME_META} value={u.finalOutcome} />,
+                      },
+                      { label: "时间", value: formatDateTime(u.lastAttemptAt) },
+                    ]}
+                  />
+                ))}
+              </div>
+
+              {/* 桌面端(md 及以上):表格 */}
+              <div className="hidden md:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>模型</TableHead>
+                      <TableHead>Tokens(输入/输出)</TableHead>
+                      <TableHead className="text-right">费用(元)</TableHead>
+                      <TableHead>结果</TableHead>
+                      <TableHead>时间</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {usageItems.map((u) => (
+                      <TableRow key={u.usageId}>
+                        <TableCell className="font-mono text-2xs">
+                          {u.modelAlias ?? u.upstreamModel ?? "-"}
+                        </TableCell>
+                        <TableCell className="tabular-nums">
+                          {formatNumber(u.promptTokens)} / {formatNumber(u.completionTokens)}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          ¥{credits2yuan(u.costCredits)}
+                        </TableCell>
+                        <TableCell>
+                          <StatusBadge meta={OUTCOME_META} value={u.finalOutcome} />
+                        </TableCell>
+                        <TableCell>{formatDateTime(u.lastAttemptAt)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
               <Pagination
                 className="mt-3"
                 page={usagePage + 1}
