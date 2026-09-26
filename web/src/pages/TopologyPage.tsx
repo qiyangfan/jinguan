@@ -19,13 +19,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Dialog,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { SheetContent } from "@/components/bottom-sheet-dialog";
+  Sheet,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { BottomSheetContent } from "@/components/bottom-sheet-dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -906,14 +906,14 @@ export default function TopologyPage() {
       </div>
 
       {/* ── 添加/编辑供应商对话框(移动端为底部弹层,md+ 居中) ── */}
-      <Dialog open={edit !== null} onOpenChange={(open) => !open && setEdit(null)}>
-        <SheetContent className="sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>{edit?.original === null ? "添加供应商" : "编辑供应商"}</DialogTitle>
-            <DialogDescription>
+      <Sheet open={edit !== null} onOpenChange={(open) => !open && setEdit(null)}>
+        <BottomSheetContent className="md:max-w-2xl">
+          <SheetHeader>
+            <SheetTitle>{edit?.original === null ? "添加供应商" : "编辑供应商"}</SheetTitle>
+            <SheetDescription>
               从官方预设一键回填,或直接填写;协议分支(OpenAI 兼容 / Anthropic)经适配器下拉切换
-            </DialogDescription>
-          </DialogHeader>
+            </SheetDescription>
+          </SheetHeader>
           {edit && (
             <form onSubmit={submitProvider} className="space-y-4">
               <div className="space-y-2">
@@ -1145,7 +1145,7 @@ export default function TopologyPage() {
                 </Button>
               </div>
 
-              <DialogFooter className="items-center">
+              <SheetFooter className="sm:flex-row sm:items-center sm:justify-end">
                 {submitBlockedHint(edit, draft) !== "" && (
                   <p className="mr-auto text-sm text-destructive">
                     {submitBlockedHint(edit, draft)}
@@ -1166,11 +1166,11 @@ export default function TopologyPage() {
                 >
                   {edit.original === null ? "添加" : "保存修改"}
                 </Button>
-              </DialogFooter>
+              </SheetFooter>
             </form>
           )}
-        </SheetContent>
-      </Dialog>
+        </BottomSheetContent>
+      </Sheet>
 
       {/* ── 删除确认 ── */}
       <AlertDialog

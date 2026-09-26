@@ -37,7 +37,7 @@ web 前端统一遵循聚合目录 `../FRONTEND-CONSTITUTION.md`(Article 0–10)
 - 响应式:md 为折叠点;**移动端是独立设计而非桌面缩小**——md 以下由 app-shell
   提供移动原生范式(顶部栏 + 底部标签栏 + 账户底部弹层),列表用 MobileCard
   卡片双轨(桌面表格 md 起保留),表单单列满宽、金额右对齐 tabular-nums、触控目标
-  ≥44px、对话框用 SheetContent 底部弹层(max-md 贴底,md+ 回落居中模态);
+  ≥44px、对话框用官方 ui/sheet 基座的 BottomSheetContent 底部弹层(max-md 贴底,md+ 回落居中模态;组件只做响应式覆写,禁自造浮层);
   flex/grid 容器注意 `min-w-0`(防最小内容宽度撑破,先例 = main);多屏验收 =
   375/768/1280 三档不横向溢出 + 亮暗两态(Article 9,2026-09-26 移动端重设计修订)。
 - ui/ 与共享组件是双仓标准件(与 kongming 逐字节一致;theme-store 例外:同构不同 key):

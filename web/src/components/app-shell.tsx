@@ -21,8 +21,8 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { SheetContent } from "@/components/bottom-sheet-dialog";
+import { Sheet, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { BottomSheetContent } from "@/components/bottom-sheet-dialog";
 import { useAuth } from "@/lib/auth-store";
 import { useTheme } from "@/lib/theme-store";
 
@@ -143,14 +143,14 @@ export function AppShell() {
       </nav>
 
       {/* ── 账户面板(移动底部弹层):身份 + 登出 ── */}
-      <Dialog open={accountOpen} onOpenChange={setAccountOpen}>
-        <SheetContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>账户</DialogTitle>
-            <DialogDescription>
+      <Sheet open={accountOpen} onOpenChange={setAccountOpen}>
+        <BottomSheetContent className="md:max-w-sm">
+          <SheetHeader>
+            <SheetTitle>账户</SheetTitle>
+            <SheetDescription>
               {user ? `${user.username} · ${ROLE_LABELS[user.role] ?? user.role}` : ""}
-            </DialogDescription>
-          </DialogHeader>
+            </SheetDescription>
+          </SheetHeader>
           <Button
             variant="outline"
             className="h-11 w-full"
@@ -163,8 +163,8 @@ export function AppShell() {
             <LogOut className="size-4" />
             退出登录
           </Button>
-        </SheetContent>
-      </Dialog>
+        </BottomSheetContent>
+      </Sheet>
     </div>
   );
 }
