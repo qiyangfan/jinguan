@@ -17,6 +17,7 @@ import {
 import { PageHeader } from "@/components/page-header";
 import { Pagination } from "@/components/pagination";
 import { FormRow } from "@/components/form-row";
+import { FormGrid } from "@/components/form-grid";
 import { QueryErrorAlert } from "@/components/query-error";
 import { StatusBadge, type StatusMeta } from "@/components/status-badge";
 import { MobileCard } from "@/components/mobile-card";
@@ -220,31 +221,30 @@ function AmountForm({ onCreated }: { onCreated: () => void }) {
   }
 
   return (
-    <form
-      onSubmit={submit}
-      className="flex flex-col gap-4 md:flex-row md:flex-wrap md:items-end md:gap-3"
-    >
-      <FormRow label="金额(元)" htmlFor="amount" className="md:w-48">
-        <Input
-          id="amount"
-          type="number"
-          inputMode="decimal"
-          step="0.01"
-          min="0"
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          className="w-full"
-          placeholder="0.01"
-        />
-      </FormRow>
-      <Button
-        type="submit"
-        className="h-11 w-full md:h-9 md:w-auto"
-        disabled={create.isPending || !amount}
-      >
-        {create.isPending ? "下单中…" : "创建支付单"}
-      </Button>
-      {error && <p className="text-sm text-destructive">{error}</p>}
+    <form onSubmit={submit}>
+      <FormGrid>
+        <FormRow label="金额(元)" htmlFor="amount" className="md:w-48">
+          <Input
+            id="amount"
+            type="number"
+            inputMode="decimal"
+            step="0.01"
+            min="0"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            className="w-full"
+            placeholder="0.01"
+          />
+        </FormRow>
+        <Button
+          type="submit"
+          className="h-11 w-full md:h-9 md:w-auto"
+          disabled={create.isPending || !amount}
+        >
+          {create.isPending ? "下单中…" : "创建支付单"}
+        </Button>
+        {error && <p className="text-sm text-destructive">{error}</p>}
+      </FormGrid>
     </form>
   );
 }

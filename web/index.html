@@ -2,7 +2,13 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <!-- viewport-fit=cover:全面屏消费 env(safe-area-inset-*)(index.css 安全区工具类、
+     壳层顶栏/底标签栏避让);interactive-widget=resizes-content:软键盘压缩布局视口,
+     底部弹层表单随流抬升不被遮挡 -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content"
+    />
     <title>锦官 · 控制面</title>
     <script>
       // 防 FOUC:首帧绘制前按「localStorage 手动值 → 系统偏好」挂 .dark 到 <html>。

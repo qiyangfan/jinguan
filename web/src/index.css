@@ -12,6 +12,11 @@ currentColor,须在此统一收敛,否则 outline 按钮/浮层边框呈墨色�
 @layer base {
   * {
     @apply border-border outline-ring/50;
+
+    /* 移动基线(mobile-experience B1.1):触控不闪斑;滚动容器到边缘不牵动
+       整页(嵌套滚动隔离,spec「触控与安全区基线」) */
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior: contain;
   }
 
   body {
@@ -19,8 +24,27 @@ currentColor,须在此统一收敛,否则 outline 按钮/浮层边框呈墨色�
   }
 }
 
+/* 安全区工具类(mobile-experience B1.1):贴边区避让全面屏 Home 指示条/刘海。
+   全屏表单 Footer/贴底浮层消费 pb-safe;横屏 刘海侧用 pl/pr-safe。
+   --kb-safe-bottom 缺省 0,非全面屏零影响。jinguan 壳层 main 以 pb-24 预留
+   底部标签栏避让;B2.1 的 pb-safe-nav 档位待三仓统一后一并收敛。 */
+@utility pb-safe {
+  padding-bottom: var(--kb-safe-bottom);
+}
+
+@utility pl-safe {
+  padding-left: env(safe-area-inset-left, 0);
+}
+
+@utility pr-safe {
+  padding-right: env(safe-area-inset-right, 0);
+}
+
 :root {
   color-scheme: light;
+
+  /* 全局安全区变量:供 pb-safe 等工具类与贴边区消费 */
+  --kb-safe-bottom: env(safe-area-inset-bottom, 0);
 
   /* 语义 token:主色朱砂(武侯祠红墙,庄重决断);鎏金仅点睛;中性色配黛瓦青灰 */
   --background: #fbfaf7; /* 宣纸白(微暖,非冷白) */

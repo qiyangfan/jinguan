@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/page-header";
 import { Pagination } from "@/components/pagination";
 import { FormRow } from "@/components/form-row";
+import { FormGrid } from "@/components/form-grid";
 import { QueryErrorAlert } from "@/components/query-error";
 import { StatusBadge, type StatusMeta } from "@/components/status-badge";
 import { MobileCard } from "@/components/mobile-card";
@@ -132,42 +133,40 @@ export default function WalletPage() {
             <CardDescription>账本只增不改;重复提交不会重复入账</CardDescription>
           </CardHeader>
           <CardContent>
-            {/* 移动单列满宽,md 起回原横排行 */}
-            <form
-              onSubmit={submitCredit}
-              className="flex flex-col gap-4 md:flex-row md:flex-wrap md:items-end md:gap-3"
-            >
-              <FormRow label="金额(元)" htmlFor="amount" className="md:w-40">
-                <Input
-                  id="amount"
-                  type="number"
-                  inputMode="decimal"
-                  step="0.01"
-                  min="0"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  className="w-full"
-                  required
-                />
-              </FormRow>
-              <FormRow label="参考号(可选,留空自动生成)" htmlFor="ref" className="md:w-56">
-                <Input
-                  id="ref"
-                  value={refId}
-                  onChange={(e) => setRefId(e.target.value)}
-                  className="w-full"
-                  placeholder="选填,如手动补录的备注"
-                />
-              </FormRow>
-              <Button
-                type="submit"
-                className="h-11 w-full md:h-9 md:w-auto"
-                disabled={credit.isPending || !amount || !balance.data}
-              >
-                {credit.isPending ? "提交中…" : "入账"}
-              </Button>
-              {error && <p className="text-sm text-destructive">{error}</p>}
-              {success && <span className="text-sm text-muted-foreground">{success}</span>}
+            <form onSubmit={submitCredit}>
+              <FormGrid>
+                <FormRow label="金额(元)" htmlFor="amount" className="md:w-40">
+                  <Input
+                    id="amount"
+                    type="number"
+                    inputMode="decimal"
+                    step="0.01"
+                    min="0"
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                    className="w-full"
+                    required
+                  />
+                </FormRow>
+                <FormRow label="参考号(可选,留空自动生成)" htmlFor="ref" className="md:w-56">
+                  <Input
+                    id="ref"
+                    value={refId}
+                    onChange={(e) => setRefId(e.target.value)}
+                    className="w-full"
+                    placeholder="选填,如手动补录的备注"
+                  />
+                </FormRow>
+                <Button
+                  type="submit"
+                  className="h-11 w-full md:h-9 md:w-auto"
+                  disabled={credit.isPending || !amount || !balance.data}
+                >
+                  {credit.isPending ? "提交中…" : "入账"}
+                </Button>
+                {error && <p className="text-sm text-destructive">{error}</p>}
+                {success && <span className="text-sm text-muted-foreground">{success}</span>}
+              </FormGrid>
             </form>
           </CardContent>
         </Card>

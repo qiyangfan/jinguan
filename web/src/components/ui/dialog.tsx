@@ -53,7 +53,10 @@ function DialogContent({
       <DialogPrimitive.Content
         data-slot="dialog-content"
         className={cn(
-          "fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border bg-background p-6 shadow-lg duration-200 outline-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 sm:max-w-lg",
+          /* 窄屏全屏承载(mobile-experience B1.3):无前缀基线=全屏(内容滚动、
+           DialogFooter 基类钉底消费安全区);sm: 起维持定宽居中。页面级
+           sm:max-w-* 覆写经 tailwind-merge 仍生效。AlertDialog 不走本基类。 */
+          "fixed inset-0 z-50 grid h-full w-full gap-4 overflow-y-auto overscroll-contain rounded-none border-0 bg-background p-4 shadow-none outline-none duration-200 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0 sm:top-[50%] sm:left-[50%] sm:h-auto sm:w-full sm:max-w-[calc(100%-2rem)] sm:translate-x-[-50%] sm:translate-y-[-50%] sm:overflow-visible sm:rounded-lg sm:border sm:p-6 sm:shadow-lg sm:data-[state=closed]:zoom-out-95 sm:data-[state=open]:zoom-in-95 sm:max-w-lg",
           className,
         )}
         {...props}
@@ -94,7 +97,12 @@ function DialogFooter({
   return (
     <div
       data-slot="dialog-footer"
-      className={cn("flex flex-col-reverse gap-2 sm:flex-row sm:justify-end", className)}
+      /* 窄屏钉底(mobile-experience B1.3):粘性驻底 + 消费安全区,长表单提交键
+         常驻可达;sm: 起回常规流内右对齐 */
+      className={cn(
+        "sticky bottom-0 flex flex-col-reverse gap-2 bg-background pb-safe sm:static sm:flex-row sm:justify-end sm:bg-transparent sm:pb-0",
+        className,
+      )}
       {...props}
     >
       {children}

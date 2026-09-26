@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/table";
 import { PageHeader } from "@/components/page-header";
 import { FormRow } from "@/components/form-row";
+import { FormGrid } from "@/components/form-grid";
 import { QueryErrorAlert } from "@/components/query-error";
 import { MobileCard } from "@/components/mobile-card";
 import { Badge } from "@/components/ui/badge";
@@ -187,9 +188,8 @@ export default function PricingPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {/* 移动单列满宽,md 起回原横排行 */}
           <form onSubmit={submit} className="space-y-4">
-            <div className="flex flex-col gap-4 md:flex-row md:flex-wrap md:items-end md:gap-3">
+            <FormGrid>
               <FormRow label="模型别名" htmlFor="alias" className="md:w-48">
                 <Input
                   id="alias"
@@ -290,7 +290,7 @@ export default function PricingPage() {
                   </SelectContent>
                 </Select>
               </FormRow>
-            </div>
+            </FormGrid>
 
             <FormRow
               label="分时段倍率"
