@@ -329,7 +329,7 @@ public final class ProviderPresetCatalog {
               List.of("gemini-2.5-pro", "gemini-2.5-flash"),
               "https://aistudio.google.com",
               REGION_GLOBAL,
-              "官方 OpenAI 兼容层(base_url 以 /openai 收尾),为受限子集;" + "原生 gemini 桥接 muniu 未实现"),
+              "官方 OpenAI 兼容层(base_url 以 /openai 收尾),为受限子集;muniu 不建原生桥接"),
           new Preset(
               "openrouter",
               "OpenRouter",
