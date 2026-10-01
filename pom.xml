@@ -61,6 +61,11 @@
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-actuator</artifactId>
     </dependency>
+    <!-- Prometheus 文本导出:actuator 只带 micrometer-core(埋点可用),缺此 registry 则 meter 写入即蒸发 -->
+    <dependency>
+      <groupId>io.micrometer</groupId>
+      <artifactId>micrometer-registry-prometheus</artifactId>
+    </dependency>
     <!-- Spring Modulith:模块依赖 CI 门禁(verify) + 模块间应用事件 -->
     <dependency>
       <groupId>org.springframework.modulith</groupId>

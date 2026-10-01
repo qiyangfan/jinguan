@@ -1,6 +1,8 @@
 package com.longzhong.jinguan.ingest;
 
+import com.longzhong.jinguan.common.CommittedMetrics;
 import com.longzhong.jinguan.common.InsufficientFundsException;
+import com.longzhong.jinguan.common.MetricNames;
 import com.longzhong.jinguan.wallet.WalletService;
 import java.util.List;
 import org.springframework.stereotype.Service;
@@ -16,12 +18,17 @@ public class IngestService {
   private final ApiKeyBindingRepository bindings;
   private final WalletService wallet;
   private final UsageRecordService usageRecords;
+  private final CommittedMetrics metrics;
 
   public IngestService(
-      ApiKeyBindingRepository bindings, WalletService wallet, UsageRecordService usageRecords) {
+      ApiKeyBindingRepository bindings,
+      WalletService wallet,
+      UsageRecordService usageRecords,
+      CommittedMetrics metrics) {
     this.bindings = bindings;
     this.wallet = wallet;
     this.usageRecords = usageRecords;
+    this.metrics = metrics;
   }
 
   public record IngestResult(
@@ -49,12 +56,14 @@ public class IngestService {
       if (!row.isSuccess() || row.CostCredits() <= 0) {
         skippedFree++;
         usageRecords.record(row, UsageRecordService.OUTCOME_SKIPPED_FREE, null);
+        countRow(MetricNames.OUTCOME_SKIPPED_FREE);
         continue;
       }
       var binding = bindings.findById(row.APIKeyID());
       if (binding.isEmpty()) {
         skippedUnbound++;
         usageRecords.record(row, UsageRecordService.OUTCOME_SKIPPED_UNBOUND, null);
+        countRow(MetricNames.OUTCOME_SKIPPED_UNBOUND);
         continue;
       }
       long boundUser = binding.get().getUserId();
@@ -70,18 +79,31 @@ public class IngestService {
         if (result.replayed()) {
           replayed++;
           usageRecords.record(row, UsageRecordService.OUTCOME_REPLAYED, boundUser);
+          countRow(MetricNames.OUTCOME_REPLAYED);
         } else {
           accepted++;
           usageRecords.record(row, UsageRecordService.OUTCOME_ACCEPTED, boundUser);
+          countRow(MetricNames.OUTCOME_ACCEPTED);
         }
       } catch (InsufficientFundsException e) {
         skippedInsufficient++;
         // 欠费停服联动已内聚 WalletService.debit(锁内置位,与并发入账串行);
         // 此处仅做明细投影:数据面最迟下一拉取周期(默认 60s)收敛停止放行
         usageRecords.record(row, UsageRecordService.OUTCOME_SKIPPED_INSUFFICIENT, boundUser);
+        countRow(MetricNames.OUTCOME_SKIPPED_INSUFFICIENT);
       }
     }
     return new IngestResult(
         received, accepted, replayed, skippedUnbound, skippedFree, skippedInsufficient);
+  }
+
+  /**
+   * 行归宿计数:逐行即计,不批末累积。
+   *
+   * <p>本方法【不开】类级事务、每行各自独立提交,而批内仍可能抛出非欠费异常(如同 refId 不同载荷的幂等冲突)中断循环—— 若在方法末尾统一计数,那些【已提交扣账】的行就永远不会进
+   * {@code ingest.rows},与账本永久分叉, 「连续多轮 accepted=0」这类静默丢行的判据也会因此失真。received 为各桶之和,不单独计。
+   */
+  private void countRow(String outcome) {
+    metrics.count(MetricNames.INGEST_ROWS, MetricNames.TAG_OUTCOME, outcome);
   }
 }

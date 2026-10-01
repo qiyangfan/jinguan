@@ -34,7 +34,7 @@ Spring Boot + **Spring Modulith**(模块依赖 CI 门禁 + 模块间领域事件
 | 拓扑下发 | 锦官 → muniu 拉取 | `GET /control/v1/topology` → `TopologyPayload`(providers/model_routes/models;ETag 条件请求 304) |
 
 ⚠ muniu 的两个拉取目前不带认证头(数据面现实),`/control/v1/*` 依赖部署网络
-隔离保护;为数据面增加拉取认证头是双方演进项。ingest 已带 Bearer。
+隔离保护;为数据面增加拉取认证头是双方演进项(与采集面 `/actuator/prometheus` 合为一条,见下文「演进登记」)。ingest 已带 Bearer。
 
 key 吊销下发已实现(2026-09-12):**终态吊销**(`key_revocations` append-only,
 ADMIN `POST /admin/keys/{id}/revoke`,不可逆)+ **欠费停服**(`users.suspended_at`,
@@ -69,11 +69,20 @@ jinguan-pgdata,`make docker-down` 保留卷);冒烟:`curl :8090/actuator/health`
 技术栈:Java 21 · Spring Boot 3.4 · Spring Modulith 1.3 · JPA · Flyway · PostgreSQL
 (测试 H2 兼容模式,列类型避开 PG 专有;生产 PG 权威)。
 
+## 可观测
+
+`GET /actuator/prometheus`(与业务同端口;暴露面白名单只含 `health` 与 `prometheus`,`env`/`configprops`
+一类可读配置的端点不注册)。指标词汇表、计数点与告警判据见
+[docs/design/ops-metrics.md](docs/design/ops-metrics.md):账本写入、计量行归宿、支付状态机、三根拉取型管子的活性。
+指标只管趋势与告警,逐笔读数走账本历史与用量明细端点。
+
 ## 演进登记
 
 - Event Publication Registry(事件持久化+重放):当前支付入账为同事务强一致;
   规模化后切换持久化事件实现最终一致。
 - 真实 PSP adapter:契约(`PaymentProvider`)已冻结,商业验证后实现一个渠道。
-- muniu 拉取认证头、key 代签(自校验 key 联动 ADR-0006):双方对齐后排期。
+- 采集面认证头与 muniu 拉取认证头(**同一演进项**)、key 代签(自校验 key 联动 ADR-0006):`/control/v1/*` 与
+  `/actuator/prometheus` 当前同信任前提——匿名可读 + 部署网络隔离(compose 绑定 `127.0.0.1:8090`)。
+  多主机部署(跨网段拉取/采集)前必须先落地这一条,双方对齐后排期。
 - 集群化:per-user JVM 条带锁 → 账本行锁/分布式锁。
 - 前端:深浅主题已就位(token 单源+防 FOUC+切换持久化);响应式(窄屏顶部导航/表格横滚/表单换行)已就位;国际化(i18n 文案抽取)随门户多语言需求排期——控制面当前单语中文,与 kongming 前端现状一致。

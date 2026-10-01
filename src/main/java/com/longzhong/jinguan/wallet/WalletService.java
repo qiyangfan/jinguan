@@ -1,11 +1,14 @@
 package com.longzhong.jinguan.wallet;
 
+import com.longzhong.jinguan.common.CommittedMetrics;
 import com.longzhong.jinguan.common.IdempotencyConflictException;
 import com.longzhong.jinguan.common.InsufficientFundsException;
+import com.longzhong.jinguan.common.MetricNames;
 import com.longzhong.jinguan.user.SuspensionService;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Supplier;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -38,15 +41,18 @@ public class WalletService {
   private final LedgerEntryRepository ledger;
   private final TransactionTemplate tx;
   private final SuspensionService suspension;
+  private final CommittedMetrics metrics;
   private final Map<Long, ReentrantLock> userLocks = new ConcurrentHashMap<>();
 
   public WalletService(
       LedgerEntryRepository ledger,
       org.springframework.transaction.PlatformTransactionManager tm,
-      SuspensionService suspension) {
+      SuspensionService suspension,
+      CommittedMetrics metrics) {
     this.ledger = ledger;
     this.tx = new TransactionTemplate(tm);
     this.suspension = suspension;
+    this.metrics = metrics;
   }
 
   /** 账本写入结果:entry=生效分录(新写或既有),replayed=幂等重放(非新写)。 */
@@ -60,7 +66,9 @@ public class WalletService {
       String refId,
       String note,
       Long operatorUserId) {
-    return apply(userId, requirePositive(amountCredits), reason, refId, note, operatorUserId);
+    long amount = requirePositive(amountCredits);
+    return counted(
+        MetricNames.KIND_CREDIT, () -> apply(userId, amount, reason, refId, note, operatorUserId));
   }
 
   /**
@@ -69,6 +77,18 @@ public class WalletService {
    * 反序(入账后置位)亦被锁序排除。置位于 debit 事务回滚后执行,自身失败不改变资金语义。
    */
   public EntryResult debit(
+      long userId,
+      long amountCredits,
+      String reason,
+      String refId,
+      String note,
+      Long operatorUserId) {
+    return counted(
+        MetricNames.KIND_DEBIT,
+        () -> debitLocked(userId, amountCredits, reason, refId, note, operatorUserId));
+  }
+
+  private EntryResult debitLocked(
       long userId,
       long amountCredits,
       String reason,
@@ -160,6 +180,43 @@ public class WalletService {
     return new EntryResult(
         ledger.save(LedgerEntryEntity.of(userId, amount, reason, refId, note, operatorUserId)),
         false);
+  }
+
+  /**
+   * 账本事实计数(指标面唯一入口,与 {@link #insertOrReplay} 的幂等裁决同口径):
+   *
+   * <ul>
+   *   <li>生效/重放:走 afterCommit——回调链路本方法参与外层事务,外层回滚则分录不存在,不得虚增资金事实;
+   *   <li>余额不足/同键不同载荷:被拒绝本身即终态事实(账本零痕迹),立即计数,回滚不改变它。
+   * </ul>
+   */
+  private EntryResult counted(String kind, Supplier<EntryResult> operation) {
+    try {
+      EntryResult result = operation.get();
+      metrics.countOnCommit(
+          MetricNames.WALLET_OPERATIONS,
+          MetricNames.TAG_KIND,
+          kind,
+          MetricNames.TAG_OUTCOME,
+          result.replayed() ? MetricNames.OUTCOME_REPLAYED : MetricNames.OUTCOME_APPLIED);
+      return result;
+    } catch (InsufficientFundsException e) {
+      metrics.count(
+          MetricNames.WALLET_OPERATIONS,
+          MetricNames.TAG_KIND,
+          kind,
+          MetricNames.TAG_OUTCOME,
+          MetricNames.OUTCOME_REJECTED_INSUFFICIENT);
+      throw e;
+    } catch (IdempotencyConflictException e) {
+      metrics.count(
+          MetricNames.WALLET_OPERATIONS,
+          MetricNames.TAG_KIND,
+          kind,
+          MetricNames.TAG_OUTCOME,
+          MetricNames.OUTCOME_REJECTED_CONFLICT);
+      throw e;
+    }
   }
 
   private static long requirePositive(long amountCredits) {

@@ -18,6 +18,18 @@ spring:
 server:
   port: ${JINGUAN_PORT:8090}
 
+# 指标暴露面白名单:只放 health(镜像 HEALTHCHECK 依赖,语义不得变)与 prometheus。
+# env/configprops/beans/mappings/heapdump 能读出配置项与环境变量引用名,一律不暴露;
+# 采集端与 /control/v1/* 同信任前提(部署网络隔离,见 README 演进登记与 SecurityConfig 注记)。
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
 jinguan:
   security:
     # JWT 签名密钥(生产经环境注入,≥32 字节);本地 dev 默认值仅限本机

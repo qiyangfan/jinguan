@@ -29,6 +29,11 @@ public class SecurityConfig {
             auth ->
                 auth.requestMatchers("/auth/**", "/actuator/health")
                     .permitAll()
+                    // 指标抓取端点:与 /control/v1/* 同信任前提(匿名可读 + 部署网络隔离,
+                    // compose 发布形态为 127.0.0.1:8090);Prometheus 侧持不下用户 JWT(access 30min 轮换)。
+                    // 「数据面拉取 + 采集面统一加认证头」是 README 演进登记的同一项,多主机部署前必须先落地
+                    .requestMatchers("/actuator/prometheus")
+                    .permitAll()
                     // OpenAPI 契约端点匿名可读:三根管子跨仓契约比对与前端类型生成的数据源
                     .requestMatchers("/v3/api-docs/**")
                     .permitAll()

@@ -1,6 +1,8 @@
 package com.longzhong.jinguan.payment;
 
+import com.longzhong.jinguan.common.MetricNames;
 import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import java.time.Instant;
@@ -38,11 +40,15 @@ public class PaymentExpiryScheduler {
     this.orders = orders;
     this.batchSize = Math.max(batchSize, 1);
     this.convergedCounter =
-        Counter.builder("jinguan.payment.expiry.converged")
+        Counter.builder(MetricNames.PAYMENT_EXPIRY_CONVERGED)
             .description("累计过期收敛笔数(CREATED→EXPIRED)")
             .register(registry);
     this.scanTimer =
-        Timer.builder("jinguan.payment.expiry.scan").description("过期收敛扫描耗时").register(registry);
+        Timer.builder(MetricNames.PAYMENT_EXPIRY_SCAN).description("过期收敛扫描耗时").register(registry);
+    // 类注释原声称「可观测暴露 backlog」,但 getter 无消费方且此前无导出通道:注册成 Gauge 兑现之
+    Gauge.builder(MetricNames.PAYMENT_EXPIRY_BACKLOG, this, PaymentExpiryScheduler::backlog)
+        .description("最近一轮已过期未收敛存量")
+        .register(registry);
   }
 
   /** 已过期未收敛存量(最近一轮,可观测暴露用)。 */

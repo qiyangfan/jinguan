@@ -1,5 +1,7 @@
 package com.longzhong.jinguan.ingest;
 
+import com.longzhong.jinguan.common.CommittedMetrics;
+import com.longzhong.jinguan.common.MetricNames;
 import com.longzhong.jinguan.user.SuspensionService;
 import java.util.List;
 import java.util.Map;
@@ -20,14 +22,17 @@ public class KeyRevocationsIngressController {
   private final KeyRevocationRepository revocations;
   private final ApiKeyBindingRepository bindings;
   private final SuspensionService suspension;
+  private final CommittedMetrics metrics;
 
   public KeyRevocationsIngressController(
       KeyRevocationRepository revocations,
       ApiKeyBindingRepository bindings,
-      SuspensionService suspension) {
+      SuspensionService suspension,
+      CommittedMetrics metrics) {
     this.revocations = revocations;
     this.bindings = bindings;
     this.suspension = suspension;
+    this.metrics = metrics;
   }
 
   @GetMapping("/control/v1/key-revocations")
@@ -40,6 +45,14 @@ public class KeyRevocationsIngressController {
     if (!suspended.isEmpty()) {
       bindings.findByUserIdIn(suspended).forEach(b -> revoked.add(b.getKeyId()));
     }
+    // 计数点后置到成包之后:与 pricing/topology 同口径,读库故障不得留下 full 计数
+    // (吊销名单断供=数据面继续放行已吊销 key,这条管子必须可告警)
+    metrics.count(
+        MetricNames.CONTROL_PULL,
+        MetricNames.TAG_PIPE,
+        MetricNames.PIPE_KEY_REVOCATIONS,
+        MetricNames.TAG_OUTCOME,
+        MetricNames.OUTCOME_FULL);
     return Map.of("version", version, "revoked", List.copyOf(revoked));
   }
 }

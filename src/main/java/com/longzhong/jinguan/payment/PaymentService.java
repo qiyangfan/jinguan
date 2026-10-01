@@ -1,5 +1,7 @@
 package com.longzhong.jinguan.payment;
 
+import com.longzhong.jinguan.common.CommittedMetrics;
+import com.longzhong.jinguan.common.MetricNames;
 import com.longzhong.jinguan.common.NotFoundException;
 import com.longzhong.jinguan.common.OrderExpiredException;
 import java.time.Instant;
@@ -21,16 +23,19 @@ public class PaymentService {
   private final Map<String, PaymentProvider> providers;
   private final MockOrderRepository mockOrders;
   private final ApplicationEventPublisher events;
+  private final CommittedMetrics metrics;
 
   public PaymentService(
       java.util.List<PaymentProvider> providerList,
       MockOrderRepository mockOrders,
-      ApplicationEventPublisher events) {
+      ApplicationEventPublisher events,
+      CommittedMetrics metrics) {
     this.providers =
         providerList.stream()
             .collect(Collectors.toUnmodifiableMap(PaymentProvider::name, Function.identity()));
     this.mockOrders = mockOrders;
     this.events = events;
+    this.metrics = metrics;
   }
 
   public PaymentProvider provider(String name) {
@@ -51,6 +56,9 @@ public class PaymentService {
     String orderId = "po-" + uuidV7Safe();
     PaymentProvider.CreatedOrder created =
         provider(providerName).createOrder(orderId, userId, amountCredits, currency);
+    // 过期收敛笔数已由 jinguan.payment.expiry.converged 承载;此处只记「下单/置付」两个新事实,不双计
+    metrics.countOnCommit(
+        MetricNames.PAYMENT_ORDERS, MetricNames.TAG_EVENT, MetricNames.EVENT_CREATED);
     return Map.of(
         "orderId",
         orderId,
@@ -92,6 +100,9 @@ public class PaymentService {
       }
       return Map.of("orderId", orderId, "status", status, "replayed", true);
     }
+    // paid 只在首次原子转换计(重推走上面 replayed 分支),与入账事件同口径待提交生效
+    metrics.countOnCommit(
+        MetricNames.PAYMENT_ORDERS, MetricNames.TAG_EVENT, MetricNames.EVENT_PAID);
     // 仅首次原子转换发布入账事件(并发/重推回调不产生重复事件);订单行锁已串行化,同 refId 不会并发入账
     events.publishEvent(
         new PaymentPaidEvent(
