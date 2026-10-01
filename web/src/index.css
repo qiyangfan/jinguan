@@ -65,8 +65,16 @@ currentColor,须在此统一收敛,否则 outline 按钮/浮层边框呈墨色�
   --success-foreground: #fff;
   --warning: #b45309; /* 警告语义:待支付/降级等中间态提示 */
   --warning-foreground: #fff;
-  --border: #dfe3de; /* 青灰线 */
-  --input: #dfe3de;
+  --border: #dfe3de; /* 青灰线:分隔线/卡片描边,刻意低对比是设计意图 */
+
+  /* 控件边界独立取值,不得等于 --border(宪法 Article 3):未勾选的复选框只有这一条线可辨,
+     必须达非文本控件 3:1(此值对宣纸白 3.35、对纯白卡 3.49)。消费方=input/textarea/
+     select/checkbox/toggle/button(outline) */
+  --input: #808c86;
+
+  /* 控件底/开关轨道填充是第三个语义(宪法 Article 3):不得跟随 --input,否则描边一提亮,
+     未勾选开关轨道就变实心灰条被误读为开启态。值 = 拆分前 --input 的原值,填充观感逐字节不变 */
+  --input-fill: #dfe3de;
   --ring: #c9a063; /* 鎏金点睛:匾额之金,哑光不炫 */
 }
 
@@ -92,7 +100,8 @@ currentColor,须在此统一收敛,否则 outline 按钮/浮层边框呈墨色�
   --warning: #fbbf24;
   --warning-foreground: #451a03;
   --border: #2a363a;
-  --input: #2a363a;
+  --input: #62767c; /* 黛青控件线:对卡面 3.58、对底 3.89,与亮色同一口径 */
+  --input-fill: #2a363a; /* 控件底/轨道填充,同亮色口径与 --input 解耦(宪法 Article 3) */
   --ring: #c9a063;
 }
 
@@ -133,6 +142,7 @@ currentColor,须在此统一收敛,否则 outline 按钮/浮层边框呈墨色�
   --color-warning-foreground: var(--warning-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
+  --color-input-fill: var(--input-fill);
   --color-ring: var(--ring);
 
   /* 品牌点缀:鎏金(匾额之金,logo 一笔/高亮/点睛,禁大面积铺开) */
