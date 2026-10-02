@@ -2,6 +2,11 @@
 
 > 维护纪律:只写「当前状态 / 下一步 / 开放决策项 / 验收记录」四块,不写变更明细(归 git log),单次更新 ≤30 行。
 
+## 当前状态(2026-10-02,三仓标准件视觉收敛+空态/错误态收编——owner 插话裁决;其余承下节)
+
+- **标准件同步与收敛(2026-10-02,聚合层批次三)**:ui/ 六文件自 kongming 逐字节同步——button(触控热区 xs/icon-xs 收敛+暗色变体)、card(CardTitle 多态 as,默认 h3)、dialog(inset-0 高度修复+关闭钮安全区)、input(日期族 block 修复+size prop)、badge(+success/warning 软底变体,kongming 单源收编)、alert-dialog(窄屏贴底抽屉——木牛登记「以木牛为准」,sm+ 居中不变)。新增共享件 empty-state/error-alert(kongming 拷贝,cmp 全同);`query-error.tsx` 退役(QueryErrorAlert→ErrorAlert 5 处);6 处内联「暂无X」收编 EmptyState;TopologyPage 预设查询错误收编 ErrorAlert(表单内提交反馈按其管辖边界保留原样);LoginPage CardTitle as="h2"(其余 12 处默认 h3,同 kongming 认证入口范式)。门禁:typecheck/lint/lint:css/format/test 14/14/build 全绿;登录页 375/1280 浏览器实测(heading level 2 大纲+卡面)过;sync 脚本复验 0 差异。改动落工作区未提交(等 owner 指令)。
+- **既有开放项更新**:FieldLabel 375 问号换行(聚合层批次二第 4 条)本批未动,仍为 kongming 先行候选。
+
 ## 当前状态(2026-10-02,本轮两件 change 已实施并归档:待结算恢复 + Key ID 绑定引导;历史批次见验收记录)
 
 - **待结算恢复(recover-pending-usage-settlement,2026-10-02 归档)**:①接收与结算责任分离——ingest 每行先校验不可变计费事实并可靠预留(同 ID 不同事实 409,存储失败非 2xx),2xx=已可靠落库;②WalletService 双修复:refId 幂等裁决先于新扣款余额判断(低余额重放不误报欠费/停服)、per-user 锁参与外层支付事务时挂 afterCompletion 持有到物理提交/回滚完成;③pending 投影+V8 迁移(last_settlement_attempt_at 内部轮转时间)+UsageSettlementScheduler 单实例周期恢复(默认 30s,≤100用户×100行,从未尝试者优先+按最近尝试轮转,首收顺序、余额不足即止);④首次归属固定,重绑不转嫁;accepted/replayed 终态 SQL 条件更新不降级;⑤恢复不计 ingest 接收指标。跨仓 e2e 实录(独立木牛:8788+假上游):记录 ID 绑定→请求→200 欠费留存(0.002 元分毫不差)→Mock 充值→自动补扣→名单 v3→v4 收敛→缓冲结束无重投(attempts 稳定)→账实相符。后端 33→90 测试,`make check` 全绿。
@@ -25,9 +30,10 @@
 
 ## 下一步(严格按序;涉及 openspec change 的:实施 → `make check` 全绿 → 审查迭代循环 → 归档)
 
-1. 【跨仓】木牛侧同名两件 change 的回归测试与归档由木牛会话按本轮联调实录补齐(锦官侧已实施并归档,HANDOFF 互引见木牛仓)。
+1. 【已关闭·2026-10-02】木牛侧同名两件 change 已各自收口:`fix-api-key-binding-identifiers` 7/7 归档;`recover-pending-usage-settlement` 5/5 归档(2026-10-02 `openspec archive`,主规格 +1 Requirement)。双仓配对闭环完成。
 2. 【既有外部确认】历史 push 后的平台 CI 实跑确认仍按原交付记录核对,本轮没有执行提交/push。
-3. 【跨会话 backlog】兑换码、邮件找回、集群化、持久化事件总线仍等实际需求;运维指标已实现不再作为待办。真实 PSP 不进入当前队列,收款继续 Mock。
+3. 【终态裁决·不再评审】收款维持 Mock(owner 2026-10-02 无限期裁决):真实 PSP 不排期、不评审,重启条件 = owner 明确立项。**【终态登记】`/control/v1/*` 与 `/actuator/prometheus` 匿名可读**:当前单主机回环部署下不构成现实风险,不排期;硬触发 = 多主机/跨网段部署立项时与 muniu cluster 侧联合 change。其余兑换码、邮件找回、集群化、持久化事件总线仍等实际需求;运维指标已实现不再作为待办。
+4. 【跨仓·待 kongming 落地】CardTitle 标题语义对齐:kongming change `2026-10-02-card-title-heading-semantics`(标准件 as 默认 h3)实施归档后,经 `scripts/sync-frontend-standard.sh` 同步本仓 `ui/card.tsx`,13 处调用点仅 LoginPage 传 `as="h2"`(卡片标题即页面级标题),其余默认 h3;清单与联合修改登记见聚合层 HANDOFF 2026-10-02 批次二。
 
 
 ## 开放决策项
