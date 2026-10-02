@@ -4,7 +4,8 @@
 # ── 阶段一:前端构建(pnpm 版本由 web/package.json 的 packageManager 钉死)──
 FROM docker.io/library/node:22-alpine AS web
 WORKDIR /web
-RUN corepack enable
+# 国内构建加速:npm/pnpm 注册表走 npmmirror(仅构建期,不影响交付物)
+RUN npm config set registry https://registry.npmmirror.com && corepack enable
 COPY web/package.json web/pnpm-lock.yaml web/pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 COPY web/ ./
@@ -12,9 +13,10 @@ COPY web/ ./
 # 容器内显式覆盖到 /web/dist,与阶段二的 COPY 路径对齐
 RUN pnpm typecheck && pnpm exec vite build --outDir /web/dist --emptyOutDir
 
-# ── 阶段二:后端打包(依赖层缓存:先拉依赖再拷源码)──
+# ── 阶段二:后端打包(依赖层缓存:先拉依赖再拷源码;central 走阿里云镜像)──
 FROM docker.io/library/maven:3.9-eclipse-temurin-21 AS backend
 WORKDIR /app
+COPY docker/maven-settings.xml /root/.m2/settings.xml
 COPY pom.xml ./
 RUN mvn -B -q dependency:go-offline
 COPY src/ src/
@@ -24,7 +26,10 @@ RUN mvn -B -q package -DskipTests
 
 # ── 阶段三:运行层(非 root;健康检查打 /actuator/health)──
 FROM docker.io/library/eclipse-temurin:21-jre
-RUN apt-get update \
+# apt 换国内源(temurin 运行层 Ubuntu/Debian 基,两类源文件都兜);仅装 curl 供健康检查
+RUN sed -i -E 's#https?://(archive\.ubuntu\.com|security\.ubuntu\.com|ports\.ubuntu\.com|deb\.debian\.org)#https://mirrors.aliyun.com#g' \
+      /etc/apt/sources.list /etc/apt/sources.list.d/*.sources /etc/apt/sources.list.d/*.list 2>/dev/null || true \
+    && apt-get update \
     && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
 RUN useradd --uid 1001 jinguan
