@@ -40,7 +40,10 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-background px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
       <Card className="w-full max-w-sm">
         <CardHeader>
-          <CardTitle className="text-primary">锦官 · 控制面</CardTitle>
+          {/* 认证入口卡题即页内最高级,升页面级 h2(CardTitle 标题语义,kongming 对齐) */}
+          <CardTitle as="h2" className="text-primary">
+            锦官 · 控制面
+          </CardTitle>
           <CardDescription>
             {mode === "login" ? "登录以管理钱包与计价" : "注册新账号;首个注册的用户将成为管理员"}
           </CardDescription>

@@ -18,7 +18,8 @@ import { PageHeader } from "@/components/page-header";
 import { Pagination } from "@/components/pagination";
 import { FormRow } from "@/components/form-row";
 import { FormGrid } from "@/components/form-grid";
-import { QueryErrorAlert } from "@/components/query-error";
+import { ErrorAlert } from "@/components/error-alert";
+import { EmptyState } from "@/components/empty-state";
 import { StatusBadge, type StatusMeta } from "@/components/status-badge";
 import { MobileCard } from "@/components/mobile-card";
 import { errorDetail } from "@/lib/api";
@@ -83,7 +84,7 @@ export default function PaymentsPage() {
         </CardHeader>
         <CardContent>
           {orders.isError ? (
-            <QueryErrorAlert text={errorDetail(orders.error)} />
+            <ErrorAlert text={errorDetail(orders.error)} />
           ) : orders.isPending ? (
             <p className="text-sm text-muted-foreground">加载中…</p>
           ) : orders.data && orders.data.length > 0 ? (
@@ -191,7 +192,7 @@ export default function PaymentsPage() {
               />
             </>
           ) : (
-            <p className="text-sm text-muted-foreground">暂无订单</p>
+            <EmptyState>暂无订单</EmptyState>
           )}
         </CardContent>
       </Card>

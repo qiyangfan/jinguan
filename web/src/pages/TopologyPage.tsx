@@ -39,7 +39,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader } from "@/components/page-header";
 import { FormRow } from "@/components/form-row";
-import { QueryErrorAlert } from "@/components/query-error";
+import { ErrorAlert } from "@/components/error-alert";
 import { errorDetail } from "@/lib/api";
 import {
   ADAPTERS,
@@ -425,7 +425,7 @@ export default function TopologyPage() {
     return (
       <section className="space-y-6">
         <PageHeader title="渠道拓扑" />
-        <QueryErrorAlert text={topology.isError ? errorDetail(topology.error) : undefined} />
+        <ErrorAlert text={topology.isError ? errorDetail(topology.error) : undefined} />
       </section>
     );
   }
@@ -922,9 +922,7 @@ export default function TopologyPage() {
                 </p>
                 {presets.isPending && <Skeleton className="h-16 w-full" />}
                 {presets.isError && (
-                  <p className="text-sm text-destructive">
-                    预设目录加载失败:{errorDetail(presets.error)}
-                  </p>
+                  <ErrorAlert text={`预设目录加载失败:${errorDetail(presets.error)}`} />
                 )}
                 {(["cn", "global"] as const).map((region) => {
                   const list = presetVendors.filter((v) => v.region === region);

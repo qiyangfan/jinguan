@@ -18,6 +18,10 @@ const badgeVariants = cva(
           "border-border text-foreground [a&]:hover:bg-accent [a&]:hover:text-accent-foreground",
         ghost: "[a&]:hover:bg-accent [a&]:hover:text-accent-foreground",
         link: "text-primary underline-offset-4 [a&]:hover:underline",
+        /* 软底状态语义变体(木牛 2026-10-02 收编入单源):健康/冷却等域状态而非操作语义,
+           15% 弱底避免与 destructive 实底混淆;状态渲染统一走 StatusBadge(meta) */
+        success: "bg-success/15 text-success",
+        warning: "bg-warning/15 text-warning",
       },
     },
     defaultVariants: {

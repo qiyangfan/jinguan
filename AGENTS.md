@@ -33,7 +33,8 @@ web 前端统一遵循聚合目录 `../FRONTEND-CONSTITUTION.md`(Article 0–10)
   (Article 1/2)。13 个 ui 组件中暂未使用的(badge/select/skeleton/dialog 等)有明确落点,
   新页面先查标准件再动手。
 - 页面骨架只用标准件:PageHeader / FormRow / FieldLabel / Pagination / StatCard / StatusBadge /
-  QueryErrorAlert / Skeleton,禁每页手搓骨架;错误一律 text-destructive,禁装灰(Article 4/6/7)。
+  ErrorAlert / EmptyState / Skeleton,禁每页手搓骨架;查询错误走 ErrorAlert(role=alert),
+  表单内提交反馈不属其管辖(Article 4/6/7;2026-10-02 QueryErrorAlert 更名收编 ErrorAlert)。
 - 响应式:md 为折叠点;**移动端是独立设计而非桌面缩小**——md 以下由 app-shell
   提供移动原生范式(顶部栏 + 底部标签栏 + 账户底部弹层),列表用 MobileCard
   卡片双轨(桌面表格 md 起保留),表单单列满宽、金额右对齐 tabular-nums、触控目标

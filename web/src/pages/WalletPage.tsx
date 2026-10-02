@@ -18,7 +18,8 @@ import { PageHeader } from "@/components/page-header";
 import { Pagination } from "@/components/pagination";
 import { FormRow } from "@/components/form-row";
 import { FormGrid } from "@/components/form-grid";
-import { QueryErrorAlert } from "@/components/query-error";
+import { ErrorAlert } from "@/components/error-alert";
+import { EmptyState } from "@/components/empty-state";
 import { StatusBadge, type StatusMeta } from "@/components/status-badge";
 import { MobileCard } from "@/components/mobile-card";
 import { errorDetail } from "@/lib/api";
@@ -115,7 +116,7 @@ export default function WalletPage() {
         </CardHeader>
         <CardContent>
           {balance.isError ? (
-            <QueryErrorAlert text={errorDetail(balance.error)} />
+            <ErrorAlert text={errorDetail(balance.error)} />
           ) : balance.isPending ? (
             <Skeleton className="h-9 w-32" />
           ) : (
@@ -182,7 +183,7 @@ export default function WalletPage() {
         </CardHeader>
         <CardContent>
           {entries.isError ? (
-            <QueryErrorAlert text={errorDetail(entries.error)} />
+            <ErrorAlert text={errorDetail(entries.error)} />
           ) : entries.isPending ? (
             <div className="space-y-2">
               <Skeleton className="h-10" />
@@ -230,7 +231,7 @@ export default function WalletPage() {
                     ]}
                   />
                 ))}
-                {items.length === 0 && <p className="text-sm text-muted-foreground">暂无流水</p>}
+                {items.length === 0 && <EmptyState>暂无流水</EmptyState>}
               </div>
 
               {/* 桌面端(md 及以上):表格 */}
@@ -281,7 +282,7 @@ export default function WalletPage() {
                     ))}
                   </TableBody>
                 </Table>
-                {items.length === 0 && <p className="text-sm text-muted-foreground">暂无流水</p>}
+                {items.length === 0 && <EmptyState>暂无流水</EmptyState>}
               </div>
               <Pagination
                 className="mt-3"
@@ -303,14 +304,14 @@ export default function WalletPage() {
         </CardHeader>
         <CardContent>
           {usage.isError ? (
-            <QueryErrorAlert text={errorDetail(usage.error)} />
+            <ErrorAlert text={errorDetail(usage.error)} />
           ) : usage.isPending ? (
             <div className="space-y-2">
               <Skeleton className="h-10" />
               <Skeleton className="h-10" />
             </div>
           ) : usageItems.length === 0 ? (
-            <p className="text-sm text-muted-foreground">暂无用量</p>
+            <EmptyState>暂无用量</EmptyState>
           ) : (
             <>
               {/* 移动端(md 以下):卡片列表,费用为首要信息 */}

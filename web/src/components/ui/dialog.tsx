@@ -54,9 +54,12 @@ function DialogContent({
         data-slot="dialog-content"
         className={cn(
           /* 窄屏全屏承载(mobile-experience B1.3):无前缀基线=全屏(内容滚动、
-           DialogFooter 基类钉底消费安全区);sm: 起维持定宽居中。页面级
-           sm:max-w-* 覆写经 tailwind-merge 仍生效。AlertDialog 不走本基类。 */
-          "fixed inset-0 z-50 grid h-full w-full gap-4 overflow-y-auto overscroll-contain rounded-none border-0 bg-background p-4 shadow-none outline-none duration-200 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0 sm:top-[50%] sm:left-[50%] sm:h-auto sm:w-full sm:max-w-[calc(100%-2rem)] sm:translate-x-[-50%] sm:translate-y-[-50%] sm:overflow-visible sm:rounded-lg sm:border sm:p-6 sm:shadow-lg sm:data-[state=closed]:zoom-out-95 sm:data-[state=open]:zoom-in-95 sm:max-w-lg",
+           DialogFooter 基类钉底消费安全区);sm: 起维持定宽居中——top/left 之外
+           right/bottom 须显式还原,否则 inset-0 残留把对话框高度压成「视口半高
+           贴底」;sm 不需要 overflow 覆写(h-auto 下 overflow-y-auto 自然失效,
+           页面级 max-h+overflow 覆写得以保留)。页面级 sm:max-w-* 覆写经
+           tailwind-merge 仍生效。AlertDialog 不走本基类。 */
+          "fixed inset-0 z-50 grid h-full w-full gap-4 overflow-y-auto overscroll-contain rounded-none border-0 bg-background p-4 shadow-none outline-none duration-200 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0 sm:top-[50%] sm:left-[50%] sm:right-auto sm:bottom-auto sm:h-auto sm:w-full sm:translate-x-[-50%] sm:translate-y-[-50%] sm:rounded-lg sm:border sm:p-6 sm:shadow-lg sm:data-[state=closed]:zoom-out-95 sm:data-[state=open]:zoom-in-95 sm:max-w-lg",
           className,
         )}
         {...props}
@@ -65,7 +68,7 @@ function DialogContent({
         {showCloseButton && (
           <DialogPrimitive.Close
             data-slot="dialog-close"
-            className="absolute top-4 right-4 rounded-xs opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
+            className="absolute top-[calc(1rem_+_var(--kb-safe-top))] right-4 sm:top-4 rounded-xs opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
           >
             <XIcon />
             <span className="sr-only">Close</span>

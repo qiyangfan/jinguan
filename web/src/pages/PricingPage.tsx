@@ -36,7 +36,8 @@ import {
 import { PageHeader } from "@/components/page-header";
 import { FormRow } from "@/components/form-row";
 import { FormGrid } from "@/components/form-grid";
-import { QueryErrorAlert } from "@/components/query-error";
+import { ErrorAlert } from "@/components/error-alert";
+import { EmptyState } from "@/components/empty-state";
 import { MobileCard } from "@/components/mobile-card";
 import { Badge } from "@/components/ui/badge";
 import { errorDetail } from "@/lib/api";
@@ -373,7 +374,7 @@ export default function PricingPage() {
         </CardHeader>
         <CardContent>
           {list.isError ? (
-            <QueryErrorAlert text={errorDetail(list.error)} />
+            <ErrorAlert text={errorDetail(list.error)} />
           ) : list.isPending ? (
             <div className="space-y-2">
               <Skeleton className="h-10" />
@@ -439,9 +440,7 @@ export default function PricingPage() {
                     }
                   />
                 ))}
-                {(list.data ?? []).length === 0 && (
-                  <p className="text-sm text-muted-foreground">暂无价目</p>
-                )}
+                {(list.data ?? []).length === 0 && <EmptyState>暂无价目</EmptyState>}
               </div>
 
               {/* 桌面端(md 及以上):表格 */}
@@ -496,9 +495,7 @@ export default function PricingPage() {
                     ))}
                   </TableBody>
                 </Table>
-                {(list.data ?? []).length === 0 && (
-                  <p className="text-sm text-muted-foreground">暂无价目</p>
-                )}
+                {(list.data ?? []).length === 0 && <EmptyState>暂无价目</EmptyState>}
               </div>
             </>
           )}
