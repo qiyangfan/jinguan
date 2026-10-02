@@ -6,6 +6,13 @@
 
 - **标准件同步与收敛(2026-10-02,聚合层批次三)**:ui/ 六文件自 kongming 逐字节同步——button(触控热区 xs/icon-xs 收敛+暗色变体)、card(CardTitle 多态 as,默认 h3)、dialog(inset-0 高度修复+关闭钮安全区)、input(日期族 block 修复+size prop)、badge(+success/warning 软底变体,kongming 单源收编)、alert-dialog(窄屏贴底抽屉——木牛登记「以木牛为准」,sm+ 居中不变)。新增共享件 empty-state/error-alert(kongming 拷贝,cmp 全同);`query-error.tsx` 退役(QueryErrorAlert→ErrorAlert 5 处);6 处内联「暂无X」收编 EmptyState;TopologyPage 预设查询错误收编 ErrorAlert(表单内提交反馈按其管辖边界保留原样);LoginPage CardTitle as="h2"(其余 12 处默认 h3,同 kongming 认证入口范式)。门禁:typecheck/lint/lint:css/format/test 14/14/build 全绿;登录页 375/1280 浏览器实测(heading level 2 大纲+卡面)过;sync 脚本复验 0 差异。已提交并推送(15e6358 文档登记+e234e7e 本批,2026-10-02 owner 授权,ls-remote 核对一致)。
 - **既有开放项更新**:FieldLabel 375 问号换行(聚合层批次二第 4 条)本批未动,仍为 kongming 先行候选。
+- **认证后页面实机走查(2026-10-02,compose 栈 8090,补批次三走查义务)**:钱包/支付/渠道拓扑/价目管理
+  四页 375(dark)+1280(dark)实测——大纲 h2 页题→h3 卡题全对、EmptyState(暂无流水/订单/价目)居中
+  呼吸档正确、添加供应商 Sheet 双形态(max-md 贴底抽屉/md+ 居中模态)正确、官方预设 22 家 chips 正常;
+  ErrorAlert 收编点无回归(其配方与原 QueryErrorAlert 逐字节同,零视觉差 by construction)。
+- **compose 首建提速(6cd5eb5)**:容器构建换国内镜像源——Maven central→阿里云(docker/maven-settings.xml,
+  mirrorOf=central)、npm→npmmirror、apt 四类源 sed 换 aliyun(含 arm64 的 ports.ubuntu.com);
+  首建直连 20+ 分钟未完是 compose 首启慢的主因,均只影响构建期。
 
 ## 当前状态(2026-10-02,本轮两件 change 已实施并归档:待结算恢复 + Key ID 绑定引导;历史批次见验收记录)
 
