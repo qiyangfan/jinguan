@@ -50,13 +50,18 @@ export default function KeysPage() {
         <CardContent>
           <form onSubmit={submit}>
             <FormGrid>
-              <FormRow label="密钥标识" htmlFor="keyId" className="md:w-64">
+              <FormRow
+                label="密钥标识（Key ID）"
+                htmlFor="keyId"
+                help="从木牛密钥列表、签发结果或 CLI keys list 复制的记录 ID(与计量 APIKeyID 同值),按原值粘贴。不要填写 mk- 开头的一次性明文凭据或展示前缀。"
+                className="md:w-64"
+              >
                 <Input
                   id="keyId"
                   value={keyId}
                   onChange={(e) => setKeyId(e.target.value)}
                   className="w-full"
-                  placeholder="请粘贴以 mk- 开头的密钥"
+                  placeholder="粘贴木牛密钥记录 ID,如 k-1"
                   required
                 />
               </FormRow>
@@ -75,7 +80,7 @@ export default function KeysPage() {
               <Button
                 type="submit"
                 className="h-11 w-full md:h-9 md:w-auto"
-                disabled={bind.isPending || !keyId || !userId}
+                disabled={bind.isPending || !keyId.trim() || !userId}
               >
                 {bind.isPending ? "绑定中…" : "绑定"}
               </Button>
