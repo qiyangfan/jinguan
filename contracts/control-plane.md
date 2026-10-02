@@ -34,7 +34,8 @@
 - 请求形态:`{"rows":[IngestUsageRow...]}`,Bearer `ingest_token`(恒时比较);行字段 **PascalCase**(muniu Go 结构体无 json tag 的默认序列化),与 muniu `internal/store/store.go` `UsageRow` 逐字段对齐(20):
   `ID, RequestID, TenantID, APIKeyID, Provider, ModelAlias, UpstreamModel, Stream, Status, ErrorClass, PromptTokens, CompletionTokens, ReasoningTokens, CachedTokens, Estimated, CostCredits, Currency, LatencyFirstTokenMs, LatencyTotalMs, CreatedAt`
 - 语义锚点:`CostCredits` 整数 credit;`CreatedAt` UTC RFC3339;`Status ∈ {ok, error, client_cancel}`;行幂等键 `usage:{ID}`;断网整批落 muniu `metering_buffer` 按序续传。
-- 双端锚点:muniu `internal/metering/sink.go` `IngestSink`(产生方);锦官 `IngestUsageRow.java`(逐字段镜像)/`IngestController.java`(Bearer 恒时比较)/`IngestService.java`(逐行独立事务,refId 幂等)。
+- **接收与结算责任分离(recover-pending-usage-settlement,2026-10-02)**:2xx = 该批需要处理的用量已可靠落库(结算可以暂缓),不表示全部已扣款;存储失败或同 ID 不同不可变计费事实 → 非 2xx(muniu 续传重试)。欠费行留存为待结算事实(`skipped_insufficient`/`pending` 投影),充值后由锦官侧 `UsageSettlementScheduler`(单实例周期恢复,默认 30s)补扣——**不依赖 muniu 重投业务欠费行**;`IngestResult` 六计数形态不变,后台恢复不计接收指标。
+- 双端锚点:muniu `internal/metering/sink.go` `IngestSink`(产生方,2xx 即结束运输重试);锦官 `IngestUsageRow.java`(逐字段镜像)/`IngestController.java`(Bearer 恒时比较)/`IngestService.java`(逐行先可靠预留再进唯一资金通道,refId 幂等)/`UsageSettlementScheduler.java`(待结算恢复)。
 - **新增计量字段流程**:muniu UsageRow 加列 → 本表先行更新(双方 change)→ 锦官 record 同步 → 脚本双绿 → 归档。
 
 ## 管子 4:拓扑下发

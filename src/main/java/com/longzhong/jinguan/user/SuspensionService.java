@@ -3,6 +3,7 @@ package com.longzhong.jinguan.user;
 import java.time.Instant;
 import java.util.List;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -26,8 +27,11 @@ public class SuspensionService {
     this.watermarks = watermarks;
   }
 
-  /** 欠费停服置位(幂等):仅在状态实际变化时 bump 水位。 */
-  @Transactional
+  /**
+   * 欠费停服置位(幂等):仅在状态实际变化时 bump 水位。 REQUIRES_NEW:余额不足是已提交资金状态推导的用户事实,不随调用方业务事务回滚丢失—— debit
+   * 参与外层事务且失败的路径中,内层事务仅被标记 rollback-only,若置位加入该 doomed 事务将静默失效(置位与水位 bump 仍同在本新事务内,契约不破)。
+   */
+  @Transactional(propagation = Propagation.REQUIRES_NEW)
   public boolean markSuspended(long userId) {
     int updated = users.suspendIfClear(userId, Instant.now());
     if (updated > 0) {

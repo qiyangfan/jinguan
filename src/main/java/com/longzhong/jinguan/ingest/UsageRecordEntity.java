@@ -77,6 +77,9 @@ public class UsageRecordEntity {
   @Column(name = "last_attempt_at", nullable = false)
   private Instant lastAttemptAt = Instant.now();
 
+  @Column(name = "last_settlement_attempt_at")
+  private Instant lastSettlementAttemptAt;
+
   protected UsageRecordEntity() {} // JPA
 
   private UsageRecordEntity(IngestUsageRow row, Long userId, String outcome) {
@@ -104,18 +107,23 @@ public class UsageRecordEntity {
   }
 
   /**
-   * 投影更新(重投/补账):刷新尝试计数,解析出的归属一并更新。 语义裁决:accepted 是计费终态——纯重投(replayed,资金早已入账)不降级覆盖; skipped_*
-   * 后续补账成功(accepted/replayed)才更新结论。
+   * 不可变计费事实比对(同 usage ID 重投/恢复前置校验): 镜像字段不一致即在资金写入前报幂等冲突,不覆盖旧内容。
+   * 计费事实固定为首次接收值——key、租户、模型、tokens、费用、币种、状态与源时间。
    */
-  public void recordAttempt(String outcome, Long resolvedUserId) {
-    this.attempts = this.attempts + 1;
-    this.lastAttemptAt = Instant.now();
-    if (!"accepted".equals(this.finalOutcome) || "accepted".equals(outcome)) {
-      this.finalOutcome = outcome;
-    }
-    if (resolvedUserId != null) {
-      this.userId = resolvedUserId;
-    }
+  public boolean billingFactsEqual(IngestUsageRow row) {
+    return java.util.Objects.equals(keyId, row.APIKeyID())
+        && java.util.Objects.equals(tenantId, row.TenantID())
+        && java.util.Objects.equals(modelAlias, row.ModelAlias())
+        && java.util.Objects.equals(upstreamModel, row.UpstreamModel())
+        && java.util.Objects.equals(status, row.Status())
+        && java.util.Objects.equals(errorClass, row.ErrorClass())
+        && promptTokens == row.PromptTokens()
+        && completionTokens == row.CompletionTokens()
+        && reasoningTokens == row.ReasoningTokens()
+        && cachedTokens == row.CachedTokens()
+        && costCredits == row.CostCredits()
+        && java.util.Objects.equals(currency, row.Currency())
+        && java.util.Objects.equals(sourceCreatedAt, row.CreatedAt());
   }
 
   @JsonSerialize(using = ToStringSerializer.class)
@@ -195,5 +203,10 @@ public class UsageRecordEntity {
 
   public Instant getLastAttemptAt() {
     return lastAttemptAt;
+  }
+
+  /** 内部结算尝试时间(用户轮转用);包私有——不进入请求契约。 */
+  Instant getLastSettlementAttemptAt() {
+    return lastSettlementAttemptAt;
   }
 }

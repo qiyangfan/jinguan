@@ -50,3 +50,9 @@ jinguan:
   payment:
     order-ttl-minutes: ${JINGUAN_PAYMENT_TTL_MINUTES:60}   # 订单支付有效期(渠道语义)
     expiry-scan-seconds: ${JINGUAN_PAYMENT_SCAN_SECONDS:30} # 过期收敛扫描间隔(仅状态及时性,资金正确性由回调守门保证)
+  settlement:
+    # 待结算恢复器(单实例周期扫描):pending/欠费用量在充值/重启/投影中断后由此补扣
+    fixed-delay-ms: ${JINGUAN_SETTLEMENT_DELAY_MS:30000}     # 轮询间隔(上一轮完成后计时,不重叠)
+    initial-delay-ms: ${JINGUAN_SETTLEMENT_INITIAL_MS:30000} # 启动首轮延迟
+    max-users: ${JINGUAN_SETTLEMENT_MAX_USERS:100}           # 每轮至多处理用户数
+    max-rows-per-user: ${JINGUAN_SETTLEMENT_MAX_ROWS:100}    # 每用户每轮至多处理行数

@@ -41,6 +41,15 @@ ADMIN `POST /admin/keys/{id}/revoke`,不可逆)+ **欠费停服**(`users.suspend
 ingest 余额不足自动置位、任何入账同事务自动清除——充值即恢复)合并为全量快照,
 版本经 `sync_watermarks` 与状态变更同事务单调递增;重绑已吊销 key 返回 409。
 
+待结算恢复已实现(2026-10-02,openspec `recover-pending-usage-settlement`):
+计量行的接收与结算责任分离——`POST /ingest/usage` 的 2xx 表示该批用量已**可靠落库**
+(每行先校验不可变计费事实并预留明细,同 ID 不同事实报 409),不表示全部已扣款。
+欠费行留存为已固定归属的待结算事实(`pending`/`skipped_insufficient` 投影),
+充值(或管理员入账)提交后由 `UsageSettlementScheduler` 单实例周期恢复自动补扣
+(默认 30s 一轮,每轮 ≤100 用户 × 100 行,用户间按最近结算尝试时间公平轮转;
+重启、扣账后投影中断、预留后中断均可恢复,资金经 `usage:{ID}` 幂等键最多生效一次),
+不依赖数据面重投。首次合法解析的归属固定,key 重绑不转嫁既有用量。
+
 ## 演示闭环(一条龙)
 
 ```bash
@@ -80,9 +89,12 @@ jinguan-pgdata,`make docker-down` 保留卷);冒烟:`curl :8090/actuator/health`
 
 - Event Publication Registry(事件持久化+重放):当前支付入账为同事务强一致;
   规模化后切换持久化事件实现最终一致。
-- 真实 PSP adapter:契约(`PaymentProvider`)已冻结,商业验证后实现一个渠道。
+- 收款继续使用 Mock（2026-10-02 用户边界）；本轮待结算恢复与 Key ID 绑定不接真实渠道。真实 PSP adapter 的 `PaymentProvider` 契约保留，只有后续明确收款需求时另行立项。
 - 采集面认证头与 muniu 拉取认证头(**同一演进项**)、key 代签(自校验 key 联动 ADR-0006):`/control/v1/*` 与
   `/actuator/prometheus` 当前同信任前提——匿名可读 + 部署网络隔离(compose 绑定 `127.0.0.1:8090`)。
   多主机部署(跨网段拉取/采集)前必须先落地这一条,双方对齐后排期。
 - 集群化:per-user JVM 条带锁 → 账本行锁/分布式锁。
+- 调度器线程池:两个 `@Scheduled` 任务(订单过期收敛 + 待结算恢复)共享 Spring Boot 默认单线程调度器,
+  串行执行。积压场景下一轮恢复可长时间占住调度线程,拖慢过期扫描的及时性(资金正确性不受影响——
+  过期有回调懒守门兜底)。两者出现互相拖延时,设 `spring.task.scheduling.pool.size: 2` 即解除。
 - 前端:深浅主题已就位(token 单源+防 FOUC+切换持久化);响应式(窄屏顶部导航/表格横滚/表单换行)已就位;国际化(i18n 文案抽取)随门户多语言需求排期——控制面当前单语中文,与 kongming 前端现状一致。

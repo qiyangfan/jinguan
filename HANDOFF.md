@@ -2,7 +2,11 @@
 
 > 维护纪律:只写「当前状态 / 下一步 / 开放决策项 / 验收记录」四块,不写变更明细(归 git log),单次更新 ≤30 行。
 
-## 当前状态(2026-10-01,控制面运维指标落地并归档 + 承 2026-09-26 双仓标准件对齐/FormGrid 收编/弹层基座迁移,历史批次见验收记录)
+## 当前状态(2026-10-02,本轮两件 change 已实施并归档:待结算恢复 + Key ID 绑定引导;历史批次见验收记录)
+
+- **待结算恢复(recover-pending-usage-settlement,2026-10-02 归档)**:①接收与结算责任分离——ingest 每行先校验不可变计费事实并可靠预留(同 ID 不同事实 409,存储失败非 2xx),2xx=已可靠落库;②WalletService 双修复:refId 幂等裁决先于新扣款余额判断(低余额重放不误报欠费/停服)、per-user 锁参与外层支付事务时挂 afterCompletion 持有到物理提交/回滚完成;③pending 投影+V8 迁移(last_settlement_attempt_at 内部轮转时间)+UsageSettlementScheduler 单实例周期恢复(默认 30s,≤100用户×100行,从未尝试者优先+按最近尝试轮转,首收顺序、余额不足即止);④首次归属固定,重绑不转嫁;accepted/replayed 终态 SQL 条件更新不降级;⑤恢复不计 ingest 接收指标。跨仓 e2e 实录(独立木牛:8788+假上游):记录 ID 绑定→请求→200 欠费留存(0.002 元分毫不差)→Mock 充值→自动补扣→名单 v3→v4 收敛→缓冲结束无重投(attempts 稳定)→账实相符。后端 33→90 测试,`make check` 全绿。
+- **Key ID 绑定引导(fix-api-key-binding-identifiers,2026-10-02 归档)**:KeysPage 标签「密钥标识（Key ID）」+问号帮助(木牛密钥列表/签发结果/CLI keys list 的记录 ID,不填 mk- 明文或前缀)+placeholder 更正(原「请粘贴以 mk- 开头的密钥」即缺陷本体);提交前 trim、纯空白禁用;绑定 API 字段/权限零改动,自定义非 UUID 标识与空白拒绝有契约测试钉死;openapi 深度相等零漂移;UI 六态走查(375/768/1280×亮暗)零溢出,49 字符长 ID 不撑破。
+- **零散核销**:provider-presets 4.4 勾选欠账补记(评审循环+归档事实早已达成,见验收记录 6)。
 
 - **运维指标面(2026-10-01,openspec `expose-ops-metrics` 已归档,capability `ops-metrics`)**:此前状态是「埋了点却没有导出通道」——`PaymentExpiryScheduler` 早有 Counter/Timer 且类注释声称「可观测暴露」,但 pom 无 `micrometer-registry-prometheus`、application.yml 无 `management` 段,即 `/actuator/prometheus` 端点根本不存在,`backlog()` getter 全仓零消费方;其余资金 choke point(WalletService/IngestService/三根拉取管子)零埋点。本轮:①值域收口——暴露面白名单只含 `health,prometheus`(`env/configprops/beans/mappings/heapdump/loggers/threaddump` 不注册,测试反向断言);②新增 `jinguan.ingest.rows{outcome}`(与 `IngestResult` 同源五桶)、`jinguan.wallet.operations{kind,outcome}`(applied/replayed/rejected_insufficient/rejected_conflict,计数点内聚在唯一资金通道)、`jinguan.payment.orders{event}`(created/paid;过期事实仍由既有 `expiry.converged` 单承载,不双计)、`jinguan.control.pull{pipe,outcome}`(端点层计数,管理页复用 service 不计),并把 `backlog` 注册成 Gauge;③`common/MetricNames` 指标词汇表 + `common/CommittedMetrics`(资金分录走 afterCommit,拒绝类立即计——外层事务回滚不虚增资金事实);④新增 `docs/design/ops-metrics.md`(指标表 + 告警判据 + 基数纪律);⑤README 新增「可观测」节,并把「数据面拉取认证头」与「采集面认证头」合并为一条演进项(消除两套口径);⑥跨仓措辞更正:预设目录 Gemini 备注「原生桥接 muniu 未实现」→「muniu 不建原生桥接」(对齐 muniu `retire-gemini-adapter-token` 裁决)。门禁见验收记录 8。
 
@@ -21,8 +25,10 @@
 
 ## 下一步(严格按序;涉及 openspec change 的:实施 → `make check` 全绿 → 审查迭代循环 → 归档)
 
-1. 【已收口 2026-09-26】git push 本批执行(provider-presets 归档 + 移动端重设计随批);push 后仍需在平台确认 CI 三线实跑绿(delivery-pipeline 3.1 的遗留确认点,顺延至本批)。
-2. 【跨会话】backlog(触发条件到即立项,现在不动):兑换码(商业验证期自助收费,建议排在真实 PSP 之前)→ 真实 PSP adapter(含回调验签真实现 + queryStatus 对账)→ Prometheus 指标 → 邮件自助找回(等门户 email)→ 集群化(行锁/分布式锁/分布式限流)→ 持久化事件总线。README「演进登记」随归档同步收口。
+1. 【跨仓】木牛侧同名两件 change 的回归测试与归档由木牛会话按本轮联调实录补齐(锦官侧已实施并归档,HANDOFF 互引见木牛仓)。
+2. 【既有外部确认】历史 push 后的平台 CI 实跑确认仍按原交付记录核对,本轮没有执行提交/push。
+3. 【跨会话 backlog】兑换码、邮件找回、集群化、持久化事件总线仍等实际需求;运维指标已实现不再作为待办。真实 PSP 不进入当前队列,收款继续 Mock。
+
 
 ## 开放决策项
 
@@ -41,6 +47,11 @@
 | 2026-10-01 | 指标端点放哪(同端口 vs 独立 management 端口) | 同端口 + security 一条 permitAll / `management.server.port` 独立端口 / 采集侧静态 token 过滤器 | **同端口 + permitAll,与 `/control/v1/*` 同信任前提**:独立端口会把 `/actuator/health` 从 8090 搬走(Dockerfile HEALTHCHECK 硬依赖)并新增端口拓扑;静态 token 过滤器是给只读采集面造第二套鉴权,而 ingest 的静态 Bearer 成立是因为它是跨仓写契约。暴露安全靠白名单 include + 负例测试兜,认证与数据面拉取合并为同一条演进项(README) |
 | 2026-10-01 | 资金计数时机 | 方法返回即计 / 提交后计(afterCommit)/ AOP 环绕服务方法 | **提交后计**:支付入账参与外层事务(BEFORE_COMMIT),外层回滚则分录不存在,方法返回即计会虚增资金事实;AOP 把「HTTP 成功」当「资金发生」,幂等重放/余额不足/回滚三类事实无法分桶。拒绝类是终态事实,反例——立即计 |
 ## 验收记录(阶段闸门时追加:判据 → 证据 → 日期)
+
+- **2026-10-02 待结算恢复 + Key ID 绑定(两 change)**:判据 = 任务清单逐项 + 先红后绿 + `make check` 全绿 + 契约零漂移 + 跨仓 e2e + specs strict。证据 = ①红:WalletReplayAdjudicationTest 3 用例(重放被余额拦截/冲突伪装欠费/并发败方 0 重放)、WalletOuterTransactionLockTest(恢复线程读充值前余额 0→InsufficientFunds,锁提前释放实证)、UsageFactsAttributionTest(编译红);②绿:后端 33→90 测试(新增 5 测试类 22 用例),`make check` EXIT 0(vitest 14、SpotBugs 初拦 CT_CONSTRUCTOR_THROW 已改 @PostConstruct);③契约:真机 /v3/api-docs ↔ openapi.json 24↔24 路径、24↔24 schemas 深度相等(除 servers 探针差异),IngestResult 六计数/UsageRow 20 字段不漂移,contracts/control-plane.md 管子 3 登记责任分离;④e2e:独立 muniu(:8788,sink=ingest)+ 假上游——记录 ID 01a0fa5d-abba-… 绑定→明文 mk-PL3boi… 鉴权→200 接收欠费留存(cost 2000000=0.002 元与定价分毫不差)→名单含 key→Mock 充值 10000000→恢复器(5s 轮)补扣→余额 8000000 账实相符、投影 accepted、名单 v3→v4 收敛、再等一轮 attempts 稳定(缓冲结束无重投)、账本恰两笔分录;⑤UI:六态走查(375/768/1280×亮暗)scrollWidth=视口宽零溢出,长 ID 49 字符不撑破,失败提示/空白禁用实证;⑥归档后 `openspec validate --specs --strict` 10/10。审查:独立子代理全量 diff 复核(见各 change review.md)。
+
+
+- **2026-10-02 提案验证**：两件 change 严格校验 2/2，现有主规格基线 10/10；只读复核资金/ID 边界及跨仓契约。未运行编译或业务测试，功能尚未实施；这些门禁仍保留在 tasks 中。
 
 1. **差距审计与 openspec 立项(2026-09-12)**:判据 = 对照同类开源逐项盘点、每项结论有 file:line 证据、决策有被否决备选、规格可归档。证据 = 全量源码盘点(40 Java 文件 + web + CI + 迁移)+ muniu 消费端核验(auth.go:221-288:全量替换/version>=单调/60s/失败保持快照/无认证头)+ 6 基线 specs + 5 change(proposal/design/tasks/delta 齐全);实施判据 = 各 change tasks.md 逐项 + `make check` 全绿。
 2. **深度复查(2026-09-12,亲证循环)**:判据 = 既有审计每项结论经本人直读代码核验(不采信代理转述)、新缺陷须有代码证据方可入规格。证据 = SecurityConfig/JwtService/JwtAuthFilter/PaymentController/IngestController/IngestService/UserService/WalletService/WalletController/ApiKeyBindingController/PaymentService/MockOrderEntity/PaymentExpiryScheduler/LedgerEntryRepository/GlobalExceptionHandler/SpaWebConfig/PricingService/api.ts/auth-store.ts 全文亲读;grep 亲证 key-revocations 零实现、openapi.json 双路径不存在、JaCoCo 0.60/0.50 与 CI 门禁。结论 = 既有 5 change 结论零推翻;新增确认 2 缺陷(并发同键重放 500 化/登录枚举)并入既有 change(harden-money-ops 3.2+harden-auth-session 3.3),未新开 change;非缺陷澄清 2 处(SpaWebConfig 仅 SPA 回退无 CORS/muniu 消费语义维持)。

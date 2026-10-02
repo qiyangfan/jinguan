@@ -36,10 +36,11 @@ const REASON_LABEL: Record<string, string> = {
   USAGE: "用量扣减",
 };
 
-/* 用量明细处理结果徽章:accepted/replayed 正常;skipped_* 为该行未扣费的解释。 */
+/* 用量明细处理结果徽章:accepted/replayed 已结算;pending 待结算;skipped_* 为该行未扣费的解释。 */
 const OUTCOME_META: StatusMeta = {
   accepted: { label: "已扣费", variant: "secondary" },
   replayed: { label: "重投", variant: "outline" },
+  pending: { label: "待结算", variant: "outline" },
   skipped_unbound: { label: "未绑定", variant: "outline" },
   skipped_free: { label: "零成本", variant: "outline" },
   skipped_insufficient: { label: "余额不足", variant: "destructive" },
@@ -296,7 +297,9 @@ export default function WalletPage() {
       <Card>
         <CardHeader>
           <CardTitle>用量明细</CardTitle>
-          <CardDescription>每次调用的模型、tokens 与费用明细,以及扣费结果</CardDescription>
+          <CardDescription>
+            每次调用的模型、tokens 与费用明细,以及扣费结果;待结算与余额不足的行,充值后由系统自动补扣
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {usage.isError ? (

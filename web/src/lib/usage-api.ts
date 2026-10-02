@@ -17,7 +17,7 @@ export interface UsageRecord {
   costCredits: string;
   currency: string | null;
   userId: string | null;
-  finalOutcome: string; // accepted | replayed | skipped_unbound | skipped_free | skipped_insufficient
+  finalOutcome: string; // accepted | replayed | pending(待结算) | skipped_unbound | skipped_free | skipped_insufficient
   attempts: number;
   lastAttemptAt: string;
 }
