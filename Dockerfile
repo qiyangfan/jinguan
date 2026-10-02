@@ -4,7 +4,9 @@
 # ── 阶段一:前端构建(pnpm 版本由 web/package.json 的 packageManager 钉死)──
 FROM docker.io/library/node:22-alpine AS web
 WORKDIR /web
-# 国内构建加速:npm/pnpm 注册表走 npmmirror(仅构建期,不影响交付物)
+# 国内构建加速:npm/pnpm 注册表走 npmmirror(仅构建期,不影响交付物);
+# COREPACK_NPM_REGISTRY 管 pnpm 本体的下载源(npm config 管不到 corepack)
+ENV COREPACK_NPM_REGISTRY=https://registry.npmmirror.com
 RUN npm config set registry https://registry.npmmirror.com && corepack enable
 COPY web/package.json web/pnpm-lock.yaml web/pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
