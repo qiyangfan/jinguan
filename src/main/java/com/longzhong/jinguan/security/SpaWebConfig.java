@@ -34,7 +34,9 @@ public class SpaWebConfig implements WebMvcConfigurer {
                 if (resourcePath.contains(".") || resourcePath.startsWith("api/")) {
                   return null;
                 }
-                return location.createRelative("index.html");
+                // 回退资源自身缺失(如 CI 测试环境无前端产物)时 404,不得抛异常变 5xx
+                Resource fallback = location.createRelative("index.html");
+                return fallback.exists() && fallback.isReadable() ? fallback : null;
               }
             });
   }
