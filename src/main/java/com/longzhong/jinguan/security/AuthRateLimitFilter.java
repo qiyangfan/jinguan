@@ -1,6 +1,5 @@
 package com.longzhong.jinguan.security;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -14,6 +13,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * 登录/注册防爆破:per-IP 固定窗口限流(login/register 各自独立桶)。 IP 解析仅在显式声明可信反代时才采信 X-Forwarded-For 首值,否则一律

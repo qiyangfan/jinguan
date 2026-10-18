@@ -11,7 +11,7 @@ import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.actuate.endpoint.web.PathMappedEndpoints;
-import org.springframework.boot.test.autoconfigure.actuate.observability.AutoConfigureObservability;
+import org.springframework.boot.micrometer.metrics.test.autoconfigure.AutoConfigureMetrics;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.TestPropertySource;
 
@@ -25,7 +25,7 @@ import org.springframework.test.context.TestPropertySource;
  * 响应断言暴露面会得出与生产相反的结论,故此处只断言「哪些端点被登记为可暴露」。
  */
 @SpringBootTest
-@AutoConfigureObservability // Boot 3.4 测试环境默认关闭指标导出;不显式打开则暴露面判据在测试里恒假
+@AutoConfigureMetrics // Boot 3.4 测试环境默认关闭指标导出;不显式打开则暴露面判据在测试里恒假
 @TestPropertySource(
     properties = {
       "spring.datasource.url=jdbc:h2:mem:jinguan-metrics-exposure;MODE=PostgreSQL;DB_CLOSE_DELAY=-1",

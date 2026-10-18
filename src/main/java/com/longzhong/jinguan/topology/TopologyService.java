@@ -1,8 +1,6 @@
 package com.longzhong.jinguan.topology;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -15,6 +13,8 @@ import java.util.List;
 import java.util.Map;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * 拓扑三件套(供应商/模型路由/能力目录)运营态与下发契约。负载形态与 muniu
@@ -236,7 +236,7 @@ public class TopologyService {
   private <T> T[] deserialize(String json, Class<T[]> type) {
     try {
       return mapper.readValue(json, type);
-    } catch (JsonProcessingException e) {
+    } catch (JacksonException e) {
       throw new IllegalStateException("拓扑 JSON 列损坏,读取被拒绝: " + e.getOriginalMessage(), e);
     }
   }
@@ -244,7 +244,7 @@ public class TopologyService {
   private String serialize(Object value) {
     try {
       return mapper.writeValueAsString(value);
-    } catch (JsonProcessingException e) {
+    } catch (JacksonException e) {
       throw new IllegalStateException("拓扑 JSON 序列化失败", e);
     }
   }

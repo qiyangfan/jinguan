@@ -2,7 +2,7 @@
 # 构建期即生成前端产物,仓库不提交任何静态构建残留(与 .gitignore 的 static/ 规则一致)
 
 # ── 阶段一:前端构建(pnpm 版本由 web/package.json 的 packageManager 钉死)──
-FROM docker.io/library/node:22-alpine AS web
+FROM docker.io/library/node:24-alpine AS web
 WORKDIR /web
 # 国内构建加速:npm/pnpm 注册表走 npmmirror(仅构建期,不影响交付物);
 # COREPACK_NPM_REGISTRY 管 pnpm 本体的下载源(npm config 管不到 corepack)
@@ -16,7 +16,7 @@ COPY web/ ./
 RUN pnpm typecheck && pnpm exec vite build --outDir /web/dist --emptyOutDir
 
 # ── 阶段二:后端打包(依赖层缓存:先拉依赖再拷源码;central 走阿里云镜像)──
-FROM docker.io/library/maven:3.9-eclipse-temurin-21 AS backend
+FROM docker.io/library/maven:3.9-eclipse-temurin-25 AS backend
 WORKDIR /app
 COPY docker/maven-settings.xml /root/.m2/settings.xml
 COPY pom.xml ./
@@ -27,7 +27,7 @@ COPY --from=web /web/dist/ src/main/resources/static/
 RUN mvn -B -q package -DskipTests
 
 # ── 阶段三:运行层(非 root;健康检查打 /actuator/health)──
-FROM docker.io/library/eclipse-temurin:21-jre
+FROM docker.io/library/eclipse-temurin:25-jre
 # apt 换国内源(temurin 运行层 Ubuntu/Debian 基,两类源文件都兜);仅装 curl 供健康检查
 RUN sed -i -E 's#https?://(archive\.ubuntu\.com|security\.ubuntu\.com|ports\.ubuntu\.com|deb\.debian\.org)#https://mirrors.aliyun.com#g' \
       /etc/apt/sources.list /etc/apt/sources.list.d/*.sources /etc/apt/sources.list.d/*.list 2>/dev/null || true \

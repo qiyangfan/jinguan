@@ -4,6 +4,9 @@
 > 变更纪律:任何管子的字段/形态变更必须双方 change 同步,两仓 HANDOFF 互引留痕;
 > 聚合层 `../scripts/contract-consistency.sh` 报红的字段级漂移须在任一侧归档前修复。
 > 金额单位全局统一:**credit(1 credit = 本位币 1e-9,整数,零浮点)**。
+> 契约文件信封:升级 springdoc 3 后 `openapi.json` 为 **OpenAPI 3.1**(2026-10-18,upgrade-tech-stack);
+> 字段零漂移经新旧五组对照实证(路径集/schema 集/operationId/属性名/$ref 全等),消费方
+> (muniu 对齐脚本、前端 openapi-typescript)解析不受影响,前端生成类型 diff 为零。
 
 ## 管子一览
 

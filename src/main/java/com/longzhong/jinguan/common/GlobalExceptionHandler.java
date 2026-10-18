@@ -62,6 +62,15 @@ public class GlobalExceptionHandler {
     return problem(HttpStatus.BAD_REQUEST, detail);
   }
 
+  // 请求体反序列化失败(畸形 JSON/缺 primitive 字段)必须以 400 ProblemDetail 出口:
+  // 若放任走 DefaultHandlerExceptionResolver 的 sendError,ERROR dispatch /error 会被
+  // Security 7 的全 dispatch 授权拦截成 403 空体,客户端无法区分权限不足与请求畸形
+  @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
+  public ProblemDetail unreadable(
+      org.springframework.http.converter.HttpMessageNotReadableException e) {
+    return problem(HttpStatus.BAD_REQUEST, "请求体格式有误,请检查字段与类型后重试");
+  }
+
   private ProblemDetail problem(HttpStatus status, String detail) {
     return ProblemDetail.forStatusAndDetail(status, detail);
   }

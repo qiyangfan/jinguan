@@ -1,8 +1,8 @@
-# 锦官本地编排:PG 16(权威存储)+ 控制面应用。
+# 锦官本地编排:PG 17(权威存储)+ 控制面应用。
 # 卷删除须显式 `podman compose down -v`(默认 down 保留数据,见 Makefile docker-down 注释)。
 services:
   db:
-    image: docker.io/library/postgres:16-alpine
+    image: docker.io/library/postgres:17-alpine
     environment:
       POSTGRES_DB: jinguan
       POSTGRES_USER: jinguan

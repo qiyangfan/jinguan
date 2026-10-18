@@ -72,11 +72,13 @@ mvn test                     # 全绿含:演示闭环集成测试 + Modulith 结
 ```
 
 容器化(本机 podman 形态):`make docker-build` 构建自包含镜像(web 产物入 jar,
-仓库不提交静态构建残留);`make docker-up` 起 PG 16 + 应用(数据落命名卷
+仓库不提交静态构建残留);`make docker-up` 起 PG 17 + 应用(数据落命名卷
 jinguan-pgdata,`make docker-down` 保留卷);冒烟:`curl :8090/actuator/health`。
 
-技术栈:Java 21 · Spring Boot 3.4 · Spring Modulith 1.3 · JPA · Flyway · PostgreSQL
-(测试 H2 兼容模式,列类型避开 PG 专有;生产 PG 权威)。
+技术栈:Java 25(LTS)· Spring Boot 4.1 · Spring Modulith 2.1(结构门禁进 CI)· JPA ·
+Flyway · PostgreSQL(测试 H2 兼容模式,列类型避开 PG 专有;生产 PG 权威);前端
+React 19 + Vite 8(Rolldown)+ TypeScript 6 + Tailwind 4 + openapi-fetch(类型化客户端,
+契约单源 openapi.json)。
 
 ## 可观测
 
@@ -96,6 +98,9 @@ jinguan-pgdata,`make docker-down` 保留卷);冒烟:`curl :8090/actuator/health`
   (拉取或采集跨信任域)立项时,双方(本仓 + muniu cluster 侧消费方)联合 change 一并落地,含 muniu 侧拉取认证头
   配置与既有 cluster 部署样例迁移。
 - 集群化:per-user JVM 条带锁 → 账本行锁/分布式锁。
+- 工具链跟进(2026-10-18 upgrade-tech-stack 后存量):PG 18(待 Boot 管理 Flyway 对 18 的支持矩阵核验)、
+  TypeScript 7(待 7.1 稳定编程 API + typescript-eslint 完整适配,当前 6.0.3 桥接)、Node 26(2027 观察)、
+  Java 27(下一 LTS 周期)、openapi-typescript 对 TS 6 的 peer 声明(产物已实证无碍)。
 - 调度器线程池:两个 `@Scheduled` 任务(订单过期收敛 + 待结算恢复)共享 Spring Boot 默认单线程调度器,
   串行执行。积压场景下一轮恢复可长时间占住调度线程,拖慢过期扫描的及时性(资金正确性不受影响——
   过期有回调懒守门兜底)。两者出现互相拖延时,设 `spring.task.scheduling.pool.size: 2` 即解除。

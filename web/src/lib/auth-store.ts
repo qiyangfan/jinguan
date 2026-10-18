@@ -4,12 +4,13 @@
 
 import { create } from "zustand";
 import {
-  api,
   clearAccessToken,
+  client,
   getAccessToken,
   onSessionCleared,
   refreshSession,
   setAccessToken,
+  unwrap,
 } from "./api";
 
 export interface LoginUser {
@@ -56,13 +57,17 @@ export const useAuth = create<AuthState>((set) => {
     },
 
     async login(username, password) {
-      const out = await api.post<{ token: string }>("/auth/login", { username, password });
+      const out = await unwrap<{ token: string }>(
+        client.POST("/auth/login", { body: { username, password } }),
+      );
       setAccessToken(out.token);
       set({ user: decode(out.token) });
     },
 
     async register(username, password) {
-      const out = await api.post<{ token: string }>("/auth/register", { username, password });
+      const out = await unwrap<{ token: string }>(
+        client.POST("/auth/register", { body: { username, password } }),
+      );
       setAccessToken(out.token);
       set({ user: decode(out.token) });
     },

@@ -36,10 +36,11 @@ describe("key 绑定请求形态", () => {
     const [, keysApi] = await loadModules();
     await keysApi.bindKey({ keyId: rawId, userId: 1 });
 
-    const [path, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(path).toBe("/admin/key-bindings");
+    // openapi-fetch 形态:fetch(Request) 单参;路径取 pathname,体从 Request 流读
+    const [req] = fetchMock.mock.calls[0] as [Request];
+    expect(new URL(req.url).pathname).toBe("/admin/key-bindings");
     // 客户端 API 层不得做任何格式改写(大小写/UUID/前缀过滤):提交体与入参逐字节一致;
     // 空白拦截在页面层(提交前 trim + 纯空白禁用按钮),不属本层职责
-    expect(JSON.parse(String(init.body))).toEqual({ keyId: rawId, userId: 1 });
+    expect(await req.json()).toEqual({ keyId: rawId, userId: 1 });
   });
 });

@@ -15,8 +15,8 @@ import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -115,5 +115,37 @@ class AuthSessionIntegrationTest {
     String setCookie = result.getResponse().getHeader("Set-Cookie");
     assertNotNull(setCookie);
     assertTrue(setCookie.contains("Max-Age=0"), "登出必须以 Max-Age=0 清 cookie");
+  }
+
+  @Test
+  @Order(6)
+  void malformedBody_is400ProblemDetail_not403Empty() throws Exception {
+    // Jackson 3 FAIL_ON_NULL_FOR_PRIMITIVES:缺 primitive 字段的请求体必须以 400 ProblemDetail
+    // 出口;若走 sendError→ERROR dispatch /error,Security 7 全 dispatch 授权会顶成 403 空体
+    mvc.perform(
+            post("/auth/login")
+                .contentType("application/json")
+                .content("{\"username\":\"u\",\"password\":123456}"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.detail").exists())
+        .andExpect(jsonPath("$.title").value("Bad Request"));
+  }
+
+  @Test
+  @Order(7)
+  void spaDeepLinks_anonymousReachable_forEveryFrontendRoute() throws Exception {
+    // 深链/刷新回退 index.html 由前端路由接管:白名单必须覆盖前端全部路由,
+    // 漏项即该页刷新 403(拓扑页上线时曾漏 /topology,2026-10-18 走查实证后补)
+    for (String route :
+        new String[] {"/wallet", "/payments", "/pricing", "/topology", "/keys", "/login"}) {
+      mvc.perform(get(route))
+          .andExpect(status().isOk())
+          .andExpect(
+              result -> {
+                String ct = result.getResponse().getContentType();
+                assertNotNull(ct, route + " 必须有 Content-Type");
+                assertTrue(ct.contains("text/html"), route + " 应回退 index.html,实际:" + ct);
+              });
+    }
   }
 }

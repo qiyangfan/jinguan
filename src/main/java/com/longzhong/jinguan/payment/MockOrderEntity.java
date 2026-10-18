@@ -1,12 +1,12 @@
 package com.longzhong.jinguan.payment;
 
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import tools.jackson.databind.annotation.JsonSerialize;
+import tools.jackson.databind.ser.std.ToStringSerializer;
 
 /** mock 渠道订单:状态机 CREATED → PAID(经 Repository 原子条件迁移 markPaidIfCreated, 行锁串行化并发回调),演示渠道专用。 */
 @Entity

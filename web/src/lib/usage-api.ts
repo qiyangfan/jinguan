@@ -1,7 +1,7 @@
 /* 用量明细域 API:与账本流水经 refId="usage:{id}" 互相印证;
    响应为 JPA 实体直出(契约中无稳定命名 schema),在此边界显式收窄。 */
 
-import { api } from "./api";
+import { client, unwrap } from "./api";
 
 export interface UsageRecord {
   id: string;
@@ -23,5 +23,5 @@ export interface UsageRecord {
 }
 
 export function fetchUsage(page: number, size: number): Promise<UsageRecord[]> {
-  return api.get<UsageRecord[]>(`/wallet/usage?page=${page}&size=${size}`);
+  return unwrap(client.GET("/wallet/usage", { params: { query: { page, size } } }));
 }

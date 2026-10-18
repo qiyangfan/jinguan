@@ -2,6 +2,18 @@
 
 > 维护纪律:只写「当前状态 / 下一步 / 开放决策项 / 验收记录」四块,不写变更明细(归 git log),单次更新 ≤30 行。
 
+## 当前状态(2026-10-18,全栈升级 upgrade-tech-stack 已实施并归档——Boot 4.1/Java 25/前端工具链换代 + openapi-fetch 收编)
+
+- **upgrade-tech-stack(2026-10-18 归档 `archive/2026-10-18-upgrade-tech-stack`,24 任务全勾;delta +1 入 delivery-pipeline「工具链支撑窗口」)**:Java 21→25 · Boot 3.4.1→4.1.1 · Modulith 1.3.1→2.1.1 ·
+  springdoc 2.8.17→3.1.1(契约信封 OpenAPI 3.1,五组对照零漂移,前端类型 diff 为零)· jjwt 0.13.0 · Jackson 3
+  (必做迁移:Boot 4 仅自动装配 tools.jackson)· Node 24/pnpm 12.14/Vite 8(Rolldown)/TS 6.0.3/RR 8.4/React 19.3.1 ·
+  compose PG 17(本地无存量卷,无迁移);**openapi-fetch 收编**(owner 定向不拖独立 change):六领域文件迁移
+  `createClient<paths>`,401 单飞重放/错误转译语义原样,14 用例背书。门禁:`make check` EXIT 0(后端 95 测试 +
+  五门禁)。**实测揪出并修复两处**:①Security 7 全 dispatch 授权把 sendError 顶成 403 空体(补 GlobalExceptionHandler
+  400 出口 + dispatcherTypeMatchers(ERROR/FORWARD) 放行 + 回归用例);②SPA 深链白名单漏 /topology(既有缺陷,
+  走查实证后补 + 用例钉 6 路由)。交付链三基镜像(node24/temurin-25)构建+compose 冒烟+亮暗两态走查全过;
+  contract-consistency.sh GREEN。未 push(CI 实跑确认仍挂用户指令)。
+
 ## 当前状态(2026-10-02,三仓标准件视觉收敛+空态/错误态收编——owner 插话裁决;其余承下节)
 
 - **标准件同步与收敛(2026-10-02,聚合层批次三)**:ui/ 六文件自 kongming 逐字节同步——button(触控热区 xs/icon-xs 收敛+暗色变体)、card(CardTitle 多态 as,默认 h3)、dialog(inset-0 高度修复+关闭钮安全区)、input(日期族 block 修复+size prop)、badge(+success/warning 软底变体,kongming 单源收编)、alert-dialog(窄屏贴底抽屉——木牛登记「以木牛为准」,sm+ 居中不变)。新增共享件 empty-state/error-alert(kongming 拷贝,cmp 全同);`query-error.tsx` 退役(QueryErrorAlert→ErrorAlert 5 处);6 处内联「暂无X」收编 EmptyState;TopologyPage 预设查询错误收编 ErrorAlert(表单内提交反馈按其管辖边界保留原样);LoginPage CardTitle as="h2"(其余 12 处默认 h3,同 kongming 认证入口范式)。门禁:typecheck/lint/lint:css/format/test 14/14/build 全绿;登录页 375/1280 浏览器实测(heading level 2 大纲+卡面)过;sync 脚本复验 0 差异。已提交并推送(15e6358 文档登记+e234e7e 本批,2026-10-02 owner 授权,ls-remote 核对一致)。
@@ -38,7 +50,7 @@
 ## 下一步(严格按序;涉及 openspec change 的:实施 → `make check` 全绿 → 审查迭代循环 → 归档)
 
 1. 【已关闭·2026-10-02】木牛侧同名两件 change 已各自收口:`fix-api-key-binding-identifiers` 7/7 归档;`recover-pending-usage-settlement` 5/5 归档(2026-10-02 `openspec archive`,主规格 +1 Requirement)。双仓配对闭环完成。
-2. 【既有外部确认】历史 push 后的平台 CI 实跑确认仍按原交付记录核对,本轮没有执行提交/push。
+2. 【既有外部确认】历史 push 后的平台 CI 实跑确认仍按原交付记录核对,本轮(2026-10-18 升级批)亦未执行提交/push;升级后首个 push 将同时首验 CI 的 Java 25/Node 24 矩阵。
 3. 【终态裁决·不再评审】收款维持 Mock(owner 2026-10-02 无限期裁决):真实 PSP 不排期、不评审,重启条件 = owner 明确立项。**【终态登记】`/control/v1/*` 与 `/actuator/prometheus` 匿名可读**:当前单主机回环部署下不构成现实风险,不排期;硬触发 = 多主机/跨网段部署立项时与 muniu cluster 侧联合 change。其余兑换码、邮件找回、集群化、持久化事件总线仍等实际需求;运维指标已实现不再作为待办。
 4. 【跨仓·待 kongming 落地】CardTitle 标题语义对齐:kongming change `2026-10-02-card-title-heading-semantics`(标准件 as 默认 h3)实施归档后,经 `scripts/sync-frontend-standard.sh` 同步本仓 `ui/card.tsx`,13 处调用点仅 LoginPage 传 `as="h2"`(卡片标题即页面级标题),其余默认 h3;清单与联合修改登记见聚合层 HANDOFF 2026-10-02 批次二。
 
@@ -60,6 +72,9 @@
 | 2026-10-01 | 指标端点放哪(同端口 vs 独立 management 端口) | 同端口 + security 一条 permitAll / `management.server.port` 独立端口 / 采集侧静态 token 过滤器 | **同端口 + permitAll,与 `/control/v1/*` 同信任前提**:独立端口会把 `/actuator/health` 从 8090 搬走(Dockerfile HEALTHCHECK 硬依赖)并新增端口拓扑;静态 token 过滤器是给只读采集面造第二套鉴权,而 ingest 的静态 Bearer 成立是因为它是跨仓写契约。暴露安全靠白名单 include + 负例测试兜,认证与数据面拉取合并为同一条演进项(README) |
 | 2026-10-01 | 资金计数时机 | 方法返回即计 / 提交后计(afterCommit)/ AOP 环绕服务方法 | **提交后计**:支付入账参与外层事务(BEFORE_COMMIT),外层回滚则分录不存在,方法返回即计会虚增资金事实;AOP 把「HTTP 成功」当「资金发生」,幂等重放/余额不足/回滚三类事实无法分桶。拒绝类是终态事实,反例——立即计 |
 ## 验收记录(阶段闸门时追加:判据 → 证据 → 日期)
+
+- **2026-10-18 全栈升级(upgrade-tech-stack,24/24)**:判据 = 任务清单逐项 + `make check` 全绿 + 契约零漂移 + compose 冒烟账实相符 + 亮暗两态走查 + specs validate。证据 = ①后端 95 测试(Boot 4.1.1/Java 25/Modulith 2.1.1/Jackson 3;新增 malformedBody 与 spaDeepLinks 两用例)`mvn verify` 全门禁绿;②契约:OpenAPI 3.1 信封新旧五组对照(路径/schema/operationId/属性名/$ref)全等、前端生成类型零 diff、二次导出确定性 diff 空、`contract-consistency.sh` GREEN;③前端五门禁+build 绿(vitest 14/14,Vite 8 Rolldown 557ms);④compose 冒烟:价目下发契约形态正确(1000 credit→"0.000001")、支付 PAID、ingest accepted、**前轮欠费行恢复器自动补扣**、账实相符(分录合计=余额=7000000)、prometheus 24 序列、SPA 六深链 6×200;⑤UI:375(dark)/1280(light) 零溢出,openapi-fetch 真机登录/取数正常;⑥实施中实证修复两处真实缺陷(Security 7 全 dispatch 授权 403 空体→400 ProblemDetail 出口;SPA 白名单漏 /topology 既有缺陷),各带回归用例。诚实登记:openspec `--specs --strict` 9/10——ops-metrics 两处 requirement 超长 WARNING 为 2026-10-01 归档遗留(本轮零改动),拆分属 spec 质量工作未纳入本 change 范围;CI 云端实跑见下一条验收记录。
+
 
 - **2026-10-02 待结算恢复 + Key ID 绑定(两 change)**:判据 = 任务清单逐项 + 先红后绿 + `make check` 全绿 + 契约零漂移 + 跨仓 e2e + specs strict。证据 = ①红:WalletReplayAdjudicationTest 3 用例(重放被余额拦截/冲突伪装欠费/并发败方 0 重放)、WalletOuterTransactionLockTest(恢复线程读充值前余额 0→InsufficientFunds,锁提前释放实证)、UsageFactsAttributionTest(编译红);②绿:后端 33→90 测试(新增 5 测试类 22 用例),`make check` EXIT 0(vitest 14、SpotBugs 初拦 CT_CONSTRUCTOR_THROW 已改 @PostConstruct);③契约:真机 /v3/api-docs ↔ openapi.json 24↔24 路径、24↔24 schemas 深度相等(除 servers 探针差异),IngestResult 六计数/UsageRow 20 字段不漂移,contracts/control-plane.md 管子 3 登记责任分离;④e2e:独立 muniu(:8788,sink=ingest)+ 假上游——记录 ID 01a0fa5d-abba-… 绑定→明文 mk-PL3boi… 鉴权→200 接收欠费留存(cost 2000000=0.002 元与定价分毫不差)→名单含 key→Mock 充值 10000000→恢复器(5s 轮)补扣→余额 8000000 账实相符、投影 accepted、名单 v3→v4 收敛、再等一轮 attempts 稳定(缓冲结束无重投)、账本恰两笔分录;⑤UI:六态走查(375/768/1280×亮暗)scrollWidth=视口宽零溢出,长 ID 49 字符不撑破,失败提示/空白禁用实证;⑥归档后 `openspec validate --specs --strict` 10/10。审查:独立子代理全量 diff 复核(见各 change review.md)。
 

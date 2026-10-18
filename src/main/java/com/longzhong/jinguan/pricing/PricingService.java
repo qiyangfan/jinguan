@@ -2,8 +2,6 @@ package com.longzhong.jinguan.pricing;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.longzhong.jinguan.common.NotFoundException;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -11,6 +9,8 @@ import java.util.List;
 import java.util.regex.Pattern;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * 渠道与价目:运营态管理 + 面向 muniu 数据面的下发契约。 下发 JSON 形态与 muniu `admin.PricingView` 逐字段对齐(multiplier/input 为
@@ -121,7 +121,7 @@ public class PricingService {
   private String serialize(List<TimeWindow> windows) {
     try {
       return mapper.writeValueAsString(windows == null ? List.of() : windows);
-    } catch (JsonProcessingException e) {
+    } catch (JacksonException e) {
       throw new IllegalArgumentException("time_windows 序列化失败", e);
     }
   }
@@ -132,7 +132,7 @@ public class PricingService {
     }
     try {
       return List.of(mapper.readValue(json, TimeWindow[].class));
-    } catch (JsonProcessingException e) {
+    } catch (JacksonException e) {
       throw new IllegalArgumentException("time_windows 数据损坏: " + json, e);
     }
   }

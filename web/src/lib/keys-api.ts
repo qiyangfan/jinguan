@@ -1,6 +1,6 @@
 /* 管理域 API:key 绑定(计量 ingest 归账的身份映射)与终态吊销。 */
 
-import { api } from "./api";
+import { client, unwrap } from "./api";
 import type { components } from "./api-types.gen";
 
 type Schemas = components["schemas"];
@@ -8,7 +8,7 @@ export type KeyBindingRequest = Schemas["BindRequest"];
 export type RevokeRequest = Schemas["RevokeRequest"];
 
 export function bindKey(req: KeyBindingRequest): Promise<{ keyId: string; userId: string }> {
-  return api.post("/admin/key-bindings", req);
+  return unwrap(client.POST("/admin/key-bindings", { body: req }));
 }
 
 /** 终态吊销(不可逆):已吊销 key 重绑将被 409 拒绝。UI 入口待 key 列表端点后排期,当前仅供 API 联调。 */
@@ -16,5 +16,10 @@ export function revokeKey(
   keyId: string,
   reason: string,
 ): Promise<{ keyId: string; replayed: boolean }> {
-  return api.post(`/admin/keys/${keyId}/revoke`, { reason });
+  return unwrap(
+    client.POST("/admin/keys/{keyId}/revoke", {
+      params: { path: { keyId } },
+      body: { reason },
+    }),
+  );
 }

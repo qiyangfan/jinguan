@@ -1,5 +1,6 @@
 /* api 层会话行为测试:401 单飞刷新(并发只触发一次 /auth/refresh)、刷新失败清态回落、
-   access 仅内存(清态后不携带 Authorization)。fetch 以 stub 注入,模块态用 resetModules 隔离。 */
+   access 仅内存(清态后不携带 Authorization)。openapi-fetch 经全局 fetch 发请求,
+   fetch 以 stub 注入即可拦截(Request 对象形态),模块态用 resetModules 隔离。 */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -28,6 +29,15 @@ async function loadApi() {
   return import("./api");
 }
 
+/** openapi-fetch 的请求形态:fetch(Request) 单参;路径取 url 的 pathname,头从 Request 读。 */
+function pathOf(input: RequestInfo | URL): string {
+  return new URL(input instanceof Request ? input.url : String(input), "http://localhost").pathname;
+}
+
+function headersOf(input: RequestInfo | URL): Headers {
+  return input instanceof Request ? input.headers : new Headers();
+}
+
 let fetchMock: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
@@ -41,7 +51,7 @@ describe("api 会话链路", () => {
     let refreshCount = 0;
     let refreshed = false;
     fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
-      const path = String(input);
+      const path = pathOf(input);
       if (path === "/auth/refresh") {
         refreshCount++;
         refreshed = true;
@@ -55,12 +65,9 @@ describe("api 会话链路", () => {
       throw new Error("unexpected path: " + path);
     });
 
-    const { api } = await loadApi();
-    const results = await Promise.all([
-      api.get<{ balanceCredits: number }>("/wallet/balance"),
-      api.get<{ balanceCredits: number }>("/wallet/balance"),
-      api.get<{ balanceCredits: number }>("/wallet/balance"),
-    ]);
+    const { client, unwrap } = await loadApi();
+    const call = () => unwrap<{ balanceCredits: number }>(client.GET("/wallet/balance"));
+    const results = await Promise.all([call(), call(), call()]);
 
     expect(refreshCount).toBe(1); // 并发 401 只触发一次刷新
     expect(results.map((r) => r.balanceCredits)).toEqual([5, 5, 5]); // 全部重放成功
@@ -68,25 +75,25 @@ describe("api 会话链路", () => {
 
   it("刷新失败:清态回落(广播 sessionCleared),原请求不无限重试", async () => {
     fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
-      const path = String(input);
+      const path = pathOf(input);
       if (path === "/auth/refresh") return jsonResponse(401, { detail: "refresh 无效" });
       if (path === "/wallet/balance") return jsonResponse(401, { detail: "token 过期" });
       throw new Error("unexpected path: " + path);
     });
 
-    const { api, onSessionCleared, setAccessToken } = await loadApi();
+    const { client, unwrap, onSessionCleared, setAccessToken } = await loadApi();
     const onCleared = vi.fn();
     onSessionCleared(onCleared);
     setAccessToken(makeJwt({ uid: 1, sub: "u1", role: "USER" }));
 
-    await expect(api.get("/wallet/balance")).rejects.toMatchObject({ status: 401 });
+    await expect(unwrap(client.GET("/wallet/balance"))).rejects.toMatchObject({ status: 401 });
     expect(onCleared).toHaveBeenCalledTimes(1); // 清态广播恰好一次
   });
 
   it("登录 401 属认证端点自身错误:不得触发 /auth/refresh", async () => {
     let refreshCount = 0;
     fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
-      const path = String(input);
+      const path = pathOf(input);
       if (path === "/auth/refresh") {
         refreshCount++;
         return jsonResponse(200, { token: makeJwt({ uid: 1, sub: "u1", role: "USER" }) });
@@ -95,10 +102,10 @@ describe("api 会话链路", () => {
       throw new Error("unexpected path: " + path);
     });
 
-    const { api } = await loadApi();
-    await expect(api.post("/auth/login", { username: "a", password: "b" })).rejects.toMatchObject({
-      status: 401,
-    });
+    const { client, unwrap } = await loadApi();
+    await expect(
+      unwrap(client.POST("/auth/login", { body: { username: "a", password: "b" } })),
+    ).rejects.toMatchObject({ status: 401 });
     expect(refreshCount).toBe(0);
   });
 
@@ -106,7 +113,7 @@ describe("api 会话链路", () => {
     let refreshCount = 0;
     let balanceCalls = 0;
     fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
-      const path = String(input);
+      const path = pathOf(input);
       if (path === "/auth/refresh") {
         refreshCount++;
         return jsonResponse(200, { token: makeJwt({ uid: 1, sub: "u1", role: "USER" }) });
@@ -118,37 +125,36 @@ describe("api 会话链路", () => {
       throw new Error("unexpected path: " + path);
     });
 
-    const { api, onSessionCleared, setAccessToken } = await loadApi();
+    const { client, unwrap, onSessionCleared, setAccessToken } = await loadApi();
     const onCleared = vi.fn();
     onSessionCleared(onCleared);
     setAccessToken(makeJwt({ uid: 1, sub: "u1", role: "USER" }));
 
-    await expect(api.get("/wallet/balance")).rejects.toMatchObject({ status: 401 });
+    await expect(unwrap(client.GET("/wallet/balance"))).rejects.toMatchObject({ status: 401 });
     expect(refreshCount).toBe(1); // 恰一次刷新
     expect(balanceCalls).toBe(2); // 原始 + 重放各一次,无二次循环
     expect(onCleared).toHaveBeenCalledTimes(1); // 重放仍 401 → 清态回落
   });
 
   it("access 仅内存:清态后的请求不携带 Authorization 头", async () => {
-    let lastAuthHeader: string | undefined;
-    fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const path = String(input);
-      const headers = (init?.headers ?? {}) as Record<string, string>;
+    let lastAuthHeader: string | null = null;
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      const path = pathOf(input);
       if (path === "/wallet/balance") {
-        lastAuthHeader = headers["Authorization"];
+        lastAuthHeader = headersOf(input).get("Authorization");
         return jsonResponse(401, { detail: "denied" });
       }
       if (path === "/auth/refresh") return jsonResponse(401, { detail: "refresh 无效" });
       throw new Error("unexpected path: " + path);
     });
 
-    const { api, setAccessToken, clearAccessToken } = await loadApi();
+    const { client, unwrap, setAccessToken, clearAccessToken } = await loadApi();
     setAccessToken(makeJwt({ uid: 1, sub: "u1", role: "USER" }));
-    await api.get("/wallet/balance").catch(() => undefined);
+    await unwrap(client.GET("/wallet/balance")).catch(() => undefined);
     expect(lastAuthHeader).toMatch(/^Bearer /);
 
     clearAccessToken();
-    await api.get("/wallet/balance").catch(() => undefined);
-    expect(lastAuthHeader).toBeUndefined(); // 内存态已清,无凭证外泄
+    await unwrap(client.GET("/wallet/balance")).catch(() => undefined);
+    expect(lastAuthHeader).toBeNull(); // 内存态已清,无凭证外泄(Headers.get 无头即 null)
   });
 });

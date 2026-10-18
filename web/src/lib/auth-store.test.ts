@@ -28,6 +28,11 @@ async function loadStore() {
   return mod.useAuth;
 }
 
+/** openapi-fetch 经 client 的请求是 Request 对象(直连 fetch 的仍是字符串);统一取 pathname。 */
+function pathOf(input: RequestInfo | URL): string {
+  return new URL(input instanceof Request ? input.url : String(input), "http://localhost").pathname;
+}
+
 let fetchMock: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
@@ -86,7 +91,7 @@ describe("auth-store 会话行为", () => {
 
   it("login:写内存 token 并解码用户(幂等 ref 等业务请求随即携带凭证)", async () => {
     fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
-      if (String(input) === "/auth/login") {
+      if (pathOf(input) === "/auth/login") {
         return jsonResponse(200, { token: makeJwt({ uid: 3, sub: "bob", role: "USER" }) });
       }
       throw new Error("unexpected path: " + String(input));
@@ -104,7 +109,7 @@ it("会话失效(api 层 401 刷新失败)→ 反向通知回落 guest", async (
     if (String(input) === "/auth/refresh") {
       return jsonResponse(200, { token: makeJwt({ uid: 7, sub: "alice", role: "USER" }) });
     }
-    if (String(input) === "/wallet/balance") return jsonResponse(401, { detail: "denied" });
+    if (pathOf(input) === "/wallet/balance") return jsonResponse(401, { detail: "denied" });
     throw new Error("unexpected path: " + String(input));
   });
 

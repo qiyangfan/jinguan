@@ -16,8 +16,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
@@ -154,6 +154,8 @@ class UsageFactsAttributionTest {
     wallet.credit(uid, 1_000, WalletService.REASON_MANUAL_TOPUP, "facts-seed-4", null, null);
 
     // usage_id 超长(>64)违反明细表约束:可靠保存失败 → 非 2xx,且不为该行新增资金分录
+    // (JSON 须带全部 primitive 字段:Jackson 3 默认 FAIL_ON_NULL_FOR_PRIMITIVES,缺字段即 400;
+    //  生产契约 muniu UsageRow 非指针字段总是序列化,此处测试 JSON 对齐同形态)
     String longId = "x".repeat(65);
     mvc.perform(
             post("/ingest/usage")
@@ -163,9 +165,10 @@ class UsageFactsAttributionTest {
                     ("{\"rows\":[{\"ID\":\""
                             + longId
                             + "\",\"RequestID\":\"r\",\"APIKeyID\":\"mk-f4\",\"Provider\":\"p\","
-                            + "\"ModelAlias\":\"m\",\"Status\":\"ok\",\"PromptTokens\":1,"
+                            + "\"ModelAlias\":\"m\",\"Stream\":false,\"Status\":\"ok\",\"ErrorClass\":\"\","
+                            + "\"PromptTokens\":1,"
                             + "\"CompletionTokens\":1,\"ReasoningTokens\":0,\"CachedTokens\":0,"
-                            + "\"CostCredits\":100,\"Currency\":\"CNY\",\"LatencyTotalMs\":10}]}")
+                            + "\"Estimated\":false,\"CostCredits\":100,\"Currency\":\"CNY\",\"LatencyTotalMs\":10}]}")
                         .getBytes(StandardCharsets.UTF_8)))
         .andExpect(status().is5xxServerError());
     assertTrue(usageRecords.findAll().stream().noneMatch(r -> longId.equals(r.getUsageId())));

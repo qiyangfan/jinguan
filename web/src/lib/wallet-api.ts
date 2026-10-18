@@ -2,7 +2,7 @@
    请求体取自 openapi 契约类型;余额/分录为 Map 与 JPA 实体直出(契约中无稳定命名 schema),
    在此边界显式收窄页面所需字段,字段漂移由 CI openapi 漂移门禁兜底。 */
 
-import { api } from "./api";
+import { client, unwrap } from "./api";
 import type { components } from "./api-types.gen";
 
 type Schemas = components["schemas"];
@@ -26,19 +26,19 @@ export interface LedgerEntryOut {
 }
 
 export function fetchBalance(): Promise<WalletBalanceOut> {
-  return api.get<WalletBalanceOut>("/wallet/balance");
+  return unwrap(client.GET("/wallet/balance"));
 }
 
 export function fetchEntries(page: number, size: number): Promise<LedgerEntryOut[]> {
-  return api.get<LedgerEntryOut[]>(`/wallet/entries?page=${page}&size=${size}`);
+  return unwrap(client.GET("/wallet/entries", { params: { query: { page, size } } }));
 }
 
 export function adminCredit(
   req: CreditRequest,
 ): Promise<{ refId: string; balanceCredits: number }> {
-  return api.post("/wallet/admin/credit", req);
+  return unwrap(client.POST("/wallet/admin/credit", { body: req }));
 }
 
 export function adminDebit(req: DebitRequest): Promise<{ refId: string; balanceCredits: number }> {
-  return api.post("/wallet/admin/debit", req);
+  return unwrap(client.POST("/wallet/admin/debit", { body: req }));
 }

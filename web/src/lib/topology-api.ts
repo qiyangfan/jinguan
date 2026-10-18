@@ -2,7 +2,7 @@
    载荷形态与 muniu TopologyPayload 逐字段同构(snake_case 契约);key 只存 env 引用名绝不明文。
    预设是后端 ProviderPresetCatalog 的投影(官方第一方端点,adapter ⊆ muniu 支持集)。 */
 
-import { api } from "./api";
+import { client, unwrap, unwrapEtag } from "./api";
 
 export interface KeyRef {
   env: string;
@@ -74,14 +74,14 @@ export const ADAPTER_LABELS: Record<string, string> = {
 };
 
 export function fetchTopology(): Promise<TopologyPayload> {
-  return api.get<TopologyPayload>("/admin/topology");
+  return unwrap(client.GET("/admin/topology"));
 }
 
 /** 整包替换,返回新 ETag(与下发端点同源,内容哈希);校验拒绝走统一错误转译。 */
 export function saveTopology(payload: TopologyPayload): Promise<string> {
-  return api.putEtag("/admin/topology", payload);
+  return unwrapEtag(client.PUT("/admin/topology", { body: payload }));
 }
 
 export function fetchPresets(): Promise<{ presets: ProviderPreset[] }> {
-  return api.get<{ presets: ProviderPreset[] }>("/admin/topology/presets");
+  return unwrap(client.GET("/admin/topology/presets"));
 }

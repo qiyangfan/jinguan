@@ -2,7 +2,7 @@
    请求体取自 openapi 契约类型;PricingView 为 snake_case 契约形态(muniu 逐字段对齐),
    在此以必需字段收窄(契约漂移由 CI openapi 漂移门禁兜底)。 */
 
-import { api } from "./api";
+import { client, unwrap } from "./api";
 import type { components } from "./api-types.gen";
 
 type Schemas = components["schemas"];
@@ -30,18 +30,18 @@ export interface PricingEnvelope {
 }
 
 export function adminList(): Promise<PricingView[]> {
-  return api.get<PricingView[]>("/admin/pricing");
+  return unwrap(client.GET("/admin/pricing"));
 }
 
 export function upsert(alias: string, cmd: PricingUpsert): Promise<void> {
-  return api.put(`/admin/pricing/${alias}`, cmd);
+  return unwrap(client.PUT("/admin/pricing/{alias}", { params: { path: { alias } }, body: cmd }));
 }
 
 export function remove(alias: string): Promise<void> {
-  return api.del(`/admin/pricing/${alias}`);
+  return unwrap(client.DELETE("/admin/pricing/{alias}", { params: { path: { alias } } }));
 }
 
 /** 控制面下发端点(与 muniu 拉取同形态;自测联调用)。 */
 export function ingressList(): Promise<PricingEnvelope> {
-  return api.get<PricingEnvelope>("/control/v1/pricing");
+  return unwrap(client.GET("/control/v1/pricing"));
 }
