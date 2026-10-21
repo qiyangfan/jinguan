@@ -4,7 +4,7 @@
 
 ## 当前状态(2026-10-21,全库源码注释精简——按 comment-cleanup 规则排查)
 
-- **注释精简(2026-10-21,本批)**:Java 主代码/测试、web/src 与构建/配置文件注释逐条核对——修正失实(DemoLoop 测试金额 2e9/7e8、PaymentProvider 回调无效载荷返回 false、MockOrderRepository.findOverdue 按订单号排序、TopologyService.requireIntDomain 注释挂错常量、StatusBadge 的 fallbackLabel 语义、ProviderPresetCatalog 预设描述)，删除复述方法名/重复 JSX 分区/过程记录类注释并收口长注释。SQL 迁移按 Flyway「只增不改」未动；ui/ 标准件本批仅注释差异。门禁：mvn verify + pnpm typecheck/lint/lint:css/format/test 14 + 隔离 outDir build 全绿（后端 95 测试）。提交与 CI 终态见验收记录。
+- **注释精简(2026-10-21,本批)**:Java 主代码/测试、web/src 与构建/配置文件注释逐条核对——修正失实(DemoLoop 测试金额 2e9/7e8、PaymentProvider 回调无效载荷返回 false、MockOrderRepository.findOverdue 按订单号排序、TopologyService.requireIntDomain 注释挂错常量、StatusBadge 的 fallbackLabel 语义、ProviderPresetCatalog 预设描述)，删除复述方法名/重复 JSX 分区/过程记录类注释并收口长注释。SQL 迁移按 Flyway「只增不改」未动；ui/ 标准件本批仅注释差异。门禁：mvn verify + pnpm typecheck/lint/lint:css/format/test 14 + 隔离 outDir build 全绿（后端 95 测试）。已提交并推送(334cf46)，CI **39522126195 backend+web 全绿**。
 
 ## 当前状态(2026-10-18,全栈升级 upgrade-tech-stack 已实施并归档——Boot 4.1/Java 25/前端工具链换代 + openapi-fetch 收编)
 
@@ -76,6 +76,8 @@
 | 2026-10-01 | 指标端点放哪(同端口 vs 独立 management 端口) | 同端口 + security 一条 permitAll / `management.server.port` 独立端口 / 采集侧静态 token 过滤器 | **同端口 + permitAll,与 `/control/v1/*` 同信任前提**:独立端口会把 `/actuator/health` 从 8090 搬走(Dockerfile HEALTHCHECK 硬依赖)并新增端口拓扑;静态 token 过滤器是给只读采集面造第二套鉴权,而 ingest 的静态 Bearer 成立是因为它是跨仓写契约。暴露安全靠白名单 include + 负例测试兜,认证与数据面拉取合并为同一条演进项(README) |
 | 2026-10-01 | 资金计数时机 | 方法返回即计 / 提交后计(afterCommit)/ AOP 环绕服务方法 | **提交后计**:支付入账参与外层事务(BEFORE_COMMIT),外层回滚则分录不存在,方法返回即计会虚增资金事实;AOP 把「HTTP 成功」当「资金发生」,幂等重放/余额不足/回滚三类事实无法分桶。拒绝类是终态事实,反例——立即计 |
 ## 验收记录(阶段闸门时追加:判据 → 证据 → 日期)
+
+- **2026-10-21 全库源码注释精简(comment-cleanup)**:判据 = 注释与代码/契约一致、无复述与过程记录、只改注释与文档、全门禁绿。证据 = ①失实修正:DemoLoop 测试金额 2e9/7e8、PaymentProvider 回调无效载荷返回 false、MockOrderRepository.findOverdue 按订单号排序、TopologyService.requireIntDomain 注释挂错常量、StatusBadge 的 fallbackLabel 语义、ProviderPresetCatalog 预设描述;②门禁:`mvn verify` + `pnpm typecheck/lint/lint:css/format:check/test 14` + 隔离 outDir `vite build` 全绿,后端 95 测试;③Flyway 迁移零改动(只增不改),ui/ 标准件仅注释差异;④CI **39522126195 backend+web 全绿**。
 
 - **2026-10-18 全栈升级(upgrade-tech-stack,24/24)**:判据 = 任务清单逐项 + `make check` 全绿 + 契约零漂移 + compose 冒烟账实相符 + 亮暗两态走查 + specs validate。证据 = ①后端 95 测试(Boot 4.1.1/Java 25/Modulith 2.1.1/Jackson 3;新增 malformedBody 与 spaDeepLinks 两用例)`mvn verify` 全门禁绿;②契约:OpenAPI 3.1 信封新旧五组对照(路径/schema/operationId/属性名/$ref)全等、前端生成类型零 diff、二次导出确定性 diff 空、`contract-consistency.sh` GREEN;③前端五门禁+build 绿(vitest 14/14,Vite 8 Rolldown 557ms);④compose 冒烟:价目下发契约形态正确(1000 credit→"0.000001")、支付 PAID、ingest accepted、**前轮欠费行恢复器自动补扣**、账实相符(分录合计=余额=7000000)、prometheus 24 序列、SPA 六深链 6×200;⑤UI:375(dark)/1280(light) 零溢出,openapi-fetch 真机登录/取数正常;⑥实施中实证修复两处真实缺陷(Security 7 全 dispatch 授权 403 空体→400 ProblemDetail 出口;SPA 白名单漏 /topology 既有缺陷),各带回归用例。诚实登记:openspec `--specs --strict` 9/10——ops-metrics 两处 requirement 超长 WARNING 为 2026-10-01 归档遗留(本轮零改动),拆分属 spec 质量工作未纳入本 change 范围。
   ⑦CI 实跑:首次 run backend 红——spaDeepLinks 用例暴露 SpaWebConfig 回退资源缺失时 500 化(CI verify 无前端产物,本地有残留产物故绿,属真实健壮性缺陷非环境噪声);修复兜底 404 + 用例改双形态判据(26a89ba),第二次 run **39124401497 backend+web 全绿**(Java 25/Node 24 矩阵首验通过,含 openapi 漂移门禁)。
