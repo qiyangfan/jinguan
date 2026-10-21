@@ -1,6 +1,4 @@
-/* 支付域 API:下单/mock 渠道支付/订单查询/本人订单簿。
-   响应为 Map 与 JPA 实体直出(契约中无稳定命名 schema),在此边界显式收窄;
-   字段漂移由 CI openapi 漂移门禁兜底。 */
+/* 支付 API；在此收窄 OpenAPI 未覆盖的响应字段。 */
 
 import { client, unwrap } from "./api";
 

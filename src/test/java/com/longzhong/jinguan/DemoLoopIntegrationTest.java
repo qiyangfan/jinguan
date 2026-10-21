@@ -16,10 +16,7 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
-/**
- * 演示闭环集成测试(单进程,H2):注册(首用户 ADMIN)→ 手工入账 → mock 支付 → 账本入账 → key 绑定 → ingest 扣账 → 余额核对;随行钉价目下发契约格式。
- * 方法按序执行共享状态(引导链路)。
- */
+/** 端到端验证注册、入账、支付、绑定和用量扣费流程；测试方法共享状态并按序执行。 */
 @SpringBootTest
 @AutoConfigureMockMvc
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -93,7 +90,7 @@ class DemoLoopIntegrationTest {
   @Test
   @Order(4)
   void mockPayment_loop_entersLedger() throws Exception {
-    // 下单 → 模拟支付(同事务入账) → 余额 = 10_000_000 + 2_000_000
+    // 支付成功后入账 2,000,000,000 credits。
     MvcResult order =
         mvc.perform(
                 post("/payments/orders")
@@ -128,7 +125,7 @@ class DemoLoopIntegrationTest {
                         """
                             {"keyId":"mk-test-1","userId":1}""")))
         .andExpect(status().isCreated());
-    // ⚠ PascalCase:muniu UsageRow 无 json tag,Go 按导出字段名序列化
+    // muniu UsageRow 使用 PascalCase 字段名。
     String payload =
         """
             {"rows":[{"ID":"u-1","RequestID":"r-1","TenantID":"t1","APIKeyID":"mk-test-1",
@@ -147,7 +144,7 @@ class DemoLoopIntegrationTest {
     mvc.perform(get("/wallet/balance").header("Authorization", "Bearer " + adminToken))
         .andExpect(
             jsonPath("$.balanceCredits").value("11700000000")); // 12_000_000_000 - 300_000_000
-    // 同 ID 重投:幂等,余额不变
+    // 同 ID 重投不重复扣款。
     mvc.perform(
             post("/ingest/usage")
                 .header("Authorization", "Bearer dev-ingest-token")
@@ -163,7 +160,7 @@ class DemoLoopIntegrationTest {
   @Order(6)
   void pricing_ingress_matchesMuniuContract() throws Exception {
     mvc.perform(putPricing());
-    // 下发契约:snake_case 字段 + 去尾零十进制字符串 + multiplier ≤4 位小数
+    // 下发字段、价格格式和倍率精度符合契约。
     mvc.perform(get("/control/v1/pricing"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.pricing[0].alias").value("deepseek-chat"))
@@ -190,7 +187,7 @@ class DemoLoopIntegrationTest {
   @Test
   @Order(7)
   void orderOwnership_enforced_listServerSide() throws Exception {
-    // admin(uid=1)下单
+    // 管理员下单。
     MvcResult order =
         mvc.perform(
                 post("/payments/orders")
@@ -204,7 +201,7 @@ class DemoLoopIntegrationTest {
             .andReturn();
     String orderId =
         com.jayway.jsonpath.JsonPath.read(order.getResponse().getContentAsString(), "$.orderId");
-    // 第二用户(USER):越权查询他人订单 → 404 不泄露存在性
+    // 他人订单返回 404，不泄露其存在性。
     MvcResult regB =
         mvc.perform(
                 post("/auth/register")
@@ -220,12 +217,12 @@ class DemoLoopIntegrationTest {
     mvc.perform(
             get("/payments/orders/{id}", orderId).header("Authorization", "Bearer " + userBToken))
         .andExpect(status().isNotFound());
-    // 本人查询 → 200
+    // 本人可查询订单。
     mvc.perform(
             get("/payments/orders/{id}", orderId).header("Authorization", "Bearer " + adminToken))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.status").value("CREATED"));
-    // 订单簿服务端事实源:admin 列表含该单(新→旧,首位),userB 列表为空
+    // 管理员列表含该单，普通用户列表为空。
     mvc.perform(get("/payments/orders").header("Authorization", "Bearer " + adminToken))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$[0].orderId").value(orderId));
@@ -237,7 +234,7 @@ class DemoLoopIntegrationTest {
   @Test
   @Order(8)
   void adminDebit_adjusts_audits_operator() throws Exception {
-    // 余额 11,700,000(Order 5 终态);调账扣减 700,000
+    // 调账扣减 700,000,000 credits。
     mvc.perform(
             post("/wallet/admin/debit")
                 .header("Authorization", "Bearer " + adminToken)
@@ -248,7 +245,7 @@ class DemoLoopIntegrationTest {
                             {"userId":1,"amountCredits":700000000,"refId":"adjust-1","note":"错充修正"}""")))
         .andExpect(status().isCreated())
         .andExpect(jsonPath("$.balanceCredits").value("11000000000"));
-    // 同 refId 重放:幂等不双扣
+    // 同 refId 重放不重复扣款。
     mvc.perform(
             post("/wallet/admin/debit")
                 .header("Authorization", "Bearer " + adminToken)
@@ -259,7 +256,7 @@ class DemoLoopIntegrationTest {
                             {"userId":1,"amountCredits":700000000,"refId":"adjust-1"}""")))
         .andExpect(status().isCreated())
         .andExpect(jsonPath("$.balanceCredits").value("11000000000"));
-    // 余额不足调账:422 且零痕迹
+    // 余额不足时拒绝调账且不留分录。
     mvc.perform(
             post("/wallet/admin/debit")
                 .header("Authorization", "Bearer " + adminToken)
@@ -269,7 +266,7 @@ class DemoLoopIntegrationTest {
                         """
                             {"userId":1,"amountCredits":99999999999,"refId":"adjust-x"}""")))
         .andExpect(status().isUnprocessableEntity());
-    // 操作人审计:MANUAL_ADJUST 分录含 operatorUserId=1;USER 调用 → 403
+    // 调账分录记录管理员；普通用户调用返回 403。
     mvc.perform(get("/wallet/entries").header("Authorization", "Bearer " + adminToken))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$[0].reason").value("MANUAL_ADJUST"))
@@ -300,7 +297,7 @@ class DemoLoopIntegrationTest {
   @Test
   @Order(10)
   void adminResetPassword_oldPasswordInvalidates() throws Exception {
-    // ADMIN 重置 userB(uid=2)密码;USER 调用 → 403
+    // 仅管理员可重置密码。
     mvc.perform(
             post("/admin/users/2/reset-password")
                 .header("Authorization", "Bearer " + userBToken)
@@ -313,14 +310,14 @@ class DemoLoopIntegrationTest {
                 .contentType("application/json")
                 .content(body("{\"newPassword\":\"new-password-123\"}")))
         .andExpect(status().isNoContent());
-    // 旧密码失效:统一话术 400(不泄露用户名存在性)
+    // 旧密码登录失败。
     mvc.perform(
             post("/auth/login")
                 .contentType("application/json")
                 .content(body("{\"username\":\"order-b\",\"password\":\"password-123\"}")))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.detail").value("用户名或密码错误"));
-    // 新密码登录成功
+    // 新密码可登录。
     mvc.perform(
             post("/auth/login")
                 .contentType("application/json")
@@ -332,7 +329,7 @@ class DemoLoopIntegrationTest {
   @Test
   @Order(11)
   void usageRecords_persisted_andQueryable() throws Exception {
-    // Order 5 的 ingest 行(u-1,首投 accepted + 重投 replayed):明细留存,投影最终 accepted,attempts=2
+    // 用量明细保留两次投递，最终状态仍为 accepted。
     mvc.perform(get("/wallet/usage").header("Authorization", "Bearer " + adminToken))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$[0].usageId").value("u-1"))
@@ -340,7 +337,7 @@ class DemoLoopIntegrationTest {
         .andExpect(jsonPath("$[0].attempts").value(2))
         .andExpect(jsonPath("$[0].costCredits").value("300000000"))
         .andExpect(jsonPath("$[0].modelAlias").value("deepseek-chat"));
-    // 管理面按用户查询:uid=2(order-b)无用量 → 空
+    // 无用量用户的管理查询返回空列表。
     mvc.perform(get("/admin/usage?userId=2").header("Authorization", "Bearer " + adminToken))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$").isEmpty());

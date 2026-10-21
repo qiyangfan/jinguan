@@ -1,8 +1,4 @@
-/* 渠道拓扑(ADMIN):三件套(供应商/模型路由/能力目录)整包运营。
-   添加供应商内置官方厂商预设一键回填(后端 ProviderPresetCatalog 单源,只收厂商第一方端点);
-   上游 key 一律 env 引用名绝不明文;保存 = PUT 整包替换,后端校验 detail 原样示人;
-   删除供应商先做悬空引用软校验(后端 400 为权威兜底)。
-   编辑态数字一律字符串(输入中途不归零),toPayload 时才落契约类型。 */
+/* 管理供应商、模型路由和能力目录；保存时整包替换。密钥只保存环境变量名。 */
 
 import { useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -53,7 +49,7 @@ import {
   type TopologyPayload,
 } from "@/lib/topology-api";
 
-/** 路由候选编辑态(数字域留字符串)。 */
+/** 数字字段以字符串保存，避免输入中途格式化。 */
 interface CandidateRow {
   provider: string;
   model: string;
@@ -61,7 +57,7 @@ interface CandidateRow {
   weight: string;
 }
 
-/** 能力目录编辑态(drop_params 逗号分隔串;数字域留字符串)。 */
+/** 能力目录表单态。 */
 interface ModelRow {
   provider: string;
   model: string;
@@ -70,7 +66,7 @@ interface ModelRow {
   max_output_tokens: string;
 }
 
-/** 路由编辑形态(alias 参与改名);保存前转回契约 Record。 */
+/** 路由表单态，保存前转换为契约 Record。 */
 interface RouteEntry {
   alias: string;
   candidates: CandidateRow[];
@@ -82,7 +78,7 @@ interface Draft {
   models: ModelRow[];
 }
 
-/** 删除确认待办(结构化判别,避免字符串前缀与供应商名撞车)。 */
+/** 用 type 区分删除对象：路由别名与供应商名可以重名。 */
 type PendingDelete = { type: "provider" | "route"; value: string } | null;
 
 function toDraft(payload: TopologyPayload): Draft {
@@ -136,22 +132,22 @@ function toPayload(draft: Draft): TopologyPayload {
   };
 }
 
-/** 数据面数值域上界(与后端 requireIntDomain 同规 ±2147483647)。 */
+/** 与服务端一致：拓扑数值限制在 ±Integer.MAX_VALUE。 */
 const INT_DOMAIN_MAX = 2_147_483_647;
 
-/** 正整数域(供应商 weight / key weight;后端同规:key weight ≤0 下发归一 1)。 */
+/** 供应商和 key 权重必须为正整数。 */
 function parsePositive(v: string): number | null {
   const n = Number(v);
   return Number.isInteger(n) && n >= 1 && n <= INT_DOMAIN_MAX ? n : null;
 }
 
-/** 非负整数域(priority / 路由 weight / max_output_tokens,0 = 不限制)。 */
+/** priority、路由 weight 和 max_output_tokens 使用非负整数；仅 max_output_tokens 的 0 表示不限制。 */
 function parseNonNegative(v: string): number | null {
   const n = Number(v);
   return Number.isInteger(n) && n >= 0 && n <= INT_DOMAIN_MAX ? n : null;
 }
 
-/** 整包软校验(与后端 TopologyService.replaceAll 同规;后端 400 为权威兜底)。 */
+/** 前端预校验；后端校验仍为最终依据。 */
 function validateDraft(draft: Draft): string {
   const names = new Set<string>();
   for (const p of draft.providers) {
@@ -168,8 +164,7 @@ function validateDraft(draft: Draft): string {
   const aliases = new Set<string>();
   for (const r of draft.routes) {
     const alias = r.alias.trim();
-    // 别名以 trim 后的串参与判重与落载荷:原始串判重会放过空白变体,
-    // Object.fromEntries 同键后写覆盖先写,静默吞掉先到路由
+    // 判重与生成载荷都使用 trim 后的别名，避免同键覆盖。
     if (alias === "") {
       if (r.candidates.length > 0) return "存在别名为空的路由,请填写别名或删除该路由";
       continue;
@@ -193,7 +188,7 @@ function validateDraft(draft: Draft): string {
     if (parseNonNegative(m.max_output_tokens) === null) {
       return `能力目录 ${m.model} 的 max_output_tokens 必须为非负整数(0 = 不限制)`;
     }
-    // (provider, model) 是数据面复合主键:重复声明会静默合并并覆盖原配置,前置拦截
+    // 数据面以 (provider, model) 为主键；重复声明会覆盖配置。
     const cap = `${m.provider}\u0000${m.model.trim()}`;
     if (caps.has(cap)) return `能力目录 ${m.provider}/${m.model} 重复声明`;
     caps.add(cap);
@@ -201,7 +196,7 @@ function validateDraft(draft: Draft): string {
   return "";
 }
 
-/** 厂商合并态:anthropic 协议分支不是独立预设 tag,而是同厂商的第二协议变体(随适配器下拉切换)。 */
+/** 同一厂商的多个协议端点。 */
 interface VendorPreset {
   name: string;
   display_name: string;
@@ -212,7 +207,7 @@ interface VendorPreset {
   variants: { adapter: string; base_url: string }[];
 }
 
-/** 预设按厂商归并:-anthropic 后缀分支并入主条目 variants(主条目在目录中先出;分支缺席主条目时自立)。 */
+/** 将 anthropic 端点合并为厂商的协议变体。 */
 function mergeByVendor(presets: ProviderPreset[]): VendorPreset[] {
   const byName = new Map<string, VendorPreset>();
   const out: VendorPreset[] = [];
@@ -238,7 +233,7 @@ function mergeByVendor(presets: ProviderPreset[]): VendorPreset[] {
   return out;
 }
 
-/** 供应商表单态(original 为 null 表示新增;presetModels 为选中预设的建议模型;presetVariants 为该厂商的协议分支端点,随适配器联动)。 */
+/** 供应商表单态及其预设建议。 */
 interface ProviderEdit {
   original: string | null;
   form: {
@@ -267,7 +262,7 @@ const EMPTY_EDIT: ProviderEdit = {
   presetVariants: [],
 };
 
-/** 表单内联校验提示(非空即禁用提交;与整包软校验同口径的第一道门)。 */
+/** 表单内联校验提示。 */
 function submitBlockedHint(edit: ProviderEdit, draft: Draft | null): string {
   const f = edit.form;
   if (f.name.trim() === "") return "";
@@ -284,7 +279,6 @@ export default function TopologyPage() {
   const queryClient = useQueryClient();
   const topology = useQuery({ queryKey: ["topology"], queryFn: fetchTopology });
   const presets = useQuery({ queryKey: ["topology-presets"], queryFn: fetchPresets });
-  /* anthropic 分支并入厂商主条目:分支不再以独立 tag 展示(经适配器下拉切换) */
   const presetVendors = mergeByVendor(presets.data?.presets ?? []);
 
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -296,8 +290,7 @@ export default function TopologyPage() {
   const [pendingDelete, setPendingDelete] = useState<PendingDelete>(null);
   const [deleteBlocked, setDeleteBlocked] = useState("");
 
-  // 渲染期条件重置(React「You Might Not Need an Effect」范式):
-  // 查询数据到位/轮换时以服务端为真源重灌草稿(有未保存改动则不覆盖)
+  // 查询数据变化时同步草稿，保留未保存的编辑。
   const [hydratedFrom, setHydratedFrom] = useState<TopologyPayload | null>(topology.data ?? null);
   if (topology.data && topology.data !== hydratedFrom) {
     setHydratedFrom(topology.data);
@@ -364,8 +357,7 @@ export default function TopologyPage() {
           renamed && c.provider === edit.original ? { ...c, provider: def.name } : c,
         ),
       }));
-      // 预设建议模型一键写入能力目录:判重集合必须基于改名后的最终 models,
-      // 否则「改名 + 预设回填」组合会对同一 (provider, model) 产生重复声明并静默覆盖原配置
+      // 用最终模型名判重，避免改名后回填出重复的 (provider, model)。
       const existing = new Set(models.map((m) => `${m.provider}\u0000${m.model}`));
       for (const model of edit.presetModels) {
         const key = `${def.name}\u0000${model}`;
@@ -455,7 +447,6 @@ export default function TopologyPage() {
         当前下发指纹(ETag):{etag || "保存后显示"} · 保存即整包替换并经拉取循环热更新至 muniu
       </p>
 
-      {/* ── 供应商 ── */}
       <Card>
         <CardHeader>
           <CardTitle>供应商({draft.providers.length})</CardTitle>
@@ -523,7 +514,6 @@ export default function TopologyPage() {
         </CardContent>
       </Card>
 
-      {/* ── 模型路由 ── */}
       <Card>
         <CardHeader className="flex-row items-start justify-between space-y-0">
           <div className="space-y-1.5">
@@ -750,7 +740,6 @@ export default function TopologyPage() {
         </CardContent>
       </Card>
 
-      {/* ── 能力目录 ── */}
       <Card>
         <CardHeader className="flex-row items-start justify-between space-y-0">
           <div className="space-y-1.5">
@@ -891,7 +880,6 @@ export default function TopologyPage() {
         </CardContent>
       </Card>
 
-      {/* ── 底部保存 ── */}
       <div className="flex items-center gap-3">
         <Button
           className="h-11 px-6 md:h-9 md:px-4"
@@ -905,7 +893,6 @@ export default function TopologyPage() {
         )}
       </div>
 
-      {/* ── 添加/编辑供应商对话框(移动端为底部弹层,md+ 居中) ── */}
       <Sheet open={edit !== null} onOpenChange={(open) => !open && setEdit(null)}>
         <BottomSheetContent className="md:max-w-2xl">
           <SheetHeader>
@@ -932,7 +919,7 @@ export default function TopologyPage() {
                   return (
                     <div key={region} className="flex flex-wrap gap-1.5">
                       {list.map((vendor) => {
-                        /* 点预设:优先取与当前适配器一致的分支,否则回主条目 */
+                        /* 优先使用适配器匹配的预设端点。 */
                         const variant =
                           vendor.variants.find((x) => x.adapter === edit.form.adapter) ??
                           vendor.variants[0];
@@ -998,7 +985,7 @@ export default function TopologyPage() {
                   <Select
                     value={edit.form.adapter}
                     onValueChange={(v) => {
-                      /* 协议分支联动:仅当端点仍为空或正处该厂商已知分支端点时,切换适配器才回填对应分支 URL(手填的自定义端点不动) */
+                      /* 切换适配器时更新预设端点，保留手动填写的 URL。 */
                       const variants = edit.presetVariants;
                       const target = variants.find((x) => x.adapter === v);
                       const current = edit.form.base_url.trim();
@@ -1170,7 +1157,6 @@ export default function TopologyPage() {
         </BottomSheetContent>
       </Sheet>
 
-      {/* ── 删除确认 ── */}
       <AlertDialog
         open={pendingDelete !== null}
         onOpenChange={(open) => !open && setPendingDelete(null)}
@@ -1203,7 +1189,7 @@ export default function TopologyPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* ── 悬空引用软拦截 ── */}
+      {/* 悬空引用提示 */}
       <AlertDialog
         open={deleteBlocked !== ""}
         onOpenChange={(open) => !open && setDeleteBlocked("")}

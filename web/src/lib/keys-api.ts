@@ -11,7 +11,7 @@ export function bindKey(req: KeyBindingRequest): Promise<{ keyId: string; userId
   return unwrap(client.POST("/admin/key-bindings", { body: req }));
 }
 
-/** 终态吊销(不可逆):已吊销 key 重绑将被 409 拒绝。UI 入口待 key 列表端点后排期,当前仅供 API 联调。 */
+/** 终态吊销；已吊销 key 重绑将被拒绝。 */
 export function revokeKey(
   keyId: string,
   reason: string,

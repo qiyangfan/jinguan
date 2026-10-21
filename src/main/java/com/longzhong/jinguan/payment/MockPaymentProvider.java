@@ -5,10 +5,7 @@ import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-/**
- * Mock 支付渠道(演示):verifyCallback 接受一切合法形态载荷(模拟"渠道已验签"), 签名约定 = 简单对称自检(orderId 与 providerRef 同现即认),真实
- * PSP 的证书/签名校验 在其 adapter 内实现——端口契约不变。payUrl 指向本服务的模拟收银台回调端点。 订单时效(TTL)与真实渠道一致由本渠道维护:过期回调经守门拒绝。
- */
+/** 演示用支付渠道；回调需匹配订单号且状态为 PAID，不验证真实签名。 */
 @Component
 public class MockPaymentProvider implements PaymentProvider {
 

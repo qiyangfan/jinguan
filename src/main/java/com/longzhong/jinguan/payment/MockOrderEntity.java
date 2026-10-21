@@ -8,7 +8,7 @@ import java.time.Instant;
 import tools.jackson.databind.annotation.JsonSerialize;
 import tools.jackson.databind.ser.std.ToStringSerializer;
 
-/** mock 渠道订单:状态机 CREATED → PAID(经 Repository 原子条件迁移 markPaidIfCreated, 行锁串行化并发回调),演示渠道专用。 */
+/** 演示支付订单；状态从 CREATED 原子迁移到 PAID 或 EXPIRED。 */
 @Entity
 @Table(name = "mock_payment_orders")
 public class MockOrderEntity {

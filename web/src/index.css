@@ -1,20 +1,16 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-/* 铁律 3/5/6/7 的单源:品牌色(武侯祠三元:红墙·黛瓦·鎏金)全部定义于此。
-   色彩意图与命名见 docs/brand.md(文档定意、CSS 定值)。
-   组件只许引用 token 类(bg-primary/from-grad-from…),禁硬编码色值。 */
+/* 品牌色和主题 token 定义于此；组件只使用语义 token。 */
 
 @custom-variant dark (&:is(.dark *));
 
-/* shadcn v4 基线:全局边框/轮廓/页面底色走 token(Tailwind v4 裸 border 落
-currentColor,须在此统一收敛,否则 outline 按钮/浮层边框呈墨色且随文字变色) */
+/* 将全局边框、轮廓和页面底色映射到语义 token。 */
 @layer base {
   * {
     @apply border-border outline-ring/50;
 
-    /* 移动基线(mobile-experience B1.1):触控不闪斑;滚动容器到边缘不牵动
-       整页(嵌套滚动隔离,spec「触控与安全区基线」) */
+    /* 取消触控高亮，并隔离嵌套滚动。 */
     -webkit-tap-highlight-color: transparent;
     overscroll-behavior: contain;
   }
@@ -24,10 +20,7 @@ currentColor,须在此统一收敛,否则 outline 按钮/浮层边框呈墨色�
   }
 }
 
-/* 安全区工具类(mobile-experience B1.1):贴边区避让全面屏 Home 指示条/刘海。
-   全屏表单 Footer/贴底浮层消费 pb-safe;横屏 刘海侧用 pl/pr-safe。
-   --kb-safe-bottom 缺省 0,非全面屏零影响。jinguan 壳层 main 以 pb-24 预留
-   底部标签栏避让;B2.1 的 pb-safe-nav 档位待三仓统一后一并收敛。 */
+/* 为全屏表单、贴边浮层和横屏刘海提供安全区工具类。 */
 @utility pb-safe {
   padding-bottom: var(--kb-safe-bottom);
 }
@@ -43,15 +36,15 @@ currentColor,须在此统一收敛,否则 outline 按钮/浮层边框呈墨色�
 :root {
   color-scheme: light;
 
-  /* 全局安全区变量:供 pb-safe 等工具类与贴边区消费 */
+  /* 底部安全区距离。 */
   --kb-safe-bottom: env(safe-area-inset-bottom, 0);
 
-  /* 语义 token:主色朱砂(武侯祠红墙,庄重决断);鎏金仅点睛;中性色配黛瓦青灰 */
-  --background: #fbfaf7; /* 宣纸白(微暖,非冷白) */
+  /* 亮色语义 token。 */
+  --background: #fbfaf7; /* 宣纸白 */
   --foreground: #1f2933; /* 青墨字 */
   --card: #fff;
   --card-foreground: #1f2933;
-  --primary: #8f2d2f; /* 红墙朱砂:深沉庄重,非高唤醒亮红 */
+  --primary: #8f2d2f; /* 朱砂 */
   --primary-foreground: #fdf9f0; /* 宣纸白 */
   --secondary: #eef0ec; /* 青灰浅 */
   --secondary-foreground: #1f2933;
@@ -59,49 +52,46 @@ currentColor,须在此统一收敛,否则 outline 按钮/浮层边框呈墨色�
   --muted-foreground: #52606d; /* 青灰 */
   --accent: #f5edda; /* 宣纸米黄 */
   --accent-foreground: #6b2424; /* 深朱 */
-  --destructive: #dc2626; /* 错误语义用鲜红,与朱砂 primary 靠明度区分 */
+  --destructive: #dc2626; /* 错误状态 */
   --destructive-foreground: #fff;
-  --success: #15803d; /* 成功语义:入账/绑定完成等正向反馈(词汇表对齐宪法 Article 3) */
+  --success: #15803d; /* 成功状态 */
   --success-foreground: #fff;
-  --warning: #b45309; /* 警告语义:待支付/降级等中间态提示 */
+  --warning: #b45309; /* 警告状态 */
   --warning-foreground: #fff;
-  --border: #dfe3de; /* 青灰线:分隔线/卡片描边,刻意低对比是设计意图 */
+  --border: #dfe3de; /* 青灰 */
 
-  /* 控件边界独立取值,不得等于 --border(宪法 Article 3):未勾选的复选框只有这一条线可辨,
-     必须达非文本控件 3:1(此值对宣纸白 3.35、对纯白卡 3.49)。消费方=input/textarea/
-     select/checkbox/toggle/button(outline) */
+  /* 控件边界独立于 --border，保证复选框等控件有足够对比度。 */
   --input: #808c86;
 
-  /* 控件底/开关轨道填充是第三个语义(宪法 Article 3):不得跟随 --input,否则描边一提亮,
-     未勾选开关轨道就变实心灰条被误读为开启态。值 = 拆分前 --input 的原值,填充观感逐字节不变 */
+  /* 控件和开关轨道底色，独立于边框值。 */
   --input-fill: #dfe3de;
-  --ring: #c9a063; /* 鎏金点睛:匾额之金,哑光不炫 */
+  --ring: #c9a063; /* 鎏金 */
 }
 
 .dark {
   color-scheme: dark;
 
-  --background: #0e1416; /* 黛墨夜 */
+  --background: #0e1416; /* 黛墨 */
   --foreground: #eef0ec;
-  --card: #151d20; /* 黛瓦暗面 */
+  --card: #151d20; /* 黛瓦 */
   --card-foreground: #eef0ec;
-  --primary: #b0484a; /* 夜祠朱门:暗底提亮一档 */
+  --primary: #b0484a; /* 暗色朱砂 */
   --primary-foreground: #fdf9f0;
   --secondary: #243034;
   --secondary-foreground: #eef0ec;
   --muted: #243034;
   --muted-foreground: #9aa8ae;
-  --accent: #2a2018; /* 暗金底 */
+  --accent: #2a2018; /* 暗金 */
   --accent-foreground: #dcc08a;
   --destructive: #ef4444;
   --destructive-foreground: #fff;
-  --success: #4ade80; /* 暗底提亮一档的可读绿 */
+  --success: #4ade80; /* 暗色成功状态 */
   --success-foreground: #052e16;
   --warning: #fbbf24;
   --warning-foreground: #451a03;
   --border: #2a363a;
-  --input: #62767c; /* 黛青控件线:对卡面 3.58、对底 3.89,与亮色同一口径 */
-  --input-fill: #2a363a; /* 控件底/轨道填充,同亮色口径与 --input 解耦(宪法 Article 3) */
+  --input: #62767c; /* 控件边界 */
+  --input-fill: #2a363a; /* 控件底色 */
   --ring: #c9a063;
 }
 
@@ -110,20 +100,19 @@ currentColor,须在此统一收敛,否则 outline 按钮/浮层边框呈墨色�
     -apple-system, blinkmacsystemfont, "Segoe UI", roboto, "PingFang SC", "Microsoft YaHei",
     sans-serif;
 
-  /* 字号刻度补充:内建 xs/sm/base 档位间的中间档(等值收编自业务字面量,
-     业务代码字号只许引用此类,禁再写 text-[NNpx] 字面量) */
-  --text-3xs: 0.625rem; /* 10px:分组标题/时间戳等最小微字 */
-  --text-2xs: 0.6875rem; /* 11px:slogan/工具名等辅助微字 */
-  --text-md: 0.9375rem; /* 15px:对话正文/响应文本档(sm 与 base 之间) */
+  /* 补充字号档位。 */
+  --text-3xs: 0.625rem; /* 10px */
+  --text-2xs: 0.6875rem; /* 11px */
+  --text-md: 0.9375rem; /* 15px */
   --text-code-inline: 0.85em; /* 内联代码相对父级缩放(em,随上下文字号) */
 
-  /* 语义层 → Tailwind 色类(bg-background / text-muted-foreground / …) */
+  /* 将语义 token 暴露为 Tailwind 色类。 */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
 
-  /* 浮层别名:下拉/确认框等 portal 浮层与卡片同族(docs/brand.md) */
+  /* 浮层与卡片共用底色。 */
   --color-popover: var(--card);
   --color-popover-foreground: var(--card-foreground);
   --color-primary: var(--primary);
@@ -145,18 +134,15 @@ currentColor,须在此统一收敛,否则 outline 按钮/浮层边框呈墨色�
   --color-input-fill: var(--input-fill);
   --color-ring: var(--ring);
 
-  /* 品牌点缀:鎏金(匾额之金,logo 一笔/高亮/点睛,禁大面积铺开) */
+  /* 品牌点缀色。 */
   --color-gild: #c9a063;
 
-  /* 品牌渐变:黛瓦暮色(黛青→深黛→墨),沉静不晃眼 */
+  /* 品牌渐变色。 */
   --color-grad-from: #2e4a56; /* 黛瓦 */
   --color-grad-mid: #1d3742; /* 深黛 */
   --color-grad-end: #0f1a22; /* 青墨 */
 
-  /* 流式时间轴动效(品牌表现层豁免,用色走 token):
-     运行中节点呼吸光环 + 运行中文字流光(bg-clip-text 扫过);
-     完成节点生命周期=降权保留,超限由窗口滚动+顶部 mask 渐隐收束(空间驱动,
-     刻意不做时间驱动消失:自愈/重试场景的轮次叙事不可丢,裁决见会话复盘) */
+  /* 时间轴状态动画。 */
   --animate-timeline-ping: timeline-ping 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;
   --animate-shimmer: shimmer 2.4s linear infinite;
 

@@ -9,10 +9,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * 下发契约端点(入站适配器):muniu 数据面按 topology_url 轮询拉取(无认证 GET,依赖部署网络 隔离——见 SecurityConfig 注记),负载与 ETag 形态对齐
- * muniu FetchTopology: ETag 双引号内容哈希,If-None-Match 命中返回 304 空体。
- */
+/** muniu 通过此端点拉取拓扑；支持 ETag 条件请求。 */
 @RestController
 public class TopologyIngressController {
 
@@ -27,10 +24,10 @@ public class TopologyIngressController {
   @GetMapping("/control/v1/topology")
   public ResponseEntity<TopologyService.TopologyPayload> topology(
       @RequestHeader(value = HttpHeaders.IF_NONE_MATCH, required = false) String ifNoneMatch) {
-    // body 与 ETag 派生自同一次组装:并发 PUT 之下二者永不错配
+    // 响应体和 ETag 使用同一份拓扑快照。
     TopologyService.TopologyPayload payload = topology.current();
     String etag = topology.etagOf(payload);
-    // 拉取活性与 ETag 命中率计数点在端点层:管理页读同一 service 不得计入
+    // 仅统计数据面拉取，不统计管理页读取。
     boolean notModified = ifNoneMatch != null && ifNoneMatch.equals(etag);
     metrics.count(
         MetricNames.CONTROL_PULL,

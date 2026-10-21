@@ -1,5 +1,4 @@
-/* 认证态行为测试:bootstrap 静默续期(页面刷新不掉登录)、失败回落 guest、
-   logout 清态、login 写内存 token 并解码用户。 */
+/* 验证会话恢复、登录、登出和续期失败后的清态。 */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -10,7 +9,7 @@ function jsonResponse(status: number, body: unknown): Response {
   });
 }
 
-/** base64url(JSON)——TextEncoder+btoa 全平台等价(Node/Browser 同一实现)。 */
+/** 构造客户端可解码的假 JWT。 */
 function b64uJson(o: unknown): string {
   const bytes = new TextEncoder().encode(JSON.stringify(o));
   let bin = "";
@@ -28,7 +27,7 @@ async function loadStore() {
   return mod.useAuth;
 }
 
-/** openapi-fetch 经 client 的请求是 Request 对象(直连 fetch 的仍是字符串);统一取 pathname。 */
+/** 统一从 fetch 参数中读取请求路径。 */
 function pathOf(input: RequestInfo | URL): string {
   return new URL(input instanceof Request ? input.url : String(input), "http://localhost").pathname;
 }
@@ -117,9 +116,7 @@ it("会话失效(api 层 401 刷新失败)→ 反向通知回落 guest", async (
   await useAuth.getState().bootstrap();
   expect(useAuth.getState().user).not.toBeNull();
 
-  // 模拟受保护请求 401 且刷新失败:api 层广播 sessionCleared(此处直接触发已注册回调链路)
-  // —— 经 setAccessToken(null 语义)不可行,改由 logout 之外的清态路径验证:
-  // 实际接线为 api.clearAccessToken → onSessionCleared → set({user:null}),此处钉最终态
+  // 清除 token 时，api 层回调也应清除用户态。
   const { clearAccessToken } = await import("./api");
   clearAccessToken();
   expect(useAuth.getState().user).toBeNull();

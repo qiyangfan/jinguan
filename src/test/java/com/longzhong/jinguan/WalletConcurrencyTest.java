@@ -19,7 +19,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.TestPropertySource;
 
-/** 资金并发纪律回归:条带锁内含完整事务,扣账竞态不得超扣;ingest 单行失败不拖批。 */
+/** 验证并发扣款不超扣，且单行 ingest 失败不阻断整批。 */
 @SpringBootTest
 @TestPropertySource(
     properties = {
@@ -106,7 +106,7 @@ class WalletConcurrencyTest {
 
     assertEquals(1, result.skippedInsufficient());
     assertEquals(0, result.accepted());
-    // 毒丸行不阻断后续行:同批内随后一条正常行应被接受
+    // 失败行不应阻断后续正常行。
     var good =
         new IngestUsageRow(
             "ok-1",
@@ -129,19 +129,19 @@ class WalletConcurrencyTest {
             null,
             50,
             "2026-09-12T00:00:01Z");
-    // 先手工入账 1000 credit 保证扣账可行
+    // 先入账，确保后续扣款可成功。
     wallet.credit(user.getId(), 1000, WalletService.REASON_MANUAL_TOPUP, "conc-seed-2", null, null);
     var result2 = ingest.accept(List.of(row, good));
     assertEquals(1, result2.skippedInsufficient());
     assertEquals(1, result2.accepted());
-    // 毒丸行明细可见(欠费可对账):skipped_insufficient 投影;正常行 accepted
+    // 欠费明细保留，正常行完成扣款。
     assertEquals(
         "skipped_insufficient",
         usageRecords.findByUsageId("poison-1").orElseThrow().getFinalOutcome());
     assertEquals("accepted", usageRecords.findByUsageId("ok-1").orElseThrow().getFinalOutcome());
   }
 
-  /** 并发同键写入:唯一约束败方必须收敛为幂等重放(replayed=true),任何一方不得以 500/异常告终。 */
+  /** 并发同键写入应收敛为成功与幂等重放。 */
   @Test
   void concurrent_sameRefId_credits_replay_notFailure() throws Exception {
     var user = users.save(UserEntity.create("conc-dup", "hash", "USER"));

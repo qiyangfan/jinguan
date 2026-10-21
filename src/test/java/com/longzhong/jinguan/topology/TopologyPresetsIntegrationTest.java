@@ -23,10 +23,7 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
-/**
- * 预设目录契约(单进程,H2):ADMIN 拉 presets 200 包络且逐字段在位(snake_case 九字段)→ 每条 adapter ⊆ muniu 支持集 → USER 403 /
- * 匿名 403(无 entry-point 配置的默认拒绝形态,与 /admin/topology 同规)。目录只读,无写语义。
- */
+/** 验证预设目录字段、适配器范围和管理端权限。 */
 @SpringBootTest
 @AutoConfigureMockMvc
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -40,7 +37,7 @@ import org.springframework.test.web.servlet.MvcResult;
     })
 class TopologyPresetsIntegrationTest {
 
-  /** muniu internal/adapter/adapter.go For() 工厂支持集(与目录单测同源,双处钉死防漂)。 */
+  /** muniu 支持的适配器类型。 */
   private static final Set<String> MUNIU_SUPPORTED_ADAPTERS =
       Set.of("openai", "qwen", "doubao", "deepseek", "moonshot", "glm", "anthropic");
 
@@ -98,7 +95,7 @@ class TopologyPresetsIntegrationTest {
     for (String adapter : adapters) {
       assertTrue(MUNIU_SUPPORTED_ADAPTERS.contains(adapter), () -> "预设 adapter 越界:" + adapter);
     }
-    // 包络内每条预设九字段逐一对齐(snake_case 线上形态)
+    // 每条预设均包含契约字段。
     int size = names.size();
     for (int i = 0; i < size; i++) {
       final int index = i;
@@ -114,7 +111,7 @@ class TopologyPresetsIntegrationTest {
   void user_forbidden_anonymous_forbidden_too() throws Exception {
     mvc.perform(get("/admin/topology/presets").header("Authorization", "Bearer " + userToken))
         .andExpect(status().isForbidden());
-    // 无凭证 → 403(无 entry-point 配置,Spring Security 默认拒绝形态,与 /admin/topology 同规)
+    // 无凭证不能读取管理端目录。
     mvc.perform(get("/admin/topology/presets")).andExpect(status().isForbidden());
   }
 }

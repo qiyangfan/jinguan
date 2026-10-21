@@ -29,7 +29,7 @@ public class PaymentController {
   public record CreateRequest(
       @NotBlank String provider, @Positive long amountCredits, @NotBlank String currency) {}
 
-  /** 当前用户创建支付单(演示闭环:mock 渠道返回本服务模拟收银台地址)。 */
+  /** 当前用户创建支付单。 */
   @PostMapping("/orders")
   public Map<String, Object> create(
       @AuthenticationPrincipal JwtService.LoginUser user,
@@ -37,7 +37,7 @@ public class PaymentController {
     return payments.createOrder(req.provider(), user.uid(), req.amountCredits(), req.currency());
   }
 
-  /** 模拟收银台:mock 渠道的"用户完成支付"动作(真实渠道此步在渠道侧发生,经 webhook 通知)。 */
+  /** 模拟收银台确认支付。 */
   @PostMapping("/mock/{orderId}/pay")
   public Map<String, Object> mockPay(@PathVariable String orderId) {
     return payments.handleCallback(
@@ -46,7 +46,7 @@ public class PaymentController {
         new PaymentProvider.CallbackPayload(orderId, "mock-" + orderId, "PAID", "mock-signature"));
   }
 
-  /** 本人订单簿(服务端为唯一事实源;新→旧分页)。 */
+  /** 分页查询当前用户的订单。 */
   @GetMapping("/orders")
   public List<MockOrderEntity> orders(
       @AuthenticationPrincipal JwtService.LoginUser user,
@@ -55,7 +55,7 @@ public class PaymentController {
     return payments.list(user.uid(), page, size).getContent();
   }
 
-  /** 订单详情(本人;非本人 404 不泄露存在性)。 */
+  /** 查询本人订单；非本人订单返回 404。 */
   @GetMapping("/orders/{orderId}")
   public Map<String, Object> query(
       @AuthenticationPrincipal JwtService.LoginUser user, @PathVariable String orderId) {

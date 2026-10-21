@@ -14,10 +14,7 @@ function ScrollArea({
       className={cn("relative", className)}
       {...props}
     >
-      {/* [&>div]:block! —— Radix 视口内容默认 display:table,其 shrink-to-fit
-           布局在「不可断行长内容(CJK 标题 nowrap)+ 窄视口」下会把内容撑出视口
-           宽度(行被横向挤飞,010 侧栏分组冒烟实证);block 保持垂直滚动不变,
-           真正的宽内容仍可横向滚动(滚动区含后代溢出) */}
+      {/* 覆盖 Radix 默认 table 布局，避免长内容在窄视口撑宽滚动区。 */}
       <ScrollAreaPrimitive.Viewport
         data-slot="scroll-area-viewport"
         className="size-full rounded-[inherit] transition-[color,box-shadow] outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1 [&>div]:block!"

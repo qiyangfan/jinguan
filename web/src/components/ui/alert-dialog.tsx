@@ -34,10 +34,7 @@ function AlertDialogOverlay({
   );
 }
 
-/* 移动端形态(木牛单源登记,2026-10-02 双仓对齐裁定「以木牛为准」):窄屏贴底抽屉
-   (bottom sheet,拇指可达 + 避键盘),sm+ 居中弹窗;max-h[dvh]+overflow 防小屏竖向
-   溢出,底部内边距让出 iOS 安全区(sm+ 高度自适应,overflow-y-auto 自然失效);
-   动画与 ui/dialog 同款:移动端淡入淡出,sm+ 缩放。 */
+/* 窄屏贴底，大屏居中；限制高度并留出安全区，避免内容被遮挡。 */
 function AlertDialogContent({
   className,
   size = "default",

@@ -16,12 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 
-/**
- * 拓扑三件套(供应商/模型路由/能力目录)运营态与下发契约。负载形态与 muniu
- * TopologyPayload(internal/config/topology_source.go)逐字段同构;管理侧 `PUT /admin/topology` 整包替换(与 muniu
- * ReplaceTopology 整体换新语义同构, 杜绝「providers 已换、routes 指旧 provider」的中间态被拉取循环捞走)。 ETag = 下发 payload
- * 的内容哈希:PUT 相同内容的重放不改 ETag,muniu 拉取自然 304 短路。
- */
+/** 管理和下发供应商、路由与能力目录；字段对齐 muniu 契约，整包替换并按负载生成 ETag。 */
 @Service
 public class TopologyService {
 
@@ -41,7 +36,7 @@ public class TopologyService {
       @JsonProperty("priority") long priority,
       @JsonProperty("weight") long weight) {}
 
-  /** muniu 侧缺省语义:drop_params 空=零干预;thinking_lock false;max_output_tokens 0=不限制。 */
+  /** 模型能力配置；字段缺省语义与 muniu 一致。 */
   public record CapabilityDef(
       @JsonProperty("provider") String provider,
       @JsonProperty("model") String model,
@@ -70,7 +65,7 @@ public class TopologyService {
     this.mapper = mapper;
   }
 
-  /** 当前拓扑(整包):稳定排序保证同内容序列化字节一致(ETag 内容寻址的前提)。 */
+  /** 查询当前拓扑；稳定排序保证相同内容生成相同 ETag。 */
   @Transactional(readOnly = true)
   public TopologyPayload current() {
     List<ProviderDef> providerDefs =
@@ -113,22 +108,18 @@ public class TopologyService {
     return new TopologyPayload(providerDefs, routeDefs, modelDefs);
   }
 
-  /** 当前下发 ETag(双引号包裹的内容哈希;空拓扑同样有确定哈希)。 */
+  /** 计算当前拓扑的 ETag。 */
   @Transactional(readOnly = true)
   public String currentEtag() {
     return etagOf(current());
   }
 
-  /** ETag 必须从与响应体同一个 payload 对象派生(单次组装),杜绝 body 与 ETag 错配。 */
+  /** 从响应负载计算 ETag。 */
   public String etagOf(TopologyPayload payload) {
     return quote(hashOf(payload));
   }
 
-  /**
-   * 整包替换(单事务 delete-all + insert-all)。校验:model_routes 非空(muniu 拒绝空 routes, 「下线全部路由」不是合法稳态,两侧同规)/
-   * routes 与 models 的 provider 引用必须存在于本次 提交的 providers(悬空引用即「半拓扑」)/ provider weight > 0(与 muniu
-   * 加载校验同规); key weight ≤ 0 归一为 1(存储即下发,与 muniu YAML 缺省语义一致)。
-   */
+  /** 单事务校验并整包替换；model_routes 不可为空，引用须指向已定义的供应商，供应商权重须大于 0，非正 key 权重归一为 1。 */
   @Transactional
   public String replaceAll(TopologyPayload next) {
     if (next == null
@@ -228,11 +219,11 @@ public class TopologyService {
       row.setUpdatedAt(now);
       providers.save(row);
     }
-    // ETag 与下发同源:从库重新组装 current() 计算,保证 PUT 返回值 ≡ 下发值(排序归一)
+    // PUT 与下发共用同一排序后的拓扑计算 ETag。
     return currentEtag();
   }
 
-  /** 序列化失败的 JSON 列在读取时拒绝(损坏数据不外泄,修复前宁可下发失败保持 muniu 降级)。 */
+  /** 读取拓扑 JSON；数据损坏时拒绝下发。 */
   private <T> T[] deserialize(String json, Class<T[]> type) {
     try {
       return mapper.readValue(json, type);
@@ -270,12 +261,9 @@ public class TopologyService {
     }
   }
 
-  /**
-   * 数值域守门:weight/priority 的下发契约是数据面 int 语义(muniu TopologyPayload 接收形态), 录入侧拦住超出 int
-   * 域的值——荒谬量级一旦下发,故障落在转发面权重运算且跨仓无从定位。 minExclusive 传 0 表示「必须 >0」(provider weight 语义);其余只做上界约束。
-   */
   private static final long INT_DOMAIN_MAX = Integer.MAX_VALUE;
 
+  /** 限制在数据面接受的 ±Integer.MAX_VALUE；positiveRequired 为 true 时还须大于 minExclusive。 */
   private void requireIntDomain(
       long value, long minExclusive, String field, boolean positiveRequired) {
     if (positiveRequired && value <= minExclusive) {

@@ -4,11 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
-/**
- * 表单字段的「Label + 问号说明」。
- * 格式约束、分档规则等说明一律进 Tooltip(钉后端真实规则),
- * 禁止在 Label 后括号堆砌(全站范式,先例=RagPage 表说明)。
- */
+/** 表单标签，可附带说明 Tooltip。 */
 export function FieldLabel({
   htmlFor,
   help,

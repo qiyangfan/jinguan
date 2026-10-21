@@ -26,10 +26,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.TestPropertySource;
 
-/**
- * 待结算恢复器(ingest-metering delta ADDED):可重启且有界——预留后中断/扣账后投影中断/ 重启漏处理由周期扫描覆盖;用户间公平轮转(成功行退出候选不重置历史);
- * 同用户首收顺序、余额不足即止;后台恢复不伪造 ingest 接收计数;Mock 支付与管理员入账同走统一恢复。
- */
+/** 验证待结算用量的重启恢复、用户轮转、处理上限和资金事件路径。 */
 @SpringBootTest
 @TestPropertySource(
     properties = {
@@ -82,7 +79,7 @@ class UsageSettlementRecoveryTest {
         "2026-10-02T00:00:00Z");
   }
 
-  /** 造一笔欠费候选(u 余额 0):行留存为 skipped_insufficient、归属固定。 */
+  /** 创建一笔归属已固定的欠费候选。 */
   private void seedInsufficient(String keyId, long uid, String id, long cost) {
     bindings.save(new ApiKeyBindingEntity(keyId, uid));
     var result = ingest.accept(List.of(row(id, keyId, cost)));
@@ -93,7 +90,7 @@ class UsageSettlementRecoveryTest {
   void crashAfterReserve_pendingRow_recoveredOnDemand() {
     long uid = newUser("rec-u1");
     bindings.save(new ApiKeyBindingEntity("mk-r1", uid));
-    // 模拟「预留后、扣账前」进程中断:直接落 pending 明细(等价于 ingest 中断现场)
+    // 模拟预留后、扣账前中断。
     usageRecords.save(
         UsageRecordEntity.of(row("rec-1", "mk-r1", 100), uid, UsageRecordService.OUTCOME_PENDING));
     wallet.credit(uid, 1_000, WalletService.REASON_MANUAL_TOPUP, "rec-seed-1", null, null);
@@ -105,7 +102,7 @@ class UsageSettlementRecoveryTest {
     assertEquals(UsageRecordService.OUTCOME_ACCEPTED, stored.getFinalOutcome());
     assertEquals(900, wallet.balance(uid));
     assertTrue(ledger.findByRefId("usage:rec-1").isPresent(), "恰一笔 usage 分录");
-    // 收敛完成:后续轮次无事可做(等价重启后再扫)
+    // 恢复完成后再次扫描无待办。
     assertEquals(0, scheduler.recoverOnce().settled());
   }
 
@@ -116,7 +113,7 @@ class UsageSettlementRecoveryTest {
     usageRecords.save(
         UsageRecordEntity.of(row("rec-2", "mk-r2", 100), uid, UsageRecordService.OUTCOME_PENDING));
     wallet.credit(uid, 1_000, WalletService.REASON_MANUAL_TOPUP, "rec-seed-2", null, null);
-    // 模拟「扣账成功、投影未落」中断:资金通道先扣,明细仍 pending
+    // 模拟扣账成功但投影未更新。
     wallet.debit(
         uid, 100, WalletService.REASON_USAGE, IngestService.usageRefId("rec-2"), null, null);
 
@@ -136,7 +133,7 @@ class UsageSettlementRecoveryTest {
     seedInsufficient("mk-r3", uid, "rec-3c", 100);
     wallet.credit(uid, 250, WalletService.REASON_MANUAL_TOPUP, "rec-seed-3", null, null);
 
-    // 本类 caps=2 用户×2 行:首轮只触及前两行(首收顺序),第三行未触及
+    // 每用户每轮最多处理两行，按首次接收顺序执行。
     var round1 = scheduler.recoverOnce();
     assertEquals(2, round1.settled(), "余额覆盖前两笔");
     assertEquals(0, round1.stillInsufficient(), "第三行未被触及,不计欠费");
@@ -146,13 +143,13 @@ class UsageSettlementRecoveryTest {
         "skipped_insufficient",
         usageRecords.findByUsageId("rec-3c").orElseThrow().getFinalOutcome());
 
-    // 次轮触及第三行:余额 50 < 100 → 保留并重新停服
+    // 余额不足时保留候选并重新停服。
     var round2 = scheduler.recoverOnce();
     assertEquals(0, round2.settled());
     assertEquals(1, round2.stillInsufficient(), "第三笔保留");
     assertEquals(50, wallet.balance(uid));
     assertTrue(users.findSuspendedIds().contains(uid), "恢复失败重新置位业务停服");
-    // 每行每轮恰计一次恢复尝试(预留 1 + 恢复 1)
+    // 每行分别记录接收和恢复尝试。
     assertEquals(2, usageRecords.findByUsageId("rec-3a").orElseThrow().getAttempts());
     assertEquals(2, usageRecords.findByUsageId("rec-3c").orElseThrow().getAttempts());
   }
@@ -171,7 +168,7 @@ class UsageSettlementRecoveryTest {
     wallet.credit(u2, 1_000, WalletService.REASON_MANUAL_TOPUP, "fair-seed-2", null, null);
     wallet.credit(u3, 1_000, WalletService.REASON_MANUAL_TOPUP, "fair-seed-3", null, null);
 
-    // 第 1 轮(上限 2 用户 × 2 行):最早尝试的 u1、u2 各结 2 行,u3 未触及
+    // 首轮处理最早尝试的两个用户。
     var round1 = scheduler.recoverOnce();
     assertEquals(4, round1.settled());
     assertEquals(1, remainingCandidates(u1));
@@ -179,7 +176,7 @@ class UsageSettlementRecoveryTest {
     assertEquals(3, remainingCandidates(u3), "u3 本轮未触及");
     Thread.sleep(20); // 保证轮转时间戳推进,消除同刻并列
 
-    // 第 2 轮:u1/u2 的尝试历史(含已退出候选的成功行)把二者排到队尾,u3 先被触及
+    // 后续轮次按最近尝试时间轮转用户。
     var round2 = scheduler.recoverOnce();
     assertEquals(1, remainingCandidates(u3), "u3 本轮被触及(2 行)");
     assertEquals(1, remainingCandidates(u1) + remainingCandidates(u2), "另一名额给了有历史的用户");
@@ -190,7 +187,7 @@ class UsageSettlementRecoveryTest {
   void candidateOrdering_neverAttemptedFirst_thenRecentAttemptLast() {
     long attempted = newUser("rec-o1");
     long neverTried = newUser("rec-o2");
-    // attempted:经 ingest 欠费(有结算尝试时间);neverTried:预留后中断的 pending(从未尝试)
+    // 对比已有尝试时间和从未尝试的 pending 行。
     seedInsufficient("mk-o1", attempted, "rec-o1a", 10);
     usageRecords.save(
         UsageRecordEntity.of(
@@ -206,8 +203,7 @@ class UsageSettlementRecoveryTest {
 
   @Test
   void conflictedPoisonRow_doesNotBlockOtherUsers() {
-    // 数据不一致现场:候选行的 refId 已被不同金额分录占用(绕过 reserve 直插,模拟历史坏数据)——
-    // 恢复器遇幂等冲突应保留候选、高噪留痕,且不阻塞同轮其他用户结算
+    // 模拟 refId 已被不同金额占用；冲突行保留待办且不阻塞其他用户。
     long u1 = newUser("rec-c1");
     long u2 = newUser("rec-c2");
     bindings.save(new ApiKeyBindingEntity("mk-c1", u1));
@@ -218,7 +214,7 @@ class UsageSettlementRecoveryTest {
         UsageRecordEntity.of(row("rec-c2a", "mk-c2", 100), u2, UsageRecordService.OUTCOME_PENDING));
     wallet.credit(u1, 1_000, WalletService.REASON_MANUAL_TOPUP, "poison-seed-1", null, null);
     wallet.credit(u2, 1_000, WalletService.REASON_MANUAL_TOPUP, "poison-seed-2", null, null);
-    // 占位分录:同 refId、不同金额 → 恢复器 debit 必然 adjudicate 冲突
+    // 预置同 refId 的不同金额分录。
     wallet.debit(
         u1, 50, WalletService.REASON_USAGE, IngestService.usageRefId("rec-c1a"), null, null);
 
@@ -235,14 +231,13 @@ class UsageSettlementRecoveryTest {
         usageRecords.findByUsageId("rec-c2a").orElseThrow().getFinalOutcome());
     assertEquals(950, wallet.balance(u1), "毒行不扣款,占位分录余额保持");
 
-    // 清场:毒行永久驻留候选会污染共享库的轮转断言——模拟运维修复(投影置终态)退出候选
+    // 模拟修复异常行，避免污染后续轮转断言。
     usageService.applySettlementOutcome("rec-c1a", UsageRecordService.OUTCOME_REPLAYED);
   }
 
   @Test
   void unexpectedExceptionRow_doesNotAbortRound() {
-    // 坏数据现场:pending 行 cost=0(绕过 reserve 直插)→ debit 金额校验抛 IllegalArgumentException——
-    // 恢复器须兜底跳过该行,不得炸掉整轮导致其他用户永久饥饿
+    // cost 为 0 的损坏候选应被跳过，不得中断整轮。
     long u1 = newUser("rec-x1");
     long u2 = newUser("rec-x2");
     bindings.save(new ApiKeyBindingEntity("mk-x1", u1));
@@ -262,11 +257,11 @@ class UsageSettlementRecoveryTest {
         usageRecords.findByUsageId("rec-x2a").orElseThrow().getFinalOutcome());
     assertEquals(900, wallet.balance(u2));
 
-    // 清场:坏行退出候选(模拟运维修复),避免污染共享库轮转
+    // 修复后将坏行移出候选。
     usageService.applySettlementOutcome("rec-x1a", UsageRecordService.OUTCOME_REPLAYED);
   }
 
-  /** 用例间清场:补足候选用户余额并推恢复轮直至收敛,避免跨用例候选污染共享库的轮转断言。 */
+  /** 清理候选行，避免影响其他轮转断言。 */
   @org.junit.jupiter.api.AfterEach
   void drainCandidates() {
     for (int i = 0; i < 20; i++) {
@@ -292,7 +287,7 @@ class UsageSettlementRecoveryTest {
   @Test
   void unboundAndFreeHistory_neverAutoCharged() {
     long uid = newUser("rec-u4");
-    // 未绑定历史 + 免费行:恢复器不得追收
+    // 恢复器不得追收未绑定或免费行。
     ingest.accept(List.of(row("rec-4a", "mk-none", 100)));
     ingest.accept(
         List.of(
@@ -334,7 +329,7 @@ class UsageSettlementRecoveryTest {
     seedInsufficient("mk-r5", uid, "rec-5a", 100);
     assertTrue(users.findSuspendedIds().contains(uid), "欠费已停服");
 
-    // Mock 支付:下单 → 回调(BEFORE_COMMIT 入账参与外层事务,锁持有到物理提交)
+    // 支付回调在外层事务提交前入账。
     var order = payments.createOrder("mock", uid, 500, "CNY");
     String orderId = (String) order.get("orderId");
     payments.handleCallback("mock", orderId, new CallbackPayload(orderId, "ref-x", "PAID", "sig"));
@@ -366,7 +361,7 @@ class UsageSettlementRecoveryTest {
     assertEquals(replayedBefore, ingestRowCount(MetricNames.OUTCOME_REPLAYED), "恢复不得计入接收分类");
     assertEquals(
         insufficientBefore, ingestRowCount(MetricNames.OUTCOME_SKIPPED_INSUFFICIENT), "恢复不得计入接收分类");
-    // 资金事实仍由唯一资金通道承载:恢复补扣计入 wallet.operations
+    // 恢复补扣仍通过钱包资金通道。
     assertTrue(
         meters
                 .counter(
@@ -404,7 +399,7 @@ class UsageSettlementRecoveryTest {
                 start.await();
                 scheduler.recoverOnce();
               } catch (Throwable t) {
-                // ingestError 只登记在线侧;恢复侧异常以断言投影终态兜底
+                // 恢复侧异常由投影状态断言验证。
               }
               return null;
             });

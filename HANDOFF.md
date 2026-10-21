@@ -2,6 +2,10 @@
 
 > 维护纪律:只写「当前状态 / 下一步 / 开放决策项 / 验收记录」四块,不写变更明细(归 git log),单次更新 ≤30 行。
 
+## 当前状态(2026-10-21,全库源码注释精简——按 comment-cleanup 规则排查)
+
+- **注释精简(2026-10-21,本批)**:Java 主代码/测试、web/src 与构建/配置文件注释逐条核对——修正失实(DemoLoop 测试金额 2e9/7e8、PaymentProvider 回调无效载荷返回 false、MockOrderRepository.findOverdue 按订单号排序、TopologyService.requireIntDomain 注释挂错常量、StatusBadge 的 fallbackLabel 语义、ProviderPresetCatalog 预设描述)，删除复述方法名/重复 JSX 分区/过程记录类注释并收口长注释。SQL 迁移按 Flyway「只增不改」未动；ui/ 标准件本批仅注释差异。门禁：mvn verify + pnpm typecheck/lint/lint:css/format/test 14 + 隔离 outDir build 全绿（后端 95 测试）。提交与 CI 终态见验收记录。
+
 ## 当前状态(2026-10-18,全栈升级 upgrade-tech-stack 已实施并归档——Boot 4.1/Java 25/前端工具链换代 + openapi-fetch 收编)
 
 - **upgrade-tech-stack(2026-10-18 归档 `archive/2026-10-18-upgrade-tech-stack`,24 任务全勾;delta +1 入 delivery-pipeline「工具链支撑窗口」)**:Java 21→25 · Boot 3.4.1→4.1.1 · Modulith 1.3.1→2.1.1 ·
@@ -12,7 +16,7 @@
   五门禁)。**实测揪出并修复两处**:①Security 7 全 dispatch 授权把 sendError 顶成 403 空体(补 GlobalExceptionHandler
   400 出口 + dispatcherTypeMatchers(ERROR/FORWARD) 放行 + 回归用例);②SPA 深链白名单漏 /topology(既有缺陷,
   走查实证后补 + 用例钉 6 路由)。交付链三基镜像(node24/temurin-25)构建+compose 冒烟+亮暗两态走查全过;
-  contract-consistency.sh GREEN。未 push(CI 实跑确认仍挂用户指令)。
+  contract-consistency.sh GREEN。已推送,CI 39124401497 backend+web 全绿(验收记录 ⑦)。
 
 ## 当前状态(2026-10-02,三仓标准件视觉收敛+空态/错误态收编——owner 插话裁决;其余承下节)
 

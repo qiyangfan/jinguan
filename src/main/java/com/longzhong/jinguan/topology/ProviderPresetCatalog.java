@@ -3,22 +3,10 @@ package com.longzhong.jinguan.topology;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
 
-/**
- * 官方厂商预设目录(录入侧单源,常量不落库):把 muniu 数据面的适配器分类学与各厂商官方端点 钉在一处,经 {@code GET /admin/topology/presets}
- * 供拓扑管理页一键回填。只收厂商第一方 API 域名,不收中转站/代理商;聚合类平台仅收其官方端点且在 note 自明身份 (如 OpenRouter)。adapter 取值必须 ⊆ muniu
- * {@code internal/adapter/adapter.go} For()
- * 工厂支持集(openai/qwen/doubao/deepseek/moonshot/glm/anthropic),越界即数据面 fail-fast。
- *
- * <p>base_url 拼接语义:openai 系须含版本段(转发拼 /chat/completions、/embeddings), anthropic 系为协议分支基址(muniu 桥接拼
- * /v1/messages)——各厂 Anthropic 分支路径形态 不统一(/anthropic、/api/anthropic、/apps/anthropic 并存),base_url
- * 必须整串可配。 模型 ID 以 2026-09-26 官方文档核验为准,随厂商迭代会过时,预设语义是「建议」非契约。
- *
- * <p>env 建议名全库统一 _API_KEY 收尾:这是锦官/muniu 的内部 env 引用名(非厂商 SDK 约定, 与各家 ANTHROPIC_AUTH_TOKEN
- * 之类惯例无关),统一形态降低运营心智负担;同厂商双分支 (OpenAI 兼容 / Anthropic 兼容)用不同 env 名,允许两分支独立配钥匙与轮换。
- */
+/** 厂商接入预设只收录各家官方端点与受支持的适配器；env_suggestion 是环境变量名建议，模型列表也仅供建议。 */
 public final class ProviderPresetCatalog {
 
-  /** muniu 适配器类型(与 TopologyPayload adapter 字段同词汇)。 */
+  /** muniu 支持的适配器类型。 */
   static final String ADAPTER_OPENAI = "openai";
 
   static final String ADAPTER_QWEN = "qwen";
@@ -28,24 +16,12 @@ public final class ProviderPresetCatalog {
   static final String ADAPTER_GLM = "glm";
   static final String ADAPTER_ANTHROPIC = "anthropic";
 
-  /** 区域分组(前端分组展示用)。 */
+  /** 前端展示用的区域分组。 */
   static final String REGION_CN = "cn";
 
   static final String REGION_GLOBAL = "global";
 
-  /**
-   * 单条官方厂商预设(snake_case 线上形态,与拓扑三件套同风格)。
-   *
-   * @param name 建议 provider 名(拓扑内唯一;被占用时运营在表单改名,预设只是建议)
-   * @param displayName 中文展示名
-   * @param adapter muniu 适配器类型
-   * @param baseUrl 官方端点精确形态
-   * @param envSuggestion 建议 env 引用名(muniu 副本按此配环境变量,绝不明文 key)
-   * @param models 建议模型 ID(能力目录/路由候选一键带入)
-   * @param website 官网/控制台(申请 key 入口)
-   * @param region cn / global
-   * @param note 备注(分支语义、模型映射、计费注意等)
-   */
+  /** 单条厂商接入预设，字段使用下发契约的 snake_case 命名。 */
   public record Preset(
       @JsonProperty("name") String name,
       @JsonProperty("display_name") String displayName,
@@ -57,7 +33,7 @@ public final class ProviderPresetCatalog {
       @JsonProperty("region") String region,
       @JsonProperty("note") String note) {}
 
-  /** 包络(与价目 PricingEnvelope 同风格,留出未来扩展位)。 */
+  /** 厂商预设响应。 */
   public record PresetEnvelope(@JsonProperty("presets") List<Preset> presets) {}
 
   private static final List<Preset> PRESETS =
@@ -175,7 +151,7 @@ public final class ProviderPresetCatalog {
               "https://platform.stepfun.com",
               REGION_CN,
               "OpenAI 兼容;另有 Messages API(形态见官方文档)"),
-          // ── 国内官方 · Anthropic 兼容分支(Claude Code 生态直连)──
+          // ── 国内官方 Anthropic 兼容端点 ──
           new Preset(
               "deepseek-anthropic",
               "DeepSeek 官方 · Anthropic 分支",

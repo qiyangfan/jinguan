@@ -12,10 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 
-/**
- * 渠道与价目:运营态管理 + 面向 muniu 数据面的下发契约。 下发 JSON 形态与 muniu `admin.PricingView` 逐字段对齐(multiplier/input 为
- * 去尾零十进制字符串;time_windows 空数组 = 恒缺省价,合法形态)。
- */
+/** 管理渠道价目并生成与 muniu 对齐的下发负载。 */
 @Service
 public class PricingService {
 
@@ -30,7 +27,7 @@ public class PricingService {
 
   public record TimeWindow(String window, String multiplier) {}
 
-  /** 下发契约形态(字段名 snake_case,与 muniu PricingView 一致)。 */
+  /** 与 muniu PricingView 对齐的下发格式。 */
   @JsonInclude(JsonInclude.Include.NON_NULL)
   public record PricingView(
       String alias,
@@ -51,7 +48,7 @@ public class PricingService {
       String timezone,
       List<TimeWindow> timeWindows) {}
 
-  /** 契约端点负载:muniu 期待 {"pricing":[...]}。 */
+  /** muniu 价目下发响应。 */
   public record PricingEnvelope(List<PricingView> pricing) {}
 
   @Transactional
@@ -137,7 +134,7 @@ public class PricingService {
     }
   }
 
-  /** credit(1e-9 本币)→ 去尾零十进制字符串(muniu ParsePrice ≤9 位小数同刻度);0 → "0"。 */
+  /** 将 credit 转为最多 9 位小数的十进制字符串。 */
   static String creditsToDecimal(long credits) {
     if (credits == 0) {
       return "0";

@@ -1,6 +1,7 @@
-/* 价目管理(ADMIN):渠道价目运营。录入与展示口径 =「元 / 百万 tokens」;存储 = credit/token
-   (1 credit = 本币 1e-9,故 1 元/百万 = 1000 credit/token,提交 ×1000、回填 ÷1000);
-   下发契约为去尾零十进制字符串(元/token,≤9 位小数,同 muniu ParsePrice)。time_windows 动态行编辑。 */
+/*
+ * 录入与展示用元/百万 tokens；存储用 credit/token（1000 credit/token = 1 元/百万）；
+ * 下发为最多 9 位小数的元/token。
+ */
 
 import { useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -55,7 +56,7 @@ interface UpsertForm {
   windows: TimeWindow[];
 }
 
-/** 时区选项只用固定偏移:数据面(muniu ParseZoneOffset)仅认 "UTC"/"±HH:MM",IANA 名会被拒。 */
+/** 仅支持数据面接受的 UTC 或 ±HH:MM 固定偏移。 */
 const TIMEZONES = [
   { value: "UTC", label: "UTC(协调世界时)" },
   { value: "+08:00", label: "UTC+08:00(北京、新加坡)" },
@@ -76,10 +77,10 @@ const EMPTY: UpsertForm = {
   windows: [],
 };
 
-/** 倍率规则与后端 PricingAdminController 同式:正数、最多 4 位小数。 */
+/** 最多 4 位小数；取值范围 (0,10] 在提交时另行校验。 */
 const MULTIPLIER_RE = /^\d+(\.\d{1,4})?$/;
 
-/** 时段窗 "HH:MM-HH:MM":起点须早于 24:00,终点可到 24:00,起止相同无效;终点早于起点=跨零点窗(与数据面 ParseWindowMinutes 一致)。 */
+/** 起点须早于 24:00，终点可为 24:00；相同起止无效，终点较早表示跨午夜。 */
 function validWindow(s: string): boolean {
   const m = /^(\d{2}):(\d{2})-(\d{2}):(\d{2})$/.exec(s);
   if (!m) return false;
@@ -89,12 +90,12 @@ function validWindow(s: string): boolean {
   return startOk && endOk && h1 * 60 + m1 !== h2 * 60 + m2;
 }
 
-/** 下发契约十进制串(元/token,如 "0.000008")→ 百万 tokens 口径整数(8);先取整消浮点尾差。 */
+/** 将元/token 转为元/百万 tokens，并取整消除浮点尾差。 */
 function contract2Million(s: string): number {
   return Math.round(parseFloat(s) * 1_000_000);
 }
 
-/** 价目币种符号(契约 currency 为自由串,未知币种原样显示代码)。 */
+/** 未知币种显示原代码。 */
 function currencySymbol(c: string): string {
   if (c === "CNY") return "¥";
   if (c === "USD") return "$";
@@ -141,8 +142,7 @@ export default function PricingPage() {
   function submit(e: FormEvent) {
     e.preventDefault();
     setError("");
-    // 时段窗/倍率与数据面校验同规则(muniu ParseMultiplier 只认 (0,10]):
-    // 不合格提前拦截,避免保存成功但 muniu 拉取时静默跳过、该价目永不生效
+    // 提前拦截数据面会静默忽略的无效时段或倍率。
     const bad = form.windows.find((w) => {
       if (!validWindow(w.window.trim())) return true;
       const n = parseFloat(w.multiplier.trim());
@@ -169,7 +169,7 @@ export default function PricingPage() {
     });
   }
 
-  /* 时区下拉项:现值不在常用清单时原样保留(如历史 IANA 名),空值只出 placeholder */
+  /* 保留历史时区值，避免编辑时意外丢失。 */
   const timezoneOptions =
     form.timezone && !TIMEZONES.some((t) => t.value === form.timezone)
       ? [...TIMEZONES, { value: form.timezone, label: form.timezone }]
@@ -383,13 +383,13 @@ export default function PricingPage() {
             </div>
           ) : (
             <>
-              {/* 移动端(md 以下):卡片列表,价格行右对齐 */}
+              {/* 移动端列表 */}
               <div className="space-y-2 md:hidden">
                 {(list.data ?? []).map((v) => (
                   <MobileCard
                     key={v.alias}
                     headline={
-                      /* 长别名截断 + title(触屏长按可见全量) */
+                      /* 截断别名，title 保留完整值。 */
                       <span title={v.alias}>{v.alias}</span>
                     }
                     headlineClassName="truncate font-medium"
@@ -412,7 +412,7 @@ export default function PricingPage() {
                       },
                       {
                         label: "分时段",
-                        /* 多档窗口长串折行全显(触屏无 hover tooltip) */
+                        /* 长时段换行显示，触屏无需悬停。 */
                         value:
                           v.time_windows.length === 0
                             ? "—"
@@ -443,7 +443,7 @@ export default function PricingPage() {
                 {(list.data ?? []).length === 0 && <EmptyState>暂无价目</EmptyState>}
               </div>
 
-              {/* 桌面端(md 及以上):表格 */}
+              {/* 桌面表格 */}
               <div className="hidden md:block">
                 <Table>
                   <TableHeader>
@@ -502,7 +502,6 @@ export default function PricingPage() {
         </CardContent>
       </Card>
 
-      {/* 删除确认(宪法 Article 1:破坏性操作必须 AlertDialog,禁 window.confirm) */}
       <AlertDialog
         open={pendingDelete !== null}
         onOpenChange={(open) => !open && setPendingDelete(null)}

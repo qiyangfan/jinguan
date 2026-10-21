@@ -2,11 +2,7 @@ import * as React from "react";
 
 import { cn } from "@/lib/utils";
 
-/**
- * 页面头(全站单源):标题 + 描述 + 右侧动作区。
- * 管理页/工作台页一律复用,禁再手搓 justify-between 标题行(宪法 Article 6);
- * 页面标题层级 h2 text-lg font-semibold 由此唯一约定。
- */
+/** 统一页面头部，包含标题、描述和操作区。 */
 export function PageHeader({
   title,
   description,

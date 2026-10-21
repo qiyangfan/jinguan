@@ -2,12 +2,7 @@ import * as React from "react";
 
 import { cn } from "@/lib/utils";
 
-/* shadcn v4 默认配方(rounded-md + ring-[3px] + aria-invalid 态),
-   与 button/textarea/select 同族;禁改回旧版 rounded-lg/ring-2(前端宪法 Article 2)。
-   size="sm"(h-8)与 SelectTrigger sm 同档,供紧凑筛选行,业务禁再写 h-7/h-8 高度覆盖。
-   日期/时间族修正(木牛 2026-10-02 实拍归因,双仓对齐以此为准):配方基类的 display:flex
-   会让 Chromium 把 datetime-local 的分段与日历指示器当 flex 项从左随内容排布(指示器
-   悬在内容后而非右贴边),这类控件回退 block 恢复原生态 */
+/* 使用统一控件样式；日期时间控件改为 block，避免 Chromium 错排指示器。 */
 const DATE_FAMILY_TYPES = new Set(["date", "datetime-local", "time", "month", "week"]);
 
 function Input({

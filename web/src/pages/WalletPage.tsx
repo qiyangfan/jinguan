@@ -1,4 +1,4 @@
-/* 钱包页:余额卡 + 账本流水(react-query 服务端状态);管理员附手工入账兜底表单。 */
+/* 钱包余额、账本流水和管理员手工入账。 */
 
 import { useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -37,7 +37,7 @@ const REASON_LABEL: Record<string, string> = {
   USAGE: "用量扣减",
 };
 
-/* 用量明细处理结果徽章:accepted/replayed 已结算;pending 待结算;skipped_* 为该行未扣费的解释。 */
+/* 用量结算结果展示。 */
 const OUTCOME_META: StatusMeta = {
   accepted: { label: "已扣费", variant: "secondary" },
   replayed: { label: "重投", variant: "outline" },
@@ -47,7 +47,7 @@ const OUTCOME_META: StatusMeta = {
   skipped_insufficient: { label: "余额不足", variant: "destructive" },
 };
 
-/* 分页响应为裸数组(无 total/页数):当前页满一页则视为可能还有下一页,页数按此估算。 */
+/* API 不返回总数；满页时按可能还有下一页处理。 */
 const PAGE_SIZE = 50;
 
 export default function WalletPage() {
@@ -102,7 +102,7 @@ export default function WalletPage() {
   }
 
   const items = entries.data ?? [];
-  /* 内页 page 为 0-based,Pagination 为 1-based:此处 +1/-1 换算 */
+  /* 内部页码从 0 开始，分页组件从 1 开始。 */
   const pageCount = page + 1 + (items.length >= PAGE_SIZE ? 1 : 0);
 
   return (
@@ -120,7 +120,7 @@ export default function WalletPage() {
           ) : balance.isPending ? (
             <Skeleton className="h-9 w-32" />
           ) : (
-            /* 极端长金额(十亿级 + 9 位小数)窄屏降一档字号并允许断行,不顶破容器 */
+            /* 长金额允许换行，避免撑破窄屏。 */
             <div className="text-2xl font-semibold break-all tabular-nums md:text-3xl">
               ¥{credits2yuan(balance.data?.balanceCredits ?? 0)}
             </div>
@@ -192,7 +192,7 @@ export default function WalletPage() {
             </div>
           ) : (
             <>
-              {/* 移动端(md 以下):卡片列表,金额为首要信息 */}
+              {/* 移动端列表 */}
               <div className="space-y-2 md:hidden">
                 {items.map((entry) => (
                   <MobileCard
@@ -223,7 +223,7 @@ export default function WalletPage() {
                       },
                       {
                         label: "备注",
-                        /* 长备注折行全显(触屏无 hover tooltip,截断即不可达) */
+                        /* 长备注换行显示。 */
                         value: entry.note ?? "—",
                         valueClassName: "whitespace-normal break-words",
                       },
@@ -234,7 +234,7 @@ export default function WalletPage() {
                 {items.length === 0 && <EmptyState>暂无流水</EmptyState>}
               </div>
 
-              {/* 桌面端(md 及以上):表格 */}
+              {/* 桌面表格 */}
               <div className="hidden md:block">
                 <Table>
                   <TableHeader>
@@ -251,7 +251,7 @@ export default function WalletPage() {
                     {items.map((entry) => (
                       <TableRow key={entry.id}>
                         <TableCell>
-                          {/* 流水号为内部主键,对账时有用;截断展示、悬停看全量 */}
+                          {/* 流水号截断展示，title 保留完整值以便对账。 */}
                           <span className="block max-w-28 truncate" title={String(entry.id)}>
                             {entry.id}
                           </span>
@@ -314,13 +314,13 @@ export default function WalletPage() {
             <EmptyState>暂无用量</EmptyState>
           ) : (
             <>
-              {/* 移动端(md 以下):卡片列表,费用为首要信息 */}
+              {/* 移动端列表 */}
               <div className="space-y-2 md:hidden">
                 {usageItems.map((u) => (
                   <MobileCard
                     key={u.usageId}
                     headline={
-                      /* 长模型名截断 + title(触屏长按可见全量) */
+                      /* 截断模型名，title 保留完整值。 */
                       <span title={u.modelAlias ?? u.upstreamModel ?? "-"}>
                         {u.modelAlias ?? u.upstreamModel ?? "-"}
                       </span>
@@ -347,7 +347,7 @@ export default function WalletPage() {
                 ))}
               </div>
 
-              {/* 桌面端(md 及以上):表格 */}
+              {/* 桌面表格 */}
               <div className="hidden md:block">
                 <Table>
                   <TableHeader>

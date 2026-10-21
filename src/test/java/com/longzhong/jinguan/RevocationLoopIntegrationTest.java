@@ -24,10 +24,7 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
-/**
- * 吊销闭环端到端(单进程,H2):欠费停服联动(ingest 余额不足 → 名单含名下 key → 充值即恢复)→ 终态吊销 → 重复吊销幂等 → 重绑 409;
- * 水位随实际状态变化严格递增(幂等不 bump),并发吊销严格收敛。契约:muniu revocationLoop 全量快照 {"version","revoked"}。
- */
+/** 验证欠费停服、终态吊销、重绑限制和同步水位。 */
 @SpringBootTest
 @AutoConfigureMockMvc
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -68,7 +65,7 @@ class RevocationLoopIntegrationTest {
   void emptyState_contractShape() throws Exception {
     adminToken = register("revoke-admin"); // 首用户 ADMIN
     register("revoke-user"); // uid=2
-    // 空态契约:{"version":0,"revoked":[]}
+    // 空快照的版本为 0，名单为空。
     mvc.perform(get("/control/v1/key-revocations"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.version").value(0))
@@ -95,7 +92,7 @@ class RevocationLoopIntegrationTest {
             .content("{\"userId\":2,\"amountCredits\":100000,\"refId\":\"rv-seed-1\"}"));
 
     long before = currentVersion();
-    // 欠费行:CostCredits 500000 > 余额 100000 → skippedInsufficient + 停服置位
+    // 欠费用量会保留明细并设置停服状态。
     mvc.perform(
             post("/ingest/usage")
                 .header("Authorization", "Bearer dev-ingest-token")
@@ -104,7 +101,7 @@ class RevocationLoopIntegrationTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.skippedInsufficient").value(1));
 
-    // 名单 = 欠费用户名下全部 key;版本恰 +1
+    // 名单包含该用户全部 key，版本递增一次。
     mvc.perform(get("/control/v1/key-revocations"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.version").value(before + 1))
@@ -112,7 +109,7 @@ class RevocationLoopIntegrationTest {
         .andExpect(jsonPath("$.revoked[0]").value("mk-loop-1"))
         .andExpect(jsonPath("$.revoked[1]").value("mk-loop-2"));
 
-    // 重复欠费行(新行 ID 同余额不足):置位幂等,版本不再增长
+    // 重复欠费不再推进版本。
     mvc.perform(
             post("/ingest/usage")
                 .header("Authorization", "Bearer dev-ingest-token")
@@ -127,7 +124,7 @@ class RevocationLoopIntegrationTest {
   @Order(3)
   void credit_resumes_sameTransaction() throws Exception {
     long before = currentVersion();
-    // 充值即恢复:与入账分录同事务清除停服,名下 key 退出名单
+    // 入账后恢复服务，key 从名单移除。
     mvc.perform(
             post("/wallet/admin/credit")
                 .header("Authorization", "Bearer " + adminToken)
@@ -144,7 +141,7 @@ class RevocationLoopIntegrationTest {
   @Order(4)
   void terminalRevoke_idempotent_rebindRejected() throws Exception {
     long before = currentVersion();
-    // 首次吊销:落库 + 水位 +1
+    // 首次吊销推进版本。
     mvc.perform(
             post("/admin/keys/mk-loop-1/revoke")
                 .header("Authorization", "Bearer " + adminToken)
@@ -152,7 +149,7 @@ class RevocationLoopIntegrationTest {
                 .content("{\"reason\":\"泄露封禁\"}"))
         .andExpect(status().isCreated())
         .andExpect(jsonPath("$.replayed").value(false));
-    // 重复吊销:幂等重放,水位不变
+    // 重复吊销不推进版本。
     mvc.perform(
             post("/admin/keys/mk-loop-1/revoke")
                 .header("Authorization", "Bearer " + adminToken)
@@ -162,12 +159,12 @@ class RevocationLoopIntegrationTest {
         .andExpect(jsonPath("$.replayed").value(true));
     assertEquals(before + 1, currentVersion(), "重复吊销不得重复 bump 水位");
 
-    // 名单含终态吊销 key
+    // 全量名单包含已吊销 key。
     mvc.perform(get("/control/v1/key-revocations"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.revoked[0]").value("mk-loop-1"));
 
-    // 重绑守卫:409
+    // 已吊销 key 不可重绑。
     mvc.perform(
             post("/admin/key-bindings")
                 .header("Authorization", "Bearer " + adminToken)
@@ -208,7 +205,7 @@ class RevocationLoopIntegrationTest {
     MvcResult result =
         mvc.perform(get("/control/v1/key-revocations"))
             .andExpect(status().isOk())
-            // Order 4 已使 mk-loop-1 在名单(1) + 本轮并发 10 = 11
+            // 已有吊销加上本轮并发吊销共 11 个 key。
             .andExpect(jsonPath("$.revoked.length()").value(11))
             .andReturn();
     long version =
@@ -218,7 +215,7 @@ class RevocationLoopIntegrationTest {
   }
 
   private static String ingestRow(String id, String keyId, long costCredits) {
-    // ⚠ PascalCase:muniu UsageRow 无 json tag,Go 按导出字段名序列化
+    // muniu UsageRow 使用 PascalCase 字段名。
     return """
         {"rows":[{"ID":"%s","RequestID":"r","TenantID":"t1","APIKeyID":"%s",
           "Provider":"deepseek","ModelAlias":"deepseek-chat","UpstreamModel":"deepseek-chat",

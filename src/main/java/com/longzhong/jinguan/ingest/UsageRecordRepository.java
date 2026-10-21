@@ -16,11 +16,7 @@ public interface UsageRecordRepository extends JpaRepository<UsageRecordEntity, 
 
   Page<UsageRecordEntity> findByUserIdOrderByIdDesc(Long userId, Pageable pageable);
 
-  /**
-   * 接收/恢复尝试计数(attempts 单调 +1)与本轮过渡投影。 归属只允许「首次合法解析」落位:已有归属不可改写(key 重绑不转嫁)。
-   * 已结算终态(accepted/replayed)不降级——条件写在 SQL 内,天然防并发结果倒退。 时间由调用方传 Instant(Hibernate 6 的
-   * CURRENT_TIMESTAMP 推断为 Timestamp,与 Instant 字段不兼容)。
-   */
+  /** 增加尝试次数并更新投影；归属仅首次写入，已结算行不降级。 */
   @Modifying
   @Query(
       """
@@ -38,7 +34,7 @@ public interface UsageRecordRepository extends JpaRepository<UsageRecordEntity, 
       @Param("pinned") Long pinned,
       @Param("now") Instant now);
 
-  /** 结算尝试结果落投影:总是刷新内部结算尝试时间(用户轮转据此推进);终态不降级。 attempts 不在此递增——预留/恢复尝试步进已计,投影更新不双计。 */
+  /** 更新结算结果和轮转时间；已结算终态不降级，也不增加接收尝试次数。 */
   @Modifying
   @Query(
       """
@@ -53,24 +49,21 @@ public interface UsageRecordRepository extends JpaRepository<UsageRecordEntity, 
       @Param("outcome") String outcome,
       @Param("now") Instant now);
 
-  /** 只刷新内部结算尝试时间(实际发生过结算尝试但结论不变时,如幂等冲突行)。 */
+  /** 仅刷新结算尝试时间。 */
   @Modifying
   @Query(
       "UPDATE UsageRecordEntity r SET r.lastSettlementAttemptAt = :now"
           + " WHERE r.usageId = :usageId")
   int touchSettlementAttempt(@Param("usageId") String usageId, @Param("now") Instant now);
 
-  /** 恢复尝试步进:attempts 单调 +1、last_attempt_at 刷新;投影结论由结算结果另行落位。 */
+  /** 增加恢复尝试次数并更新时间。 */
   @Modifying
   @Query(
       "UPDATE UsageRecordEntity r SET r.attempts = r.attempts + 1, r.lastAttemptAt = :now"
           + " WHERE r.usageId = :usageId")
   int bumpRecoveryAttempt(@Param("usageId") String usageId, @Param("now") Instant now);
 
-  /**
-   * 候选用户(有界,公平轮转):存在 pending/欠费候选行的用户,按「全部固定归属明细的最大结算尝试时间」升序—— 从未实际尝试的用户优先(NULLS
-   * FIRST),其后按最近尝试时间升序轮转,同刻以稳定用户 ID 决胜; 退出候选的成功行其尝试历史仍参与排序,不重新获得首次优先级。
-   */
+  /** 按最近结算尝试时间轮转候选用户；从未尝试者优先，同刻按用户 ID 排序。 */
   @Query(
       value =
           """
@@ -86,7 +79,7 @@ public interface UsageRecordRepository extends JpaRepository<UsageRecordEntity, 
       nativeQuery = true)
   List<Long> findCandidateUsers(@Param("maxUsers") int maxUsers);
 
-  /** 单用户候选行(有界):按首次接收顺序(id 升序)处理,余额不足即止于该行。列名化(禁 SELECT *)。 */
+  /** 查询单用户的待结算行，按首次接收顺序排列并限制数量。 */
   @Query(
       value =
           """

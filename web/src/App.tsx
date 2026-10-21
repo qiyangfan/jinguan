@@ -9,7 +9,7 @@ import PricingPage from "@/pages/PricingPage";
 import TopologyPage from "@/pages/TopologyPage";
 import WalletPage from "@/pages/WalletPage";
 
-/** 角色守卫:ADMIN 专属页对 USER 重定向回钱包。 */
+/** 将非管理员重定向到钱包页。 */
 function RequireAdmin({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   return user?.role === "ADMIN" ? <>{children}</> : <Navigate to="/wallet" replace />;
@@ -18,13 +18,13 @@ function RequireAdmin({ children }: { children: React.ReactNode }) {
 export default function App() {
   const { user, booted, bootstrap } = useAuth();
 
-  // 挂载静默续期:凭 refresh cookie 恢复会话(页面刷新不掉登录)
+  // 页面加载时用 refresh cookie 恢复会话。
   useEffect(() => {
     void bootstrap();
   }, [bootstrap]);
 
   if (!booted) {
-    return null; // 续期判定中,避免登录页闪烁
+    return null; // 等待会话恢复，避免登录页闪烁。
   }
 
   if (!user) {

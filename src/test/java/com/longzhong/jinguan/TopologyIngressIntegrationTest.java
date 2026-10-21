@@ -25,11 +25,7 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
-/**
- * 拓扑下发契约(单进程,H2):空态 200 空三件套 → ADMIN 整包 PUT → 下发逐字段对齐 muniu TopologyPayload(snake_case)→ ETag
- * 条件请求(200→304)→ 相同内容重放 ETag 不变 → 变更即变; 校验拒绝(空 routes/悬空引用/weight≤0)后旧拓扑原封不动;key weight≤0 下发归一 1;
- * 下发端点匿名可读(网络隔离契约),管理端点 ADMIN 守门。
- */
+/** 验证拓扑下发契约、ETag、输入校验和管理端权限。 */
 @SpringBootTest
 @AutoConfigureMockMvc
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -50,7 +46,7 @@ class TopologyIngressIntegrationTest {
   static String etagAfterPut;
   static String etagOfGrown;
 
-  /** 与 muniu internal/config/topology_source_test.go 的 validPayload 同构(加权 key/能力目录齐全)。 */
+  /** 构造有效拓扑负载。 */
   static final String VALID_PAYLOAD =
       """
       {
@@ -62,7 +58,7 @@ class TopologyIngressIntegrationTest {
       }
       """;
 
-  /** VALID + 第二 provider(glm)+ 第二 alias(glm-4):内容变更 → ETag 必须轮换。 */
+  /** 增加供应商和路由，用于验证内容变化会更新 ETag。 */
   static final String GROWN_PAYLOAD =
       """
       {
@@ -78,7 +74,7 @@ class TopologyIngressIntegrationTest {
       }
       """;
 
-  /** routes 候选引用未定义的 provider "ghost"(悬空引用)。 */
+  /** 引用未定义供应商的拓扑负载。 */
   static final String DANGLING_PAYLOAD =
       """
       {
@@ -135,16 +131,16 @@ class TopologyIngressIntegrationTest {
   @Test
   @Order(3)
   void ingress_is_anonymous_but_admin_put_requires_role() throws Exception {
-    // 下发端点匿名可读(网络隔离契约,与价目/吊销下发同款)
+    // 下发端点允许匿名读取。
     mvc.perform(get("/control/v1/topology")).andExpect(status().isOk());
-    // 普通用户 PUT → 403(ADMIN 守门)
+    // 普通用户不能替换拓扑。
     mvc.perform(
             put("/admin/topology")
                 .header("Authorization", "Bearer " + userToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(VALID_PAYLOAD))
         .andExpect(status().isForbidden());
-    // 无凭证 PUT → 403(无 entry-point 配置,Spring Security 默认拒绝形态)
+    // 无凭证不能替换拓扑。
     mvc.perform(
             put("/admin/topology").contentType(MediaType.APPLICATION_JSON).content(VALID_PAYLOAD))
         .andExpect(status().isForbidden());
@@ -166,7 +162,7 @@ class TopologyIngressIntegrationTest {
             .andExpect(jsonPath("$.providers[0].adapter").value("deepseek"))
             .andExpect(jsonPath("$.providers[0].base_url").value("https://api.deepseek.com/v1"))
             .andExpect(jsonPath("$.providers[0].keys[0].env").value("DEEPSEEK_API_KEY_1"))
-            // key weight≤0 下发归一 1(muniu YAML 缺省语义;存储即下发)
+            // 非正 key 权重下发时归一为 1。
             .andExpect(jsonPath("$.providers[0].keys[1].weight").value(1))
             .andExpect(jsonPath("$.providers[0].weight").value(70))
             .andExpect(jsonPath("$.model_routes['deepseek-chat'][0].provider").value("deepseek"))
@@ -177,7 +173,7 @@ class TopologyIngressIntegrationTest {
             .andExpect(jsonPath("$.models[0].thinking_lock").value(true))
             .andExpect(jsonPath("$.models[0].max_output_tokens").value(8192))
             .andReturn();
-    // PUT 返回的 ETag ≡ 下发 ETag(同一组装源)
+    // PUT 与下发使用同一 ETag。
     assertEquals(etagAfterPut, ingress.getResponse().getHeader(HttpHeaders.ETAG));
   }
 
@@ -207,10 +203,10 @@ class TopologyIngressIntegrationTest {
     assertEquals(200, result.getResponse().getStatus());
     etagOfGrown = result.getResponse().getHeader(HttpHeaders.ETAG);
     assertNotEquals(etagAfterPut, etagOfGrown, "内容变更 ETag 必须轮换");
-    // 旧 ETag 不再命中:下次拉取返回 200 全量
+    // 旧 ETag 返回完整负载。
     mvc.perform(get("/control/v1/topology").header(HttpHeaders.IF_NONE_MATCH, etagAfterPut))
         .andExpect(status().isOk());
-    // 新 ETag 命中 304
+    // 新 ETag 命中 304。
     mvc.perform(get("/control/v1/topology").header(HttpHeaders.IF_NONE_MATCH, etagOfGrown))
         .andExpect(status().isNotModified());
   }
@@ -220,7 +216,7 @@ class TopologyIngressIntegrationTest {
   void dangling_provider_reference_rejected_and_old_topology_intact() throws Exception {
     MvcResult rejected = putTopology(adminToken, DANGLING_PAYLOAD);
     assertEquals(400, rejected.getResponse().getStatus(), "悬空引用必须 400");
-    // 旧拓扑原封不动:GROWN 的 ETag 条件请求仍 304
+    // 校验失败后原拓扑未变。
     mvc.perform(get("/control/v1/topology").header(HttpHeaders.IF_NONE_MATCH, etagOfGrown))
         .andExpect(status().isNotModified());
   }
@@ -247,7 +243,7 @@ class TopologyIngressIntegrationTest {
   @Test
   @Order(11)
   void negative_priority_rejected_aligned_with_muniu_yaml() throws Exception {
-    // muniu YAML validate 同规:priority 必须在 [0, int 域],两侧语义不得分叉
+    // priority 范围与数据面一致。
     String negativePriority = VALID_PAYLOAD.replace("\"priority\":0", "\"priority\":-1");
     MvcResult rejected = putTopology(adminToken, negativePriority);
     assertEquals(400, rejected.getResponse().getStatus(), "provider priority 负值必须 400");

@@ -10,10 +10,7 @@ import java.time.Instant;
 import tools.jackson.databind.annotation.JsonSerialize;
 import tools.jackson.databind.ser.std.ToStringSerializer;
 
-/**
- * 账本分录(append-only):应用层只 INSERT,禁止 UPDATE/DELETE——审计与对账的根基。 amountCredits 有符号(+入账/-扣账),余额 =
- * SUM;refId 全局唯一,是全部写入路径的幂等键。
- */
+/** 追加式账本分录；金额正数表示入账、负数表示扣账，余额为分录总和，refId 是全局幂等键。 */
 @Entity
 @Table(name = "ledger_entries")
 public class LedgerEntryEntity {
@@ -29,7 +26,7 @@ public class LedgerEntryEntity {
   private long amountCredits;
 
   @Column(nullable = false, length = 32)
-  private String reason; // MANUAL_TOPUP | PAYMENT_TOPUP | USAGE
+  private String reason; // 取值见 WalletService.REASON_*
 
   @Column(name = "ref_id", nullable = false, unique = true, length = 128)
   private String refId;
@@ -37,7 +34,7 @@ public class LedgerEntryEntity {
   @Column(nullable = true)
   private String note;
 
-  /** 操作人(审计):管理员发起的资金分录(MANUAL_TOPUP/MANUAL_ADJUST)记录发起 ADMIN;支付/计量分录为 NULL。 */
+  /** 管理员资金操作的操作人；支付和计量入账为空。 */
   @Column(name = "operator_user_id")
   private Long operatorUserId;
 

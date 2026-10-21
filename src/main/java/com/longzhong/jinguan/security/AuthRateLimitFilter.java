@@ -15,11 +15,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 import tools.jackson.databind.ObjectMapper;
 
-/**
- * 登录/注册防爆破:per-IP 固定窗口限流(login/register 各自独立桶)。 IP 解析仅在显式声明可信反代时才采信 X-Forwarded-For 首值,否则一律
- * remoteAddr—— 防伪造头绕过。超限返回 429 ProblemDetail,窗口滑过自然恢复。 集群化需换分布式限流(README 演进项);单实例语义与
- * PaymentExpiryScheduler 的 ShedLock 登记一致。
- */
+/** 登录和注册分别按 IP 做固定窗口限流；仅在配置可信代理时读取 X-Forwarded-For。 */
 @Component
 public class AuthRateLimitFilter extends OncePerRequestFilter {
 
@@ -38,7 +34,7 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
     this.loginPerMinute = loginPerMinute;
     this.registerPerMinute = registerPerMinute;
     this.trustedProxy = trustedProxy;
-    // 窗口 = 首次请求起 60s(计数器原位自增不重置过期);容量上限防内存打爆
+    // 窗口从首次请求起算，固定容量限制内存占用。
     this.counters =
         com.github.benmanes.caffeine.cache.Caffeine.newBuilder()
             .expireAfterWrite(Duration.ofSeconds(60))

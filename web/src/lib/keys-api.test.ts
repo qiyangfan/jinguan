@@ -1,6 +1,4 @@
-/* 绑定契约客户端侧测试(fix-api-key-binding-identifiers):Key ID 按原值传递——
-   不做大小写转换、UUID 校验或前缀过滤(k-1、mk-test-1 等平台自定义标识合法);
-   空白输入在页面层被 trim 拦截,不发起请求。fetch 以 stub 注入,模块态用 resetModules 隔离。 */
+/* 验证 key ID 原样提交；空白输入由页面拦截。 */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -36,11 +34,10 @@ describe("key 绑定请求形态", () => {
     const [, keysApi] = await loadModules();
     await keysApi.bindKey({ keyId: rawId, userId: 1 });
 
-    // openapi-fetch 形态:fetch(Request) 单参;路径取 pathname,体从 Request 流读
+    // openapi-fetch 将 Request 传给 fetch。
     const [req] = fetchMock.mock.calls[0] as [Request];
     expect(new URL(req.url).pathname).toBe("/admin/key-bindings");
-    // 客户端 API 层不得做任何格式改写(大小写/UUID/前缀过滤):提交体与入参逐字节一致;
-    // 空白拦截在页面层(提交前 trim + 纯空白禁用按钮),不属本层职责
+    // API 层原样提交；空白校验由页面负责。
     expect(await req.json()).toEqual({ keyId: rawId, userId: 1 });
   });
 });

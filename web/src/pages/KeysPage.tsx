@@ -1,4 +1,4 @@
-/* Key 绑定(ADMIN):muniu UsageRow.APIKeyID → 控制面用户,计量 ingest 按 key 归账扣费。 */
+/* 管理 muniu key 与控制面用户的绑定。 */
 
 import { useState, type FormEvent } from "react";
 import { useMutation } from "@tanstack/react-query";

@@ -1,6 +1,4 @@
-/* 价目域 API:管理面 CRUD + 面向 muniu 的下发契约端点(匿名 GET)。
-   请求体取自 openapi 契约类型;PricingView 为 snake_case 契约形态(muniu 逐字段对齐),
-   在此以必需字段收窄(契约漂移由 CI openapi 漂移门禁兜底)。 */
+/* 价目管理 API 和 muniu 下发契约。 */
 
 import { client, unwrap } from "./api";
 import type { components } from "./api-types.gen";
@@ -41,7 +39,7 @@ export function remove(alias: string): Promise<void> {
   return unwrap(client.DELETE("/admin/pricing/{alias}", { params: { path: { alias } } }));
 }
 
-/** 控制面下发端点(与 muniu 拉取同形态;自测联调用)。 */
+/** 控制面下发端点。 */
 export function ingressList(): Promise<PricingEnvelope> {
   return unwrap(client.GET("/control/v1/pricing"));
 }

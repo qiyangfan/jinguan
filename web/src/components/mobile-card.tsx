@@ -2,18 +2,14 @@ import * as React from "react";
 
 import { cn } from "@/lib/utils";
 
-/** 移动卡片行:标签(次) + 值(主,右对齐);财务值由调用方传 valueClassName 带 tabular-nums。 */
+/** 移动卡片中的标签和值。 */
 export interface MobileCardRow {
   label: React.ReactNode;
   value: React.ReactNode;
   valueClassName?: string;
 }
 
-/**
- * 移动数据卡(全站单源):桌面表格在窄屏(md 以下)折叠为卡片列表的统一形态。
- * headline = 首行主对象(左),headlineEnd = 首行强调值如金额/状态(右);
- * rows = 次要键值对;footer = 行内动作区。列表页双轨渲染由此唯一约定,禁各页自拼卡片骨架。
- */
+/** 桌面表格在窄屏下的卡片呈现，支持标题、强调值、详情行和操作区。 */
 export function MobileCard({
   headline,
   headlineClassName,

@@ -7,11 +7,7 @@ import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 import org.springframework.web.servlet.resource.PathResourceResolver;
 
-/**
- * SPA 回退:前端路由(/wallet /payments /pricing /keys /login)刷新时无对应 服务端资源,回退 index.html 由前端路由接管;认证由前端路由守卫
- * + API 层 双重承担(标准 SPA 安全模型——后端只保护 API,页面骨架匿名可取)。 静态产物由 web/ 构建输出至 classpath:/static/(见
- * web/vite.config.ts)。
- */
+/** 前端页面路径回退到 index.html；静态资源由 web 构建到 classpath:/static。 */
 @Configuration
 public class SpaWebConfig implements WebMvcConfigurer {
 
@@ -30,11 +26,11 @@ public class SpaWebConfig implements WebMvcConfigurer {
                 if (requested.exists() && requested.isReadable()) {
                   return requested;
                 }
-                // API 未命中/未知路径不回退:仅无扩展名的页面路径回退 index.html
+                // 仅回退无扩展名的页面路径。
                 if (resourcePath.contains(".") || resourcePath.startsWith("api/")) {
                   return null;
                 }
-                // 回退资源自身缺失(如 CI 测试环境无前端产物)时 404,不得抛异常变 5xx
+                // 测试环境缺少前端产物时返回 404。
                 Resource fallback = location.createRelative("index.html");
                 return fallback.exists() && fallback.isReadable() ? fallback : null;
               }

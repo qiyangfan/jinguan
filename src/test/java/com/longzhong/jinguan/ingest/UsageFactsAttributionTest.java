@@ -22,10 +22,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
-/**
- * 用量事实与归属不变量(ingest-metering delta):同 ID 不可变计费事实一致才允许资金操作; 首次合法归属固定,key 重绑不转嫁;accepted/replayed
- * 为已结算终态不降级; 明细未能可靠保存时不得返回 2xx。
- */
+/** 验证用量事实不可变、首次归属固定、终态不降级及可靠保存要求。 */
 @SpringBootTest
 @AutoConfigureMockMvc
 @TestPropertySource(
@@ -81,7 +78,7 @@ class UsageFactsAttributionTest {
     var first = ingest.accept(List.of(row("fact-1", "mk-f1", 100)));
     assertEquals(1, first.accepted());
 
-    // 同 usage ID 不同费用:幂等冲突(非 2xx 语义),旧事实/归属/分录不改变
+    // 同 ID 不同费用返回冲突，且不改变原事实。
     assertThrows(
         IdempotencyConflictException.class,
         () -> ingest.accept(List.of(row("fact-1", "mk-f1", 200))));
@@ -96,10 +93,10 @@ class UsageFactsAttributionTest {
     long u1 = newUser("facts-u2a");
     long u2 = newUser("facts-u2b");
     bindings.save(new ApiKeyBindingEntity("mk-f2", u1));
-    // u1 余额 0:行欠费留存,归属固定 u1
+    // 欠费用量留存并固定归属。
     ingest.accept(List.of(row("fact-2", "mk-f2", 100)));
 
-    // key 改绑 u2 后,u1 充值,旧行重投:仍向 u1 结算,不向 u2 扣款
+    // key 重绑后，旧用量仍归属原用户。
     bindings.save(new ApiKeyBindingEntity("mk-f2", u2));
     wallet.credit(u1, 1_000, WalletService.REASON_MANUAL_TOPUP, "facts-seed-2", null, null);
     var result = ingest.accept(List.of(row("fact-2", "mk-f2", 100)));
@@ -118,13 +115,13 @@ class UsageFactsAttributionTest {
     wallet.credit(uid, 1_000, WalletService.REASON_MANUAL_TOPUP, "facts-seed-3", null, null);
     ingest.accept(List.of(row("fact-3", "mk-f3", 100)));
 
-    // 模拟后续失败路径对已结算行落投影:终态不降级
+    // 已结算状态不可降级。
     usageService.applySettlementOutcome("fact-3", UsageRecordService.OUTCOME_SKIPPED_INSUFFICIENT);
     usageService.applySettlementOutcome("fact-3", UsageRecordService.OUTCOME_PENDING);
     var stored = usageRecords.findByUsageId("fact-3").orElseThrow();
     assertEquals(UsageRecordService.OUTCOME_ACCEPTED, stored.getFinalOutcome(), "accepted 不降级");
 
-    // replayed 终态同样不降级:直接以 SQL 塑造终态后施加失败投影
+    // replayed 终态同样不可降级。
     usageService.applySettlementOutcome("fact-3", UsageRecordService.OUTCOME_REPLAYED);
     usageService.applySettlementOutcome("fact-3", UsageRecordService.OUTCOME_SKIPPED_INSUFFICIENT);
     stored = usageRecords.findByUsageId("fact-3").orElseThrow();
@@ -134,8 +131,7 @@ class UsageFactsAttributionTest {
 
   @Test
   void unboundRow_redelivered_whileStillUnbound_keepsNullAttribution() {
-    // 同一未绑定行再次投递且 key 仍未绑定:pinned 仍为 null(COALESCE 空参数路径),
-    // attempts 单调 +1、投影稳定 skipped_unbound、不新建行
+    // 未绑定重投不创建新行，attempts 加一且归属仍为空。
     ingest.accept(List.of(row("fact-6", "mk-f6", 100)));
     var second = ingest.accept(List.of(row("fact-6", "mk-f6", 100)));
     assertEquals(1, second.skippedUnbound(), "仍按未绑定跳过");
@@ -153,9 +149,7 @@ class UsageFactsAttributionTest {
     bindings.save(new ApiKeyBindingEntity("mk-f4", uid));
     wallet.credit(uid, 1_000, WalletService.REASON_MANUAL_TOPUP, "facts-seed-4", null, null);
 
-    // usage_id 超长(>64)违反明细表约束:可靠保存失败 → 非 2xx,且不为该行新增资金分录
-    // (JSON 须带全部 primitive 字段:Jackson 3 默认 FAIL_ON_NULL_FOR_PRIMITIVES,缺字段即 400;
-    //  生产契约 muniu UsageRow 非指针字段总是序列化,此处测试 JSON 对齐同形态)
+    // 超长 usage_id 无法保存时返回非 2xx，且不新增账本分录。
     String longId = "x".repeat(65);
     mvc.perform(
             post("/ingest/usage")
@@ -178,19 +172,19 @@ class UsageFactsAttributionTest {
   @Test
   void unboundRow_keepsOutcomeUntilRedelivered_afterBinding() {
     long uid = newUser("facts-u5");
-    // 先投递:key 尚未绑定 → skipped_unbound 留存
+    // key 未绑定时保留未绑定明细。
     ingest.accept(List.of(row("fact-5", "mk-f5", 100)));
     var stored = usageRecords.findByUsageId("fact-5").orElseThrow();
     assertEquals(UsageRecordService.OUTCOME_SKIPPED_UNBOUND, stored.getFinalOutcome());
 
-    // 补绑定后(不重投):不向该历史行追收,留待数据面下轮投递
+    // 补绑定不会追收历史行。
     bindings.save(new ApiKeyBindingEntity("mk-f5", uid));
     wallet.credit(uid, 1_000, WalletService.REASON_MANUAL_TOPUP, "facts-seed-5", null, null);
     stored = usageRecords.findByUsageId("fact-5").orElseThrow();
     assertEquals(UsageRecordService.OUTCOME_SKIPPED_UNBOUND, stored.getFinalOutcome(), "未重投不自动追收");
     assertNull(stored.getUserId(), "未解析归属前 user_id 保持空");
 
-    // 重投后:归属首次合法解析并完成结算
+    // 重投后解析归属并结算。
     var result = ingest.accept(List.of(row("fact-5", "mk-f5", 100)));
     assertEquals(1, result.accepted());
     stored = usageRecords.findByUsageId("fact-5").orElseThrow();

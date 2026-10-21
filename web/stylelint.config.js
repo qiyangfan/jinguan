@@ -2,7 +2,7 @@
 export default {
   extends: ["stylelint-config-standard"],
   rules: {
-    // Tailwind 4 的 @theme/@plugin/@custom-variant 等自定义 at-rule 不误报
+    // 允许 Tailwind 自定义 at-rule。
     "at-rule-no-unknown": [
       true,
       {
@@ -19,8 +19,8 @@ export default {
         ],
       },
     ],
-    "import-notation": null, // Tailwind 4 约定 @import "tailwindcss"
-    // @apply/@theme 的 prelude 是 Tailwind 语义而非原生 at-rule 语法,标准校验必误报
+    "import-notation": null, // Tailwind 使用 @import "tailwindcss"。
+    // 跳过 Tailwind 指令参数校验。
     "at-rule-prelude-no-invalid": [
       true,
       { ignoreAtRules: ["apply", "theme", "utility", "variant"] },

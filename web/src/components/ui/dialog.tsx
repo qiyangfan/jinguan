@@ -53,12 +53,7 @@ function DialogContent({
       <DialogPrimitive.Content
         data-slot="dialog-content"
         className={cn(
-          /* 窄屏全屏承载(mobile-experience B1.3):无前缀基线=全屏(内容滚动、
-           DialogFooter 基类钉底消费安全区);sm: 起维持定宽居中——top/left 之外
-           right/bottom 须显式还原,否则 inset-0 残留把对话框高度压成「视口半高
-           贴底」;sm 不需要 overflow 覆写(h-auto 下 overflow-y-auto 自然失效,
-           页面级 max-h+overflow 覆写得以保留)。页面级 sm:max-w-* 覆写经
-           tailwind-merge 仍生效。AlertDialog 不走本基类。 */
+          /* 窄屏全屏；sm+ 居中并重置 right/bottom，避免 inset-0 压缩高度。 */
           "fixed inset-0 z-50 grid h-full w-full gap-4 overflow-y-auto overscroll-contain rounded-none border-0 bg-background p-4 shadow-none outline-none duration-200 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0 sm:top-[50%] sm:left-[50%] sm:right-auto sm:bottom-auto sm:h-auto sm:w-full sm:translate-x-[-50%] sm:translate-y-[-50%] sm:rounded-lg sm:border sm:p-6 sm:shadow-lg sm:data-[state=closed]:zoom-out-95 sm:data-[state=open]:zoom-in-95 sm:max-w-lg",
           className,
         )}
@@ -100,8 +95,7 @@ function DialogFooter({
   return (
     <div
       data-slot="dialog-footer"
-      /* 窄屏钉底(mobile-experience B1.3):粘性驻底 + 消费安全区,长表单提交键
-         常驻可达;sm: 起回常规流内右对齐 */
+      /* 窄屏固定按钮并避开安全区；sm+ 回到普通文档流。 */
       className={cn(
         "sticky bottom-0 flex flex-col-reverse gap-2 bg-background pb-safe sm:static sm:flex-row sm:justify-end sm:bg-transparent sm:pb-0",
         className,

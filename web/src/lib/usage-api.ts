@@ -1,5 +1,4 @@
-/* 用量明细域 API:与账本流水经 refId="usage:{id}" 互相印证;
-   响应为 JPA 实体直出(契约中无稳定命名 schema),在此边界显式收窄。 */
+/* 用量明细 API；响应字段在此收窄。 */
 
 import { client, unwrap } from "./api";
 

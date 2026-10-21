@@ -6,7 +6,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
 
-/** 供应商定义(运营态):key 只存 env 引用名(keys_json,绝不明文),真实上游 key 由各副本经自身环境变量解析。 */
+/** 供应商定义；密钥仅保存环境变量引用。 */
 @Entity
 @Table(name = "topology_providers")
 public class TopologyProviderEntity {

@@ -8,13 +8,13 @@ import jakarta.persistence.Table;
 import java.io.Serializable;
 import java.time.Instant;
 
-/** 模型能力目录(声明制):(provider, model) 二元组精确声明,零内置零通配。 */
+/** 声明式模型能力目录，以 (provider, model) 精确匹配。 */
 @Entity
 @Table(name = "topology_models")
 @IdClass(TopologyModelEntity.Pk.class)
 public class TopologyModelEntity {
 
-  /** (provider, model) 复合主键(JPA IdClass 形态:无参构造 + 属性名对齐)。 */
+  /** JPA 复合主键，与实体字段同名。 */
   public static class Pk implements Serializable {
 
     private String provider;

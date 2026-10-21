@@ -10,11 +10,7 @@ import java.time.Instant;
 import tools.jackson.databind.annotation.JsonSerialize;
 import tools.jackson.databind.ser.std.ToStringSerializer;
 
-/**
- * 用量明细(ingest 行镜像 + 归账结果投影):usage_id 全局唯一(= muniu UsageRow.ID), final_outcome 是投影不是资金事实(资金真相在
- * ledger_entries,经 refId="usage:{ID}" 关联)——重投/补账成功时更新投影与 attempts, 账本 append-only 纪律不约束本表。字段为
- * UsageRow PascalCase 的 snake 镜像,漂移即静默丢字段(跨仓契约)。
- */
+/** 保存用量行镜像和结算投影；资金事实由 ledger_entries 中的 usage:{ID} 分录记录。 */
 @Entity
 @Table(name = "usage_records")
 public class UsageRecordEntity {
@@ -101,15 +97,11 @@ public class UsageRecordEntity {
     this.finalOutcome = outcome;
   }
 
-  /** 首次落库工厂。 */
   public static UsageRecordEntity of(IngestUsageRow row, Long userId, String outcome) {
     return new UsageRecordEntity(row, userId, outcome);
   }
 
-  /**
-   * 不可变计费事实比对(同 usage ID 重投/恢复前置校验): 镜像字段不一致即在资金写入前报幂等冲突,不覆盖旧内容。
-   * 计费事实固定为首次接收值——key、租户、模型、tokens、费用、币种、状态与源时间。
-   */
+  /** 比对重投行的不可变计费字段；不一致时由调用方按幂等冲突拒绝。 */
   public boolean billingFactsEqual(IngestUsageRow row) {
     return java.util.Objects.equals(keyId, row.APIKeyID())
         && java.util.Objects.equals(tenantId, row.TenantID())
@@ -205,7 +197,7 @@ public class UsageRecordEntity {
     return lastAttemptAt;
   }
 
-  /** 内部结算尝试时间(用户轮转用);包私有——不进入请求契约。 */
+  /** 内部结算轮转时间，不进入请求契约。 */
   Instant getLastSettlementAttemptAt() {
     return lastSettlementAttemptAt;
   }

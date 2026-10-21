@@ -20,7 +20,7 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
-/** 支付超时双保险回归:懒过期守门(资金正确性)+ 游标批量收敛(状态及时性/积压消化)。 */
+/** 验证过期回调守门和限批扫描收敛。 */
 @SpringBootTest
 @AutoConfigureMockMvc
 @TestPropertySource(
@@ -60,7 +60,7 @@ class PaymentExpiryTest {
   void expiredOrder_callbackRejected_guardRegardlessOfScheduler() throws Exception {
     long uid = seedUser("exp-u1");
     login(uid, "exp-u1");
-    // 直接过期形态(expires_at 已过去):守门不依赖扫描任务是否执行过
+    // 回调守门不依赖扫描任务是否运行。
     String orderId = "po-exp-past";
     orders.save(MockOrderEntity.create(orderId, uid, 500000, "CNY", Instant.now().minusSeconds(1)));
 
@@ -79,7 +79,7 @@ class PaymentExpiryTest {
     String orderId = "po-exp-converged";
     var order = MockOrderEntity.create(orderId, uid, 500000, "CNY", Instant.now().minusSeconds(1));
     orders.save(order);
-    // 模拟扫描已收敛为 EXPIRED:迟到的回调不得把终态订单翻成 PAID(守门漏洞钉子)
+    // 已过期订单不能被迟到回调改为已支付。
     orders.expireIfCreated(java.util.List.of(orderId));
 
     mvc.perform(post("/payments/mock/{id}/pay", orderId))
@@ -126,13 +126,13 @@ class PaymentExpiryTest {
     for (int i = 0; i < 5; i++) {
       orders.save(MockOrderEntity.create("po-batch-" + i, uid, 100000, "CNY", past));
     }
-    // 单轮上限 2:第一轮恰好 2 笔(满批信号),剩余积压留给下轮
+    // 单轮处理两笔，剩余积压留待下轮。
     var first = orders.findOverdue("CREATED", Instant.now(), PageRequest.of(0, 2));
     assertEquals(2, first.size(), "单轮应受 batch 上限约束");
     orders.expireIfCreated(first.stream().map(MockOrderEntity::getOrderId).toList());
     assertEquals(3, orders.countByStatusAndExpiresAtBefore("CREATED", Instant.now()), "满批后应留积压给下轮");
 
-    // 多轮推进:batch=2 直至收敛完成(2+2+1)
+    // 多轮扫描直至积压清零。
     scheduler.expireOverdueOrders(2);
     assertEquals(0, scheduler.backlog());
     orders.findAll().stream()

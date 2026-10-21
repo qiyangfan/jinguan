@@ -8,10 +8,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
 
-/**
- * 用户(支撑域,建模从简但纪律一致):无 public setter,状态变更走工厂与意图方法。 角色 USER | ADMIN;首个注册用户由 UserService 授
- * ADMIN(引导管理员)。
- */
+/** 用户账户；首位注册用户由 UserService 设为 ADMIN。 */
 @Entity
 @Table(name = "users")
 public class UserEntity {
@@ -32,7 +29,7 @@ public class UserEntity {
   @Column(name = "created_at", nullable = false)
   private Instant createdAt;
 
-  /** 欠费停服标记(业务暂态):ingest 余额不足置位、入账清除;置位/恢复经 SuspensionService 条件 UPDATE 原子裁决。 */
+  /** 欠费停服时间；入账后清除。 */
   @Column(name = "suspended_at")
   private Instant suspendedAt;
 
@@ -45,12 +42,11 @@ public class UserEntity {
     this.createdAt = Instant.now();
   }
 
-  /** 注册工厂:角色由应用层按注册序裁决(首用户 ADMIN)。 */
+  /** 创建用户；角色由应用层决定。 */
   public static UserEntity create(String username, String passwordHash, String role) {
     return new UserEntity(username, passwordHash, role);
   }
 
-  /** 重置密码(ADMIN 通道):仅经意图方法变更,无 public setter。 */
   public void updatePasswordHash(String newPasswordHash) {
     this.passwordHash = newPasswordHash;
   }

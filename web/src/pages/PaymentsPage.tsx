@@ -1,5 +1,4 @@
-/* 支付页:mock 渠道下单 → 模拟收银台支付 → 状态查询;订单簿以服务端列表为唯一事实源
-   (useQuery + 变更后失效重取)。金额录入单位=元,提交换算 credits(1e-9,与 muniu 同基座)。 */
+/* 演示支付与订单查询；金额以元录入并换算为 credit 提交。 */
 
 import { useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -27,8 +26,7 @@ import { createOrder, listOrders, mockPay } from "@/lib/payment-api";
 import { credits2yuan, yuan2credits } from "@/lib/money";
 import { formatDateTime } from "@/lib/datetime";
 
-/* 契约 status 为 string(状态机:CREATED → PAID / EXPIRED,收敛扫描关闭超时单);
-   未知值由 StatusBadge 回落 outline + 原文。 */
+/* 未知状态由 StatusBadge 显示原值。 */
 const STATUS_META: StatusMeta = {
   CREATED: { label: "待支付", variant: "outline" },
   PAID: { label: "已支付", variant: "secondary" },
@@ -40,7 +38,7 @@ const PAGE_SIZE = 50;
 export default function PaymentsPage() {
   const queryClient = useQueryClient();
   const [page, setPage] = useState(0);
-  // 订单端点只回数组不回总数:满页 +1 估算是否还有下一页(与账本流水同法)
+  // API 不返回总数；满页时按可能还有下一页处理。
   const orders = useQuery({
     queryKey: ["payments", "orders", page],
     queryFn: () => listOrders(page, PAGE_SIZE),
@@ -55,7 +53,7 @@ export default function PaymentsPage() {
   });
 
   function handleCreated() {
-    // 订单按创建倒序,新单在第 1 页:翻页状态下下单后回首页才能看到新单
+    // 新订单排在第一页。
     setPage(0);
     queryClient.invalidateQueries({ queryKey: ["payments", "orders"] });
   }
@@ -89,7 +87,7 @@ export default function PaymentsPage() {
             <p className="text-sm text-muted-foreground">加载中…</p>
           ) : orders.data && orders.data.length > 0 ? (
             <>
-              {/* 移动端(md 以下):卡片列表,金额为首要信息 */}
+              {/* 移动端列表 */}
               <div className="space-y-2 md:hidden">
                 {orders.data.map((o) => (
                   <MobileCard
@@ -112,7 +110,7 @@ export default function PaymentsPage() {
                       },
                       { label: "创建时间", value: formatDateTime(o.createdAt) },
                       {
-                        /* 待支付/已过期显关单截止,已支付显实际支付时间 */
+                        /* 未支付订单显示截止时间，已支付订单显示支付时间。 */
                         label: o.status === "PAID" ? "支付时间" : "关单截止",
                         value: formatDateTime(o.status === "PAID" ? o.paidAt : o.expiresAt),
                       },
@@ -132,7 +130,7 @@ export default function PaymentsPage() {
                 ))}
               </div>
 
-              {/* 桌面端(md 及以上):表格 */}
+              {/* 桌面表格 */}
               <div className="hidden md:block">
                 <Table>
                   <TableHeader>
@@ -149,7 +147,7 @@ export default function PaymentsPage() {
                     {orders.data.map((o) => (
                       <TableRow key={o.orderId}>
                         <TableCell>
-                          {/* 长单号截断展示,悬停看全量(对账仍可复制) */}
+                          {/* 截断单号，title 保留完整值。 */}
                           <span
                             className="block max-w-40 truncate font-mono text-2xs"
                             title={o.orderId}
@@ -165,7 +163,7 @@ export default function PaymentsPage() {
                         </TableCell>
                         <TableCell>{formatDateTime(o.createdAt)}</TableCell>
                         <TableCell>
-                          {/* 待支付/已过期显关单截止,已支付显实际支付时间 */}
+                          {/* 未支付订单显示截止时间，已支付订单显示支付时间。 */}
                           {formatDateTime(o.status === "PAID" ? o.paidAt : o.expiresAt)}
                         </TableCell>
                         <TableCell className="space-x-2">
@@ -200,7 +198,7 @@ export default function PaymentsPage() {
   );
 }
 
-/* 金额表单(独立组件):受控输入与下单错误局部化;下单成功才清空金额,失败保留现值便于修正重试。 */
+/* 下单成功后清空金额；失败时保留输入，便于修改重试。 */
 function AmountForm({ onCreated }: { onCreated: () => void }) {
   const [amount, setAmount] = useState("");
   const [error, setError] = useState("");

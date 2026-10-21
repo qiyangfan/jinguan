@@ -21,11 +21,7 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
-/**
- * 双 token 会话端到端(单进程,H2):注册双发(access 体 + refresh httpOnly SameSite=Strict Path=/auth cookie) →
- * refresh 轮换(新 access + 新 refresh,旧值失效性靠短寿命与轮换)→ access 认 API、refresh 不可当 Bearer → 登出清
- * cookie。已知限制:复用检测未做(openspec auth-session 登记)。
- */
+/** 验证 access/refresh 双 token 的注册、续期、鉴权和登出流程。 */
 @SpringBootTest
 @AutoConfigureMockMvc
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -67,10 +63,10 @@ class AuthSessionIntegrationTest {
   @Test
   @Order(2)
   void accessAuthenticates_refreshCannotBearer() throws Exception {
-    // access 认 API
+    // access token 可访问 API。
     mvc.perform(get("/wallet/balance").header("Authorization", "Bearer " + accessToken))
         .andExpect(status().isOk());
-    // refresh 凭证(typ=refresh)不可当 Bearer 使用
+    // refresh token 不可作为 Bearer token。
     mvc.perform(get("/wallet/balance").header("Authorization", "Bearer " + refreshValue))
         .andExpect(status().isForbidden());
   }
@@ -89,7 +85,7 @@ class AuthSessionIntegrationTest {
     assertNotNull(setCookie);
     String newRefresh = setCookie.substring("jinguan.refresh=".length(), setCookie.indexOf(';'));
     assertNotEquals(refreshValue, newRefresh, "轮换必须签发新 refresh");
-    // 新 access 可用
+    // 新 access token 可用。
     mvc.perform(get("/wallet/balance").header("Authorization", "Bearer " + newAccess))
         .andExpect(status().isOk());
     accessToken = newAccess;
@@ -98,9 +94,9 @@ class AuthSessionIntegrationTest {
   @Test
   @Order(4)
   void refresh_withoutOrInvalidCookie_rejected() throws Exception {
-    // 无 cookie
+    // 缺少 refresh cookie。
     mvc.perform(post("/auth/refresh")).andExpect(status().isUnauthorized());
-    // access 冒充 refresh(typ 不符)
+    // access token 不能用于 refresh。
     mvc.perform(post("/auth/refresh").cookie(new Cookie("jinguan.refresh", accessToken)))
         .andExpect(status().isUnauthorized());
   }
@@ -120,8 +116,7 @@ class AuthSessionIntegrationTest {
   @Test
   @Order(6)
   void malformedBody_is400ProblemDetail_not403Empty() throws Exception {
-    // Jackson 3 FAIL_ON_NULL_FOR_PRIMITIVES:缺 primitive 字段的请求体必须以 400 ProblemDetail
-    // 出口;若走 sendError→ERROR dispatch /error,Security 7 全 dispatch 授权会顶成 403 空体
+    // 缺少 primitive 字段返回 400，错误分发不得被安全规则改写成 403。
     mvc.perform(
             post("/auth/login")
                 .contentType("application/json")
@@ -134,10 +129,7 @@ class AuthSessionIntegrationTest {
   @Test
   @Order(7)
   void spaDeepLinks_anonymousReachable_forEveryFrontendRoute() throws Exception {
-    // 深链/刷新回退 index.html 由前端路由接管:白名单必须覆盖前端全部路由,
-    // 漏项即该页刷新 403(拓扑页上线时曾漏 /topology,2026-10-18 走查实证后补)。
-    // 双形态判据:有前端产物(本地/生产 jar)→ 200 text/html;无产物(CI verify 阶段)
-    // → 404(回退资源缺失兜底),任何形态都不得 403/5xx
+    // 深链需回退到前端入口；无构建产物时允许 404，但不得返回 403 或 5xx。
     for (String route :
         new String[] {"/wallet", "/payments", "/pricing", "/topology", "/keys", "/login"}) {
       MvcResult result = mvc.perform(get(route)).andReturn();

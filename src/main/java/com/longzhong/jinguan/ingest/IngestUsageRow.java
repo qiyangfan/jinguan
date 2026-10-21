@@ -1,9 +1,6 @@
 package com.longzhong.jinguan.ingest;
 
-/**
- * muniu IngestSink 投递行的接收形态。⚠ Go 侧 UsageRow 结构体无 json tag, encoding/json 按导出字段名原样输出(PascalCase)——本
- * record 属性名逐字段 对齐,勿改成 camelCase(跨仓契约,漂移即静默丢字段)。
- */
+/** muniu UsageRow 的接收形态；Go 按字段名输出 PascalCase，属性名必须逐字段一致。 */
 public record IngestUsageRow(
     String ID,
     String RequestID,

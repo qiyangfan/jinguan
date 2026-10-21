@@ -13,15 +13,12 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
 /**
- * 暴露面判据的真容器回归（spec 硬 MUST：RANDOM_PORT）。
+ * 用随机端口验证 Prometheus 端点的真实响应。
  *
- * <p>MockMvc 环境不含 actuator 端点映射，未注册的 actuator 路径会落到 {@code SpaWebConfig} 的 {@code /**} 资源回退并返回 200
- * + index.html——拿它验「端点是否注册」会得出与生产相反的结论，故 {@link OpsMetricsExposureTest} 把白名单判据取在 {@code
- * PathMappedEndpoints}，本类再把「prometheus 真的可达且真是 Prometheus 文本」这条正判据取在真 Servlet 容器上：这里若端点没装配，回来的会是
- * index.html 而不是 0.0.4 文本。Boot 4 起测试客户端为 RestTestClient（RestTemplate/TestRestTemplate 维护模式）。
+ * <p>MockMvc 下未映射路径可能回落到 SPA，因此端点可达性需在 Servlet 容器中检查。
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@AutoConfigureMetrics // Boot 3.4 测试环境默认关闭指标导出；不显式打开则导出面判据恒假
+@AutoConfigureMetrics // 测试上下文需显式启用指标导出。
 @AutoConfigureRestTestClient
 @TestPropertySource(
     properties = {
@@ -81,8 +78,7 @@ class OpsMetricsReachabilityTest {
             .returnResult()
             .getResponseBody();
     assertNotNull(body, "响应体不得为空");
-    // increase(...)==0 型告警判据对【缺失序列】返回空向量,比较不成立即恒哑:
-    // 零值序列必须自启动期就在场,这是 CommittedMetrics#registerClosedSeries 存在的唯一理由
+    // 告警无法区分零值与缺失序列，因此必需序列需在启动时注册。
     List<String> required =
         List.of(
             "jinguan_ingest_rows_total{application=\"jinguan\",outcome=\"accepted\"}",

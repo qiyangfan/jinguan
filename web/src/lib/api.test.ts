@@ -1,6 +1,4 @@
-/* api 层会话行为测试:401 单飞刷新(并发只触发一次 /auth/refresh)、刷新失败清态回落、
-   access 仅内存(清态后不携带 Authorization)。openapi-fetch 经全局 fetch 发请求,
-   fetch 以 stub 注入即可拦截(Request 对象形态),模块态用 resetModules 隔离。 */
+/* 验证 401 续期、并发合并、失败清态和 access token 内存存储。 */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -11,8 +9,7 @@ function jsonResponse(status: number, body: unknown): Response {
   });
 }
 
-/** 客户端只 base64url 解码 payload(签名无参与),借此构造可解码的假 JWT。 */
-/** base64url(JSON)——TextEncoder+btoa 全平台等价(Node/Browser 同一实现)。 */
+/** 构造客户端可解码的假 JWT。 */
 function b64uJson(o: unknown): string {
   const bytes = new TextEncoder().encode(JSON.stringify(o));
   let bin = "";
@@ -29,7 +26,7 @@ async function loadApi() {
   return import("./api");
 }
 
-/** openapi-fetch 的请求形态:fetch(Request) 单参;路径取 url 的 pathname,头从 Request 读。 */
+/** openapi-fetch 将 Request 传给 fetch。 */
 function pathOf(input: RequestInfo | URL): string {
   return new URL(input instanceof Request ? input.url : String(input), "http://localhost").pathname;
 }

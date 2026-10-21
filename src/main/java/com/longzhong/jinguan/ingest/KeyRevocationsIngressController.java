@@ -9,13 +9,7 @@ import java.util.TreeSet;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * 吊销下发契约端点(入站适配器):muniu revocationLoop 按 60s 周期拉取(启动即拉,无认证头靠部署网络隔离, 双方演进项)。
- *
- * <p>契约(internal/auth/auth.go 逐字段对齐):{"version":int64,"revoked":["key_id",..]},
- * <b>全量快照</b>(非增量,muniu 整集替换),version 单调(muniu 仅应用 version &gt;= 本地的快照)。 名单 =
- * 终态吊销(key_revocations)∪ 欠费停服用户名下全部绑定 key;排序保确定性。空态 {"version":0,"revoked":[]}.
- */
+/** 匿名下发 key 吊销全量快照；muniu 按单调 version 应用，名单包含终态吊销和停服用户的绑定 key。 */
 @RestController
 public class KeyRevocationsIngressController {
 
@@ -37,16 +31,14 @@ public class KeyRevocationsIngressController {
 
   @GetMapping("/control/v1/key-revocations")
   public Map<String, Object> revocations() {
-    // 先读版本后读名单:撕裂只可能「多报」(名单不落后于 version)——version 单调契约下,
-    // 反序会产出「新版本+旧名单」,数据面应用后把已吊销 key 洗白
+    // 先读版本再读名单，避免返回新版本却携带旧名单。
     long version = suspension.keyRevocationVersion();
     TreeSet<String> revoked = new TreeSet<>(revocations.findAllKeyIds());
     List<Long> suspended = suspension.suspendedUserIds();
     if (!suspended.isEmpty()) {
       bindings.findByUserIdIn(suspended).forEach(b -> revoked.add(b.getKeyId()));
     }
-    // 计数点后置到成包之后:与 pricing/topology 同口径,读库故障不得留下 full 计数
-    // (吊销名单断供=数据面继续放行已吊销 key,这条管子必须可告警)
+    // 成包后再计数，读库失败时不记为成功拉取。
     metrics.count(
         MetricNames.CONTROL_PULL,
         MetricNames.TAG_PIPE,

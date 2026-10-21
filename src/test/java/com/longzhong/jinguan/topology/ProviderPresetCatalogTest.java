@@ -8,14 +8,10 @@ import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 
-/**
- * 官方厂商预设目录自检:预设是录入侧的引导数据,adapter 必须 ⊆ muniu 七型支持集 (internal/adapter/adapter.go For
- * 工厂),否则预设引导出的拓扑在数据面 fail-fast; base_url 一律 https 且无尾斜杠(openai 基座/anthropic 桥接各自 TrimRight,源头归一);
- * env 建议名全大写下划线且以 _API_KEY 收尾;name 唯一是拓扑整包校验的前提。
- */
+/** 检查预设适配器、HTTPS 地址、环境变量名和厂商名约束。 */
 class ProviderPresetCatalogTest {
 
-  /** muniu internal/adapter/adapter.go For() 工厂支持的适配器类型全集。 */
+  /** muniu 支持的适配器类型。 */
   private static final Set<String> MUNIU_SUPPORTED_ADAPTERS =
       Set.of("openai", "qwen", "doubao", "deepseek", "moonshot", "glm", "anthropic");
 

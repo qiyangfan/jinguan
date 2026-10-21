@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/** 管理面:用户账号运维(密码约束与注册一致;重置后旧密码立即失效)。 */
+/** 管理员用户运维；密码重置沿用注册规则并使旧密码失效。 */
 @RestController
 @RequestMapping("/admin/users")
 @Validated

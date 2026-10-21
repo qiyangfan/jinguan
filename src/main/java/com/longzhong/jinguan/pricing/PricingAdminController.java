@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/** 管理面:价目运营(改价即时生效于下次 muniu 拉取,数据面零重启)。 */
+/** 管理面价目维护；改动在 muniu 下次拉取时生效，无需重启数据面。 */
 @RestController
 @RequestMapping("/admin/pricing")
 @Validated

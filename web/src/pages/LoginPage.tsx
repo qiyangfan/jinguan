@@ -1,4 +1,4 @@
-/* 登录/注册双形态(同一表单切换;首注册用户自动 ADMIN——见后端 UserService)。 */
+/* 登录与注册共用表单。 */
 
 import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router";
@@ -40,7 +40,6 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-background px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
       <Card className="w-full max-w-sm">
         <CardHeader>
-          {/* 认证入口卡题即页内最高级,升页面级 h2(CardTitle 标题语义,kongming 对齐) */}
           <CardTitle as="h2" className="text-primary">
             锦官 · 控制面
           </CardTitle>

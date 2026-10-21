@@ -10,10 +10,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
-/**
- * 登录防爆破(per-IP 固定窗口):超限 429,窗口滑过恢复——独立小容量上下文钉死边界。 MockMvc 的 remoteAddr 恒为 127.0.0.1,恰好构成同一 IP
- * 的最坏情形。
- */
+/** 验证登录与注册的 per-IP 固定窗口限流及窗口恢复。 */
 @SpringBootTest
 @AutoConfigureMockMvc
 @TestPropertySource(
@@ -38,7 +35,7 @@ class AuthRateLimitIntegrationTest {
                   .content("{\"username\":\"ghost\",\"password\":\"password-123\"}"))
           .andExpect(status().isBadRequest());
     }
-    // 第 3 次:同 IP 同窗口超限
+    // 同一窗口内超限。
     mvc.perform(
             post("/auth/login")
                 .contentType("application/json")
@@ -48,7 +45,7 @@ class AuthRateLimitIntegrationTest {
 
   @Test
   void register_hasIndependentBucket() throws Exception {
-    // 与 login 桶独立:注册走自己的窗口(本类 2/min),注册本身不限流阻断(前 2 次)
+    // 注册使用独立限流窗口。
     mvc.perform(
             post("/auth/register")
                 .contentType("application/json")
@@ -59,7 +56,7 @@ class AuthRateLimitIntegrationTest {
                 .contentType("application/json")
                 .content("{\"username\":\"rl-u2\",\"password\":\"password-123\"}"))
         .andExpect(status().isCreated());
-    // 第 3 次注册:同窗口超限
+    // 注册窗口内超限。
     mvc.perform(
             post("/auth/register")
                 .contentType("application/json")
@@ -69,7 +66,7 @@ class AuthRateLimitIntegrationTest {
 
   @Test
   void getEndpoint_notLimited() throws Exception {
-    // 非认证写端点不受限流(健康检查匿名 GET 打 401 之外的路径无关紧要——这里验证不受 429)
+    // 其他写端点不受认证限流器影响。
     for (int i = 0; i < 5; i++) {
       mvc.perform(post("/auth/refresh")).andExpect(status().isUnauthorized());
     }

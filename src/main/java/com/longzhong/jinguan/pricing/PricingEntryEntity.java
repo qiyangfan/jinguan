@@ -6,10 +6,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
 
-/**
- * 渠道价目(运营态):credits 整数存储(1 credit = 本币 1e-9,与 muniu creditPerUnit=1e9 同基座;1 credit/token = 1 元/百万
- * tokens),time_windows 以 最终下发形态的 JSON 数组字符串存储(multiplier 为 ≤4 位小数去尾零字符串)。
- */
+/** 运营价目以 credit 整数保存（1 credit = 本币 10⁻⁹）；时段窗口以 JSON 保存。 */
 @Entity
 @Table(name = "pricing_entries")
 public class PricingEntryEntity {
@@ -77,7 +74,7 @@ public class PricingEntryEntity {
         timeWindowsJson);
   }
 
-  /** 换价(意图方法):整体替换价目内容并刷新 updated_at。 */
+  /** 替换价目内容并刷新更新时间。 */
   public void update(
       String currency,
       long inputCredits,

@@ -8,7 +8,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
 
-/** key 终态吊销(安全事件,key_id 永久作废):append-only,唯一约束兜底重复吊销幂等; 不设外键——吊销可先于绑定存在(对未绑定 key 预防性吊销)。 */
+/** 终态吊销记录；唯一 key_id 保证幂等，允许先于绑定创建。 */
 @Entity
 @Table(name = "key_revocations")
 public class KeyRevocationEntity {
@@ -38,7 +38,6 @@ public class KeyRevocationEntity {
     this.createdAt = Instant.now();
   }
 
-  /** 吊销工厂:操作人取当前 ADMIN(可空,系统态预留)。 */
   public static KeyRevocationEntity of(String keyId, String reason, Long operatorUserId) {
     return new KeyRevocationEntity(keyId, reason, operatorUserId);
   }

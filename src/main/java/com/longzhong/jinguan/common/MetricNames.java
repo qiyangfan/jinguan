@@ -2,36 +2,28 @@ package com.longzhong.jinguan.common;
 
 import java.util.List;
 
-/**
- * 运维指标词汇表单源:指标名、标签键与封闭标签值一律在此登记。
- *
- * <p>纪律:新增业务计数器必须先在此登记,并同步 {@code docs/design/ops-metrics.md} 的指标表与 {@code
- * OpsMetricsIntegrationTest} 断言——文档抄错可被测试反查。同一资金事实只允许一个序列承载 (例:过期收敛已由 {@link
- * #PAYMENT_EXPIRY_CONVERGED} 表达,不得再造 {@code orders{event=expired}})。
- *
- * <p>禁止 (MUST NOT) 把用户 ID、订单号、refId、厂商名等无界取值用作标签:时间序列基数会失控; 按用户/订单的读数由账本历史与用量明细端点承担。
- */
+/** 集中定义指标名和标签；标签使用有限取值以避免高基数序列。 */
 public final class MetricNames {
 
-  /** 计量接收行的归宿(桶语义与 {@code IngestService.IngestResult} 同源;received 为各桶之和,不单独计)。 */
+  /** 计量接收行的处理结果。 */
   public static final String INGEST_ROWS = "jinguan.ingest.rows";
 
-  /** 账本写入事实,计数点内聚在唯一资金通道 {@code WalletService} 内。 */
+  /** 账本操作结果。 */
   public static final String WALLET_OPERATIONS = "jinguan.wallet.operations";
 
-  /** 支付单状态迁移(仅 created/paid;过期事实见 {@link #PAYMENT_EXPIRY_CONVERGED})。 */
+  /** 支付订单状态事件。 */
   public static final String PAYMENT_ORDERS = "jinguan.payment.orders";
 
-  /** 拉取型下发管子的活性(计数点在端点层,管理页复用 service 不计)。 */
+  /** 下发端点拉取结果。 */
   public static final String CONTROL_PULL = "jinguan.control.pull";
 
-  /** 过期收敛累计笔数(既有名称,保持不重命名)。 */
+  /** 已过期订单收敛总数。 */
   public static final String PAYMENT_EXPIRY_CONVERGED = "jinguan.payment.expiry.converged";
 
-  /** 过期收敛扫描耗时(既有名称)。 */
+  /** 过期订单扫描耗时。 */
   public static final String PAYMENT_EXPIRY_SCAN = "jinguan.payment.expiry.scan";
 
-  /** 最近一轮已过期未收敛存量(Gauge;兑现扫描器类注释声称的暴露面)。 */
+  /** 最近一轮扫描后的过期未收敛订单数。 */
   public static final String PAYMENT_EXPIRY_BACKLOG = "jinguan.payment.expiry.backlog";
 
   // ---- 标签键 ----
@@ -62,7 +54,7 @@ public final class MetricNames {
   public static final String PIPE_KEY_REVOCATIONS = "key_revocations";
   public static final String PIPE_TOPOLOGY = "topology";
 
-  /** 账本指标的合法标签集(测试按此断言无高基数标签泄漏)。 */
+  /** 账本指标使用的标签键。 */
   public static final List<String> WALLET_TAG_KEYS = List.of("application", TAG_KIND, TAG_OUTCOME);
 
   // ---- 封闭取值表(启动期据此预建零值序列,见 CommittedMetrics#registerClosedSeries) ----
@@ -84,7 +76,7 @@ public final class MetricNames {
 
   public static final List<String> PAYMENT_ORDER_EVENTS = List.of(EVENT_CREATED, EVENT_PAID);
 
-  /** topology 有 ETag 条件请求,另两管恒整包。 */
+  /** 下发端点的完整响应与未修改响应。 */
   public static final List<String> CONTROL_PULL_OUTCOMES =
       List.of(OUTCOME_FULL, OUTCOME_NOT_MODIFIED);
 

@@ -19,10 +19,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.TestPropertySource;
 
-/**
- * 幂等裁决序回归(wallet-ledger delta):refId 既有分录的重放/冲突必须先于新扣款余额判断——
- * 已扣分录在低余额下重投应得重放,不得误报欠费/停服;同键不同载荷在低余额下仍为冲突。
- */
+/** 验证 refId 的重放或冲突优先于余额不足判断。 */
 @SpringBootTest
 @TestPropertySource(
     properties = {
@@ -46,7 +43,7 @@ class WalletReplayAdjudicationTest {
     wallet.credit(uid, 100, WalletService.REASON_MANUAL_TOPUP, "replay-seed-1", null, null);
     wallet.debit(uid, 60, WalletService.REASON_USAGE, "usage:replay-r1", null, null); // 余额 100→40
 
-    // 同键同载荷重投:当前余额 40 < 60,仍必须返回重放而非欠费
+    // 余额不足时，同键同载荷仍应判为重放。
     var result = wallet.debit(uid, 60, WalletService.REASON_USAGE, "usage:replay-r1", null, null);
 
     assertTrue(result.replayed(), "低余额下已扣分录重投应返回重放");
@@ -61,7 +58,7 @@ class WalletReplayAdjudicationTest {
     wallet.credit(uid, 100, WalletService.REASON_MANUAL_TOPUP, "replay-seed-2", null, null);
     wallet.debit(uid, 60, WalletService.REASON_USAGE, "usage:replay-r2", null, null); // 余额 40
 
-    // 同 refId 不同金额:即便余额不足(50 > 40),也必须报幂等冲突,不伪装成新欠费
+    // 同键载荷不同应报幂等冲突。
     assertThrows(
         IdempotencyConflictException.class,
         () -> wallet.debit(uid, 50, WalletService.REASON_USAGE, "usage:replay-r2", null, null));
@@ -73,7 +70,7 @@ class WalletReplayAdjudicationTest {
   void concurrent_sameKey_converges_replaySemantics() throws Exception {
     long uid = newUser("replay-u3");
     wallet.credit(uid, 60, WalletService.REASON_MANUAL_TOPUP, "replay-seed-3", null, null);
-    // 余额恰等于单笔金额:并发同键下,先到者扣款成功,后到者必须重放(而非裸 500 或欠费)
+    // 并发同键下，败方应得到重放而非异常或欠费。
     int threads = 12;
     var latch = new CountDownLatch(1);
     var pool = Executors.newFixedThreadPool(threads);

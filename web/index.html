@@ -2,18 +2,14 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <!-- viewport-fit=cover:全面屏消费 env(safe-area-inset-*)(index.css 安全区工具类、
-     壳层顶栏/底标签栏避让);interactive-widget=resizes-content:软键盘压缩布局视口,
-     底部弹层表单随流抬升不被遮挡 -->
+    <!-- 全面屏安全区和软键盘布局适配。 -->
     <meta
       name="viewport"
       content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content"
     />
     <title>锦官 · 控制面</title>
     <script>
-      // 防 FOUC:首帧绘制前按「localStorage 手动值 → 系统偏好」挂 .dark 到 <html>。
-      // 契约与 src/lib/theme-store.ts 的 resolveTheme 同源
-      // (key jinguan-theme、同优先级),改动必须双侧同步。
+      // 首帧按 localStorage 手动值或系统偏好设置主题，需与 theme-store 保持一致。
       (function () {
         try {
           var t = localStorage.getItem("jinguan-theme");

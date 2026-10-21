@@ -14,12 +14,7 @@ import javax.crypto.SecretKey;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-/**
- * JWT 签发与验真(HS256);subject=username,claim uid/role/typ 供授权与业务归属。 双 token:access(短 TTL,API 认证)+
- * refresh(长 TTL,仅 /auth/refresh 轮换换发), typ claim 隔离用途——refresh 凭证不可当 Bearer 用,access 不可当 refresh 用。
- *
- * <p>final:构造器校验失败即抛(密钥不合法),杜绝子类化后的 partially-initialized 面。
- */
+/** 使用 HS256 签发和验证 access、refresh JWT，并通过 typ 区分用途。 */
 @Service
 public final class JwtService {
 
@@ -47,12 +42,12 @@ public final class JwtService {
     return issue(uid, username, role, TYP_REFRESH, refreshTtl);
   }
 
-  /** 验真 access:非法/过期/类型不符返回 null(过滤器转为匿名,由授权规则拒)。 */
+  /** 验证 access token；无效时返回 null。 */
   public LoginUser verifyAccess(String jwt) {
     return verify(jwt, TYP_ACCESS);
   }
 
-  /** 验真 refresh:仅供 /auth/refresh 轮换;类型不符(如拿 access 冒充)返回 null。 */
+  /** 验证 refresh token；无效时返回 null。 */
   public LoginUser verifyRefresh(String jwt) {
     return verify(jwt, TYP_REFRESH);
   }
@@ -60,7 +55,7 @@ public final class JwtService {
   private String issue(long uid, String username, String role, String typ, Duration ttl) {
     Instant now = Instant.now();
     return Jwts.builder()
-        .id(UUID.randomUUID().toString()) // jti:同秒签发不重复,并为未来 refresh 复用检测预留锚点
+        .id(UUID.randomUUID().toString())
         .subject(username)
         .claim("uid", uid)
         .claim("role", role)
@@ -87,7 +82,7 @@ public final class JwtService {
     }
   }
 
-  /** 认证主体:实现 Principal 以便 @AuthenticationPrincipal 直接注入控制器。 */
+  /** JWT 认证主体。 */
   public record LoginUser(long uid, String username, String role) implements Principal {
 
     @Override

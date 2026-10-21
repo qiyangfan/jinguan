@@ -6,14 +6,13 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** 用户注册/登录/密码重置;首注册用户为 ADMIN(单管理员引导),其余 USER。 */
+/** 处理用户注册、登录和密码重置；首位注册用户为 ADMIN。 */
 @Service
 public class UserService {
 
-  /** 双 token:access(Bearer,前端内存)+ refresh(httpOnly cookie,轮换换发)。 */
   public record AuthTokens(String access, String refresh) {}
 
-  /** 时序均衡 dummy:合法 BCrypt 串(明文无意义),仅供不存在用户走等时 matches。 */
+  /** 用户不存在时用于执行一次 BCrypt 校验，降低登录响应时差。 */
   private static final String DUMMY_BCRYPT_HASH =
       "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy";
 
@@ -41,8 +40,7 @@ public class UserService {
   @Transactional(readOnly = true)
   public AuthTokens login(String username, String rawPassword) {
     UserEntity user = users.findByUsername(username).orElse(null);
-    // 登录失败统一话术:不区分「用户不存在/密码错误」,不泄露用户名存在性(OWASP ASR 2.5.4)。
-    // 时序均衡:用户不存在时也对固定 dummy hash 执行一次 BCrypt,抹平响应时差侧信道
+    // 统一错误信息，并对不存在的用户执行 BCrypt，避免泄露账号存在性和响应时差。
     if (user == null) {
       passwordEncoder.matches(rawPassword, DUMMY_BCRYPT_HASH);
       throw new IllegalArgumentException("用户名或密码错误");
@@ -53,7 +51,7 @@ public class UserService {
     return issueFor(user);
   }
 
-  /** 管理员重置密码:重置后旧密码立即失效(哈希覆盖)。 */
+  /** 管理员重置用户密码。 */
   @Transactional
   public void resetPassword(long userId, String rawPassword) {
     UserEntity user =

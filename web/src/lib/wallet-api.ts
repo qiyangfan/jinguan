@@ -1,6 +1,4 @@
-/* 钱包域 API:余额/账本流水/管理员手工入账与调账。
-   请求体取自 openapi 契约类型;余额/分录为 Map 与 JPA 实体直出(契约中无稳定命名 schema),
-   在此边界显式收窄页面所需字段,字段漂移由 CI openapi 漂移门禁兜底。 */
+/* 钱包 API；在此收窄页面所需的余额、流水和管理操作字段。 */
 
 import { client, unwrap } from "./api";
 import type { components } from "./api-types.gen";

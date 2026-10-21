@@ -13,15 +13,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-/**
- * 过期收敛扫描器:游标批量(keyset)推进,单轮至多 batch 笔,满批即继续—— 积压场景下以固定速率消化而非单轮锁死。职责边界——只做【展示与状态及时性】
- * 收敛,资金正确性由回调守门(懒过期比对 expires_at)保证,扫描延迟无资金影响。
- *
- * <p>方案谱系与取舍(为什么不是 MQ 延迟消息/时间轮/xxl-job)及演进触发条件见 docs/design/payment-timeout.md。多实例部署加
- * ShedLock(单实例语义见 README)。
- *
- * <p>可观测:converged 累计收敛笔数 / scan 扫描耗时直方图 / backlog 已过期未收敛存量。
- */
+/** 分批收敛已过期订单；支付回调仍负责校验有效期，扫描延迟不影响资金正确性。 */
 @Component
 public class PaymentExpiryScheduler {
 
@@ -45,21 +37,17 @@ public class PaymentExpiryScheduler {
             .register(registry);
     this.scanTimer =
         Timer.builder(MetricNames.PAYMENT_EXPIRY_SCAN).description("过期收敛扫描耗时").register(registry);
-    // 类注释原声称「可观测暴露 backlog」,但 getter 无消费方且此前无导出通道:注册成 Gauge 兑现之
     Gauge.builder(MetricNames.PAYMENT_EXPIRY_BACKLOG, this, PaymentExpiryScheduler::backlog)
         .description("最近一轮已过期未收敛存量")
         .register(registry);
   }
 
-  /** 已过期未收敛存量(最近一轮,可观测暴露用)。 */
+  /** 最近一轮扫描后的待收敛数量。 */
   public long backlog() {
     return backlog;
   }
 
-  /**
-   * 生产入口:按配置批量上限推进。刻意不加方法级事务:expireIfCreated 为原子条件 UPDATE(自带 CAS
-   * 语义,每轮独立短事务提交),避免积压场景多轮循环在同一事务内长时间持有过期订单行锁、阻塞并发回调。
-   */
+  /** 按配置批次定时收敛过期订单。 */
   @Scheduled(
       fixedDelayString = "${jinguan.payment.expiry-scan-seconds:30}",
       initialDelayString = "${jinguan.payment.expiry-scan-seconds:30}",
@@ -68,22 +56,19 @@ public class PaymentExpiryScheduler {
     expireOverdueOrders(batchSize);
   }
 
-  /**
-   * 执行体(批量为参数,测试/未来源复用):满批循环推进至收敛完成。 ⚠ 事务边界:@Transactional 仅经 @Scheduled 代理调用生效(同类自调用不经代理);
-   * 测试直接调用时由测试事务提供上下文。
-   */
+  /** 分批推进至当前积压收敛完成或剩余批次不足。 */
   public void expireOverdueOrders(int batchLimit) {
     scanTimer.record(
         () -> {
           Instant now = Instant.now();
           int total = 0, rounds = 0, batch;
-          do { // 满批继续推进:积压按 batch 步进消化;空批/不满批即收敛完成
+          do {
             var candidates = orders.findOverdue("CREATED", now, PageRequest.of(0, batchLimit));
             batch = candidates.size();
             if (batch == 0) {
               break;
             }
-            // 条件批量迁移(与回调 CAS 对称):updated 可能 < fetched(并发已被支付),收敛计数以实际迁移为准
+            // 并发回调可能已支付部分订单，只计实际迁移数。
             int updated =
                 orders.expireIfCreated(
                     candidates.stream().map(MockOrderEntity::getOrderId).toList());

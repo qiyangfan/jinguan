@@ -2,7 +2,7 @@ import * as React from "react";
 
 import { cn } from "@/lib/utils";
 
-/** 统计卡(全站单源):label + 数值。内边距 p-4、数值档 text-2xl 由此唯一约定(宪法 Article 6)。 */
+/** 统一统计卡片，展示标签和值。 */
 export function StatCard({
   label,
   value,

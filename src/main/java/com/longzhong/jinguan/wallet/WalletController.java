@@ -35,7 +35,7 @@ public class WalletController {
   public record DebitRequest(
       @NotNull Long userId, @Positive long amountCredits, String refId, String note) {}
 
-  /** 当前用户余额(credits,1 credit = 本币 1e-9,与 muniu 同基座)。 */
+  /** 当前用户余额，单位为 credit（1 credit = 本币 10⁻⁹）。 */
   @GetMapping("/balance")
   public Map<String, Object> balance(@AuthenticationPrincipal JwtService.LoginUser user) {
     return Map.of(
@@ -45,7 +45,7 @@ public class WalletController {
         String.valueOf(wallet.balance(user.uid())));
   }
 
-  /** 当前用户账本流水(新→旧)。 */
+  /** 查询当前用户账本流水。 */
   @GetMapping("/entries")
   public List<LedgerEntryEntity> entries(
       @AuthenticationPrincipal JwtService.LoginUser user,
@@ -54,7 +54,7 @@ public class WalletController {
     return wallet.history(user.uid(), page, size).getContent();
   }
 
-  /** 管理员手工入账(兜底通道;与支付入账走同一账本,refId 幂等)。目标用户按 userId;分录记录操作人。 */
+  /** 管理员手工入账并记录操作人。 */
   @PostMapping("/admin/credit")
   @PreAuthorize("hasRole('ADMIN')")
   public ResponseEntity<Map<String, Object>> credit(
@@ -81,7 +81,7 @@ public class WalletController {
                 String.valueOf(wallet.balance(req.userId()))));
   }
 
-  /** 管理员调账扣减(错充修正等;refId 幂等)。复用 WalletService.debit 全部不变量——余额不足时拒绝且零痕迹, 负余额被禁止(非负不变量神圣);分录记录操作人。 */
+  /** 管理员调账扣减，同样受余额与幂等约束，并记录操作人。 */
   @PostMapping("/admin/debit")
   @PreAuthorize("hasRole('ADMIN')")
   public ResponseEntity<Map<String, Object>> debit(

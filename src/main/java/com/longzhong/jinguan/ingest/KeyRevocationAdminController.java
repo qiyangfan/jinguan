@@ -15,10 +15,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * 管理面:key 终态吊销(泄露/封禁,key_id 永久作废)。幂等:重复吊销静默重放(replayed=true)不重复计数; 落库与水位 bump 的原子性由
- * KeyRevocationService 单事务保证。
- */
+/** 管理终态 key 吊销；记录写入与下发水位更新由 KeyRevocationService 保证原子性。 */
 @RestController
 @RequestMapping("/admin/keys")
 @Validated

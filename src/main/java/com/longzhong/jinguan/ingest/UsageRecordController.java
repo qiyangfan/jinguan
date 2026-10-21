@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/** 用量明细查询:本人账单(自)与管理面(按用户);与账本流水经 refId="usage:{id}" 互相印证。 */
+/** 用量明细查询：本人可查自己的记录，管理员可按用户查询；与账本流水通过 refId="usage:{id}" 对应。 */
 @RestController
 public class UsageRecordController {
 

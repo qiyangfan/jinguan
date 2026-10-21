@@ -7,12 +7,7 @@ import com.longzhong.jinguan.wallet.WalletService;
 import java.util.List;
 import org.springframework.stereotype.Service;
 
-/**
- * 计量 ingest → 待结算事实 + 账本扣账:按 muniu UsageRow 的 APIKeyID 归属用户。 每行先校验身份与不可变事实并【可靠预留】明细(2xx =
- * 需要处理的用量已可靠落库,不表示全部已结算), 再经 WalletService(唯一资金通道,refId="usage:{ID}" 幂等)扣减——muniu 侧重投/缓冲续传天然幂等。 未绑定
- * key 的行留存计数(首次合法解析归属后才固定);失败行/零成本行不扣账; 余额不足的行留存为 skipped_insufficient(已固定归属的待结算事实,充值后由
- * UsageSettlementScheduler 周期恢复补扣,不依赖数据面重投)。
- */
+/** 按 APIKeyID 找到归属用户，保存 UsageRow 后以 usage:{ID} 幂等扣账；欠费行由恢复任务补扣。 */
 @Service
 public class IngestService {
 
@@ -40,15 +35,12 @@ public class IngestService {
       int skippedFree,
       int skippedInsufficient) {}
 
-  /** 用量行 → 账本幂等键(muniu 重投/在线接收/后台恢复共用同一资金通道与同一 refId)。 */
+  /** 用量行对应的账本幂等键。 */
   public static String usageRefId(String usageId) {
     return "usage:" + usageId;
   }
 
-  /**
-   * 逐行处理、单行失败不拖批:欠费行留存计数(skipped_insufficient)—— 整批回滚会让 muniu 侧重投永远命中同一毒丸行(本仓验收 17⑧ 同型教训)。
-   * 事务形态:本方法【不开】类级事务——预留与 debit 各自经内部模板开独立事务,单行失败只影响该行;存储故障或同 ID 不同事实向上抛(非 2xx),此前已提交行不回滚。
-   */
+  /** 每行独立提交；欠费行保留待结算，存储故障或事实冲突返回非 2xx。 */
   public IngestResult accept(List<IngestUsageRow> rows) {
     int received = 0,
         accepted = 0,
@@ -63,7 +55,7 @@ public class IngestService {
           billable
               ? bindings.findById(row.APIKeyID()).map(ApiKeyBindingEntity::getUserId).orElse(null)
               : null;
-      // 资金处理前可靠保存:失败/同 ID 不同事实 → 异常(非 2xx),数据面续传重试
+      // 先可靠保存事实；失败时返回非 2xx，让数据面重试。
       Long pinnedUser = usageRecords.reserve(row, boundUser, billable);
       if (!billable) {
         skippedFree++;
@@ -95,8 +87,6 @@ public class IngestService {
         }
       } catch (InsufficientFundsException e) {
         skippedInsufficient++;
-        // 欠费停服联动已内聚 WalletService.debit(锁内置位,与并发入账串行);
-        // 此处落欠费投影(已固定归属的待结算事实),充值后由恢复器补扣
         usageRecords.applySettlementOutcome(
             row.ID(), UsageRecordService.OUTCOME_SKIPPED_INSUFFICIENT);
         countRow(MetricNames.OUTCOME_SKIPPED_INSUFFICIENT);
@@ -106,13 +96,7 @@ public class IngestService {
         received, accepted, replayed, skippedUnbound, skippedFree, skippedInsufficient);
   }
 
-  /**
-   * 行归宿计数:逐行即计,不批末累积。
-   *
-   * <p>本方法【不开】类级事务、每行各自独立提交,而批内仍可能抛出非欠费异常(如同 refId 不同载荷的幂等冲突)中断循环—— 若在方法末尾统一计数,那些【已提交扣账】的行就永远不会进
-   * {@code ingest.rows},与账本永久分叉, 「连续多轮 accepted=0」这类静默丢行的判据也会因此失真。received
-   * 为各桶之和,不单独计。后台恢复不经本方法,不得伪造接收计数。
-   */
+  /** 每处理一行即计数，避免批次中断时漏记已提交结果；后台恢复不计为新接收。 */
   private void countRow(String outcome) {
     metrics.count(MetricNames.INGEST_ROWS, MetricNames.TAG_OUTCOME, outcome);
   }

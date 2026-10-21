@@ -3,9 +3,7 @@ import { defineConfig, type ProxyOptions } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
-/** dev:API 请求代理到本机控制面;文档级导航(深链直载/刷新)回落 SPA index——
-    否则后端会把构建版 index.html 原样回给浏览器,其 /assets 哈希产物在 dev
-    服务器上不存在,JS 全部加载失败导致整页白屏。 */
+/** HTML 导航回到 Vite 入口，避免引用后端构建路径。 */
 function proxyApi(target: string): ProxyOptions {
   return {
     target,
@@ -17,7 +15,7 @@ function proxyApi(target: string): ProxyOptions {
   };
 }
 
-// dev:代理 API 到本机控制面(JINGUAN_API_TARGET 可注入,默认 8090);build:产物进 Spring Boot static(jar 自包含单服务分发)
+// 开发请求代理到控制面，构建产物写入 Spring Boot 静态目录。
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: {

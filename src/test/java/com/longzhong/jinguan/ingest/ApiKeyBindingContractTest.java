@@ -15,10 +15,7 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
-/**
- * 绑定标识契约(key-lifecycle delta):绑定的是数据面计量记录 ID(APIKeyID 同值)—— 不透明字符串原值传递,支持平台自定义标识(k-1 等),不限定
- * UUID、不整体拒绝 mk- 前缀;空白输入拒绝。
- */
+/** 验证绑定 ID 为不透明字符串，允许自定义格式并拒绝空白值。 */
 @SpringBootTest
 @AutoConfigureMockMvc
 @TestPropertySource(
@@ -36,7 +33,7 @@ class ApiKeyBindingContractTest {
 
   static String adminToken; // 类级共享:JUnit 每方法新实例,避免重名注册 400
 
-  /** 首个注册用户成为 ADMIN(与生产引导一致),拿到管理面凭证。 */
+  /** 注册首位管理员并取得凭证。 */
   private String admin() throws Exception {
     if (adminToken == null) {
       MvcResult result =
@@ -53,7 +50,7 @@ class ApiKeyBindingContractTest {
 
   @Test
   void customIdentifier_boundAndMetered_byOriginalValue() {
-    // 平台自定义非 UUID 标识:绑定后计量以同一标识命中归账(绑定值 = APIKeyID,原值传递)
+    // 自定义标识按原值参与计量归账。
     bindingsOrMvcBind("k-1", 1);
     wallet.credit(
         1L,
@@ -106,7 +103,7 @@ class ApiKeyBindingContractTest {
 
   @Test
   void mkPrefix_notBlank_wholeClassRejected() throws Exception {
-    // 既有测试语境的 mk- 前缀标识:合法非空字符串,不因前缀被拒(值域纪律)
+    // mk- 前缀标识仍然有效。
     mvc.perform(
             post("/admin/key-bindings")
                 .header("Authorization", "Bearer " + admin())

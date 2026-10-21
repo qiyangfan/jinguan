@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/** 管理面:muniu key → 用户绑定(ingest 归账的身份映射)。重绑守卫:终态吊销的 key 永久作废,不可重新绑定。 */
+/** 管理 muniu key 与用户的绑定；终态吊销的 key 不可重新绑定。 */
 @RestController
 @RequestMapping("/admin/key-bindings")
 @Validated

@@ -26,10 +26,9 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 运维指标面回归:暴露面白名单 + 资金链路计数落点 + 低基数钉子。
+ * 验证指标暴露、资金事件计数和标签基数。
  *
- * <p>判据取「增量」而非绝对值:MeterRegistry 属应用上下文级状态,跨测试方法累积,绝对读数会随执行顺序漂移。 资金桶的语义是「账本事实发生」,与 HTTP
- * 是否成功无关,故断言一律读 registry,不读响应体。
+ * <p>注册表跨测试方法累积，因此断言计数增量；资金指标以账本事实为准。
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -55,13 +54,13 @@ class OpsMetricsIntegrationTest {
 
   private static final double EPS = 1e-9;
 
-  /** 读计数器当前值;序列尚未创建时为 0(与 micrometer 语义一致)。 */
+  /** 未创建的计数序列按 0 处理。 */
   private double counter(String name, String... tags) {
     var found = registry.find(name).tags(tags).counter();
     return found == null ? 0.0 : found.count();
   }
 
-  /** 直接播种一个普通用户(避开注册接口的角色推导,只为满足账本外键)。 */
+  /** 创建普通用户供账本测试使用。 */
   private long seedUser(String username) {
     return users
         .save(com.longzhong.jinguan.user.UserEntity.create(username, "hash", "USER"))
@@ -95,7 +94,7 @@ class OpsMetricsIntegrationTest {
         .andExpect(status().isCreated());
   }
 
-  /** 一行 PascalCase UsageRow(字段名逐字对齐 muniu UsageRow,改一个字母即静默丢行)。 */
+  /** 构造与 muniu 字段名一致的用量行。 */
   private static String usageRow(String id, String keyId, long costCredits, String status) {
     return """
         {"ID":"%s","RequestID":"r-%s","TenantID":"t1","APIKeyID":"%s",
@@ -252,16 +251,14 @@ class OpsMetricsIntegrationTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.replayed").value(true)); // 重推回调:不重复计 paid
 
-    // 回调链路的账本入账参与外层事务(BEFORE_COMMIT),countOnCommit 必须让它在提交后落地:
-    // 这条链路此前零断言,而它正是 countOnCommit 与 count 分家的全部理由
+    // 回调入账参与外层事务，计数应在提交后生效。
     assertEquals(
         1.0,
         counter("jinguan.wallet.operations", "kind", "credit", "outcome", "applied")
             - creditAppliedBefore,
         EPS,
         "置付入账须经 afterCommit 计入 wallet{credit,applied}");
-    // 重推回调在 handleCallback 的 replayed 分支直接返回,【不发布】入账事件:
-    // 资金侧必须一帧不动(幂等语义是「不产生第二笔事实」,不是「产生一笔 replayed」)
+    // 回调重放不发布入账事件，也不产生账本计数。
     assertEquals(
         0.0,
         counter("jinguan.wallet.operations", "kind", "credit", "outcome", "replayed")
@@ -272,8 +269,7 @@ class OpsMetricsIntegrationTest {
     assertEquals(1.0, counter("jinguan.payment.orders", "event", "created") - createdBefore, EPS);
     assertEquals(1.0, counter("jinguan.payment.orders", "event", "paid") - paidBefore, EPS);
 
-    // 置付不得触发过期收敛(同一事实双序列必分叉);expired 桶不存在这条判据移到 Order 8
-    // ——那里收敛真的跑过,断言才有鉴别力(词汇表本无 expired 值,在此处断言恒真)
+    // 支付成功不应触发过期收敛。
     assertEquals(counter("jinguan.payment.expiry.converged"), convergedBefore, EPS, "本用例未触发收敛");
   }
 
@@ -316,7 +312,7 @@ class OpsMetricsIntegrationTest {
             - topoNotModifiedBefore,
         EPS);
 
-    // 管理页读同一 service:不得污染拉取计数
+    // 管理端读取不计为数据面拉取。
     double afterAdminRead = counter("jinguan.control.pull", "pipe", "topology", "outcome", "full");
     mvc.perform(get("/admin/topology").header("Authorization", "Bearer " + adminToken))
         .andExpect(status().isOk());
@@ -349,7 +345,7 @@ class OpsMetricsIntegrationTest {
   @Transactional // 直接调用扫描器时事务由测试提供(与 PaymentExpiryTest 同法)
   void 积压Gauge与扫描器同源且过期只由既有序列承载() {
     var gauge = registry.find("jinguan.payment.expiry.backlog").gauge();
-    assertNotNull(gauge, "backlog 必须注册为 Gauge(类注释承诺的暴露面)");
+    assertNotNull(gauge, "backlog 必须注册为 Gauge");
 
     long uid = seedUser("ops-exp-u");
     Instant past = Instant.now().minusSeconds(1);
@@ -363,8 +359,7 @@ class OpsMetricsIntegrationTest {
         3L,
         orders.countByStatusAndExpiresAtBefore("CREATED", Instant.now()),
         "种子必须是 3 笔已逾期仍 CREATED,否则本用例什么都没验");
-    // Gauge 的语义是「最近一轮扫描存量」而非实时查库:此处 DB 已有 3 笔,读数必须还没追上。
-    // 只比 `scheduler.backlog()` 是同一 volatile 字段自比、接错数据源也恒绿,故加这条独立判据
+    // Gauge 表示最近扫描结果，不应实时反映新插入的订单。
     assertTrue(gauge.value() < 3.0, "Gauge 不得实时反映 DB 存量(那是另一种口径),实际读数:" + gauge.value());
 
     scheduler.expireOverdueOrders();
@@ -377,8 +372,7 @@ class OpsMetricsIntegrationTest {
     assertEquals(0.0, gauge.value(), EPS, "本轮扫完积压归零");
     assertEquals(scheduler.backlog(), gauge.value(), EPS, "Gauge 与扫描器状态同源");
 
-    // 同一事实不得双序列承载:这里收敛【真的跑过】了,若有人为过期订单补 orders{event=expired}
-    // 本断言才会变红(此前 vocabulary 里没有 expired 值,原断言恒真、无鉴别力)
+    // 过期订单只由 expiry.converged 序列统计。
     assertNull(
         registry.find("jinguan.payment.orders").tag("event", "expired").counter(),
         "orders 指标不得出现 expired 桶(过期事实由 expiry.converged 单承载)");
@@ -387,9 +381,7 @@ class OpsMetricsIntegrationTest {
   @Test
   @Order(9)
   void 批内后续行冲突不得吞掉已提交行的归宿计数() throws Exception {
-    // 同 refId 不同载荷 → WalletService 抛幂等冲突(409)。accept() 不开类级事务、每行各自提交,
-    // 所以批内抛异常时前面的行【已经扣账】——计数若在方法末尾统一推进就永远丢掉它们,
-    // ingest.rows 与账本从此分叉(原实现即此形态)
+    // 每行独立提交；后续行冲突时，前序行的计数仍须保留。
     double acceptedBefore = counter("jinguan.ingest.rows", "outcome", "accepted");
 
     mvc.perform(

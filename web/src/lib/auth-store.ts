@@ -1,6 +1,4 @@
-/* 认证态(zustand):access 存内存,refresh 走 httpOnly cookie。
-   挂载时 bootstrap() 静默续期恢复会话(页面刷新不掉登录);
-   401 刷新失败经 api 层 sessionCleared 反向通知回落 guest(store 不被 api import)。 */
+/* 认证态：access 存内存，refresh 使用 httpOnly cookie；api 层通过回调清除 store，避免循环依赖。 */
 
 import { create } from "zustand";
 import {
@@ -21,7 +19,7 @@ export interface LoginUser {
 
 interface AuthState {
   user: LoginUser | null;
-  booted: boolean; // 挂载续期已完成(无论成败),App 以此区分「加载中」与「未登录」
+  booted: boolean;
   bootstrap: () => Promise<void>;
   login: (username: string, password: string) => Promise<void>;
   register: (username: string, password: string) => Promise<void>;
@@ -42,7 +40,7 @@ function decode(token: string): LoginUser | null {
 }
 
 export const useAuth = create<AuthState>((set) => {
-  // api 层 401 刷新失败清态 → 回落 guest(反向解耦:store 不被 api import)
+  // API 层清除 token 时同步清除用户态。
   onSessionCleared(() => set({ user: null }));
 
   return {
@@ -74,10 +72,10 @@ export const useAuth = create<AuthState>((set) => {
 
     async logout() {
       try {
-        // 直连 fetch:清 cookie 即可,不走带 401 刷新链路的 api 包装
+        // 避免 logout 请求进入 401 续期流程。
         await fetch("/auth/logout", { method: "POST" });
       } catch {
-        // 网络失败也照常本地清态
+        // 本地认证态仍需清除。
       }
       clearAccessToken();
       set({ user: null });

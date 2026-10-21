@@ -2,7 +2,7 @@ import js from "@eslint/js";
 import tseslint from "typescript-eslint";
 import reactHooks from "eslint-plugin-react-hooks";
 import reactRefresh from "eslint-plugin-react-refresh";
-// 放在所有配置之后:只关掉与 prettier 冲突的格式规则,格式判断单一真源归 prettier
+// 放在末尾关闭与 Prettier 冲突的格式规则。
 import eslintConfigPrettier from "eslint-config-prettier";
 
 export default tseslint.config(

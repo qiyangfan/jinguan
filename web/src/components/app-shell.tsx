@@ -1,10 +1,4 @@
-/* 应用外壳(架构组件)。
-   桌面(md 及以上):左侧栏 + 内容区(原范式不变)。
-   移动(md 以下):按移动端原生范式重设计,非桌面缩放——
-     顶栏(品牌 + 主题 + 账户入口,sticky)+ 底部标签栏(fixed,全项直达、拇指可达,
-     带 safe-area 内边距)+ 账户面板(底部弹层:身份 + 登出,窄屏此前无登出入口)。
-   导航项按角色显隐(ADMIN 项对 USER 隐藏);列表/表单的移动形态见各页与
-   mobile-card / bottom-sheet-dialog 单源。 */
+/* 应用外壳：桌面侧栏；移动端顶栏、底部导航和账户弹层。 */
 
 import { useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router";
@@ -34,7 +28,7 @@ const NAV_ITEMS = [
   { to: "/keys", label: "密钥绑定", icon: KeyRound, admin: true },
 ];
 
-/** 角色显示名(后端角色全集 USER|ADMIN,见 jinguan UserEntity;未收录值回落原文)。 */
+/** 未知角色显示原值。 */
 const ROLE_LABELS: Record<string, string> = {
   ADMIN: "管理员",
   USER: "普通用户",
@@ -60,7 +54,7 @@ export function AppShell() {
 
   return (
     <div className="flex min-h-screen flex-col bg-background md:flex-row">
-      {/* ── 移动顶栏(md 以下):品牌 + 主题 + 账户 ── */}
+      {/* 移动顶栏 */}
       <header className="sticky top-0 z-30 flex items-center justify-between gap-2 border-b bg-card px-3 pt-[calc(0.5rem+env(safe-area-inset-top))] pb-2 md:hidden">
         <div className="min-w-0 text-base font-semibold text-primary">锦官 · 控制面</div>
         <div className="flex items-center gap-1">
@@ -85,7 +79,7 @@ export function AppShell() {
         </div>
       </header>
 
-      {/* ── 桌面侧栏(md 及以上) ── */}
+      {/* 桌面侧栏 */}
       <aside className="hidden w-56 shrink-0 flex-col border-r bg-card md:flex">
         <div className="flex items-center justify-between px-4 py-4">
           <div>
@@ -123,13 +117,12 @@ export function AppShell() {
         </div>
       </aside>
 
-      {/* 移动端 pb 预留底部标签栏高度(标签栏约 60px + 安全区);
-          min-w-0 解除 flex item 最小内容宽度约束,防宽表格在 md 折叠点撑破 main */}
+      {/* pb 为底部导航留白；min-w-0 防止宽内容撑破主区域。 */}
       <main className="min-w-0 flex-1 p-4 pb-24 md:p-6">
         <Outlet />
       </main>
 
-      {/* ── 移动底部标签栏(md 以下):全项直达,active 主色高亮 ── */}
+      {/* 移动底部导航 */}
       <nav
         aria-label="主导航"
         className="fixed inset-x-0 bottom-0 z-30 flex border-t bg-card pb-[env(safe-area-inset-bottom)] md:hidden"
@@ -142,7 +135,7 @@ export function AppShell() {
         ))}
       </nav>
 
-      {/* ── 账户面板(移动底部弹层):身份 + 登出 ── */}
+      {/* 移动账户弹层 */}
       <Sheet open={accountOpen} onOpenChange={setAccountOpen}>
         <BottomSheetContent className="md:max-w-sm">
           <SheetHeader>

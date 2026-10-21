@@ -19,11 +19,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * 认证入口:登录/注册双发(access 走响应体 → 前端内存;refresh 走 httpOnly SameSite=Strict cookie,Path=/auth)。
- * /auth/refresh 轮换换发新 access + 新 refresh(复用检测未做,已知限制见 openspec auth-session); /auth/logout 清
- * cookie。同源部署(jar 内静态 + Vite 代理),无 CORS/CSRF 新增面。
- */
+/** 认证入口：access token 通过响应体返回，refresh token 使用 httpOnly、SameSite=Strict cookie。 */
 @RestController
 @Validated
 public class UserController {
@@ -66,7 +62,7 @@ public class UserController {
     return Map.of("token", tokens.access());
   }
 
-  /** 静默续期:校验 refresh cookie 并轮换(新 access + 新 refresh);无效一律 401。 */
+  /** 校验 refresh cookie 并轮换双 token；无效时返回 401。 */
   @PostMapping("/auth/refresh")
   public ResponseEntity<Object> refresh(
       @CookieValue(name = REFRESH_COOKIE, required = false) String refreshCookie,
@@ -84,7 +80,7 @@ public class UserController {
         Map.of("token", jwtService.issueAccess(user.uid(), user.getName(), user.role())));
   }
 
-  /** 登出:清除 refresh cookie(Max-Age=0);access 由前端内存丢弃。 */
+  /** 清除 refresh cookie。 */
   @PostMapping("/auth/logout")
   public ResponseEntity<Void> logout(HttpServletResponse response) {
     response.addHeader(
