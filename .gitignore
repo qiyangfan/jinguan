@@ -18,3 +18,6 @@ web/*.tsbuildinfo
 .idea/
 .vscode/
 .DS_Store
+
+# HANDOFF 仅本地维护,不入库(家族纪律,开源准备)
+/HANDOFF.md
