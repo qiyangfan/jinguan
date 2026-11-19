@@ -1,0 +1,7 @@
+# 本地提交前 secret 扫描;CI 门禁见 .github/workflows/security.yml。
+# 启用:pipx install pre-commit && pre-commit install
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks

@@ -1,0 +1,17 @@
+title = "jinguan secrets policy"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "仅允许测试夹具、文档与仓库内统一的测试假密钥；每条写原因/负责人/到期日（见下）"
+paths = [
+  '''(^|/)tests?/fixtures/''',
+  '''(^|/)docs/.*\.(md|png|jpg)$''',
+]
+# 测试专用假 JWT 密钥（全仓 integration test 统一常量，非任何环境的真实凭据）。
+# 原因：generic-api-key 按熵值命中；值本身即字面量「test-secret-…」，无泄露风险。
+# 负责人：Solvela；到期日：2027-06-30（到期前改为低熵夹具值后删除本条）。
+regexes = [
+  '''test-secret-0123456789abcdef-0123456789abcdef''',
+]
