@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+/** 支付下单、回调与订单查询接口。 */
 @RestController
 @RequestMapping("/payments")
 @Validated
@@ -26,6 +27,7 @@ public class PaymentController {
     this.payments = payments;
   }
 
+  /** 下单请求体；金额以 credit 整数表示。 */
   public record CreateRequest(
       @NotBlank String provider, @Positive long amountCredits, @NotBlank String currency) {}
 
@@ -41,7 +43,7 @@ public class PaymentController {
   @PostMapping("/mock/{orderId}/pay")
   public Map<String, Object> mockPay(@PathVariable String orderId) {
     return payments.handleCallback(
-        MockPaymentProvider.NAME,
+        MockPaymentProvider.PROVIDER_NAME,
         orderId,
         new PaymentProvider.CallbackPayload(orderId, "mock-" + orderId, "PAID", "mock-signature"));
   }
@@ -59,6 +61,6 @@ public class PaymentController {
   @GetMapping("/orders/{orderId}")
   public Map<String, Object> query(
       @AuthenticationPrincipal JwtService.LoginUser user, @PathVariable String orderId) {
-    return payments.query(MockPaymentProvider.NAME, orderId, user.uid());
+    return payments.query(MockPaymentProvider.PROVIDER_NAME, orderId, user.uid());
   }
 }

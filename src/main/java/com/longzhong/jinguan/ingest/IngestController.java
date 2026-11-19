@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 @Validated
 public class IngestController {
 
+  /** 计量 ingest 请求信封；rows 为 muniu UsageRow 形态。 */
   public record Envelope(@Valid List<IngestUsageRow> rows) {}
 
   private final IngestService ingest;

@@ -22,6 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
 @PreAuthorize("hasRole('ADMIN')")
 public class KeyRevocationAdminController {
 
+  /** 吊销请求体。 */
   public record RevokeRequest(@NotBlank @Size(max = 255) String reason) {}
 
   private final KeyRevocationService revocations;

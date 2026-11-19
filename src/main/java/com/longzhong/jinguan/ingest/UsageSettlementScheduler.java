@@ -59,60 +59,77 @@ public class UsageSettlementScheduler {
     for (Long userId : candidateUsers) {
       List<UsageRecordEntity> rows = records.findCandidateRows(userId, maxRows);
       for (UsageRecordEntity row : rows) {
-        // 先记录尝试，再更新结算结果。
-        usageService.bumpRecoveryAttempt(row.getUsageId());
-        try {
-          var result =
-              wallet.debit(
-                  row.getUserId(),
-                  row.getCostCredits(),
-                  WalletService.REASON_USAGE,
-                  IngestService.usageRefId(row.getUsageId()),
-                  "用量结算 " + row.getModelAlias(),
-                  null);
-          usageService.applySettlementOutcome(
-              row.getUsageId(),
-              result.replayed()
-                  ? UsageRecordService.OUTCOME_REPLAYED
-                  : UsageRecordService.OUTCOME_ACCEPTED);
+        RowOutcome outcome = settleRow(row);
+        if (outcome == RowOutcome.SETTLED) {
           settled++;
-        } catch (InsufficientFundsException e) {
-          usageService.applySettlementOutcome(
-              row.getUsageId(), UsageRecordService.OUTCOME_SKIPPED_INSUFFICIENT);
+        } else if (outcome == RowOutcome.STILL_INSUFFICIENT) {
           stillInsufficient++;
-          break;
-        } catch (IdempotencyConflictException e) {
-          // 保留冲突行供后续处理。
-          usageService.touchSettlementAttempt(row.getUsageId());
-          log.error(
-              "待结算行幂等冲突: usageId={} userId={} refId={}",
-              row.getUsageId(),
-              row.getUserId(),
-              IngestService.usageRefId(row.getUsageId()),
-              e);
-          failed++;
-        } catch (RuntimeException e) {
-          // 单行异常不应中断整轮。
-          log.error(
-              "待结算行处理异常: usageId={} userId={} cost={}",
-              row.getUsageId(),
-              row.getUserId(),
-              row.getCostCredits(),
-              e);
+          break; // 余额不足时跳过该用户剩余行。
+        } else {
           failed++;
         }
       }
     }
-    if (settled + stillInsufficient + failed > 0) {
-      log.info(
-          "待结算恢复轮完成: 用户数={} 结算={} 仍欠费={} 失败={}",
-          candidateUsers.size(),
-          settled,
-          stillInsufficient,
-          failed);
-    }
+    logRound(candidateUsers.size(), settled, stillInsufficient, failed);
     return new RecoveryReport(candidateUsers.size(), settled, stillInsufficient, failed);
   }
 
+  private RowOutcome settleRow(UsageRecordEntity row) {
+    // 先记录尝试，再更新结算结果。
+    usageService.bumpRecoveryAttempt(row.getUsageId());
+    try {
+      var result =
+          wallet.debit(
+              row.getUserId(),
+              row.getCostCredits(),
+              WalletService.REASON_USAGE,
+              IngestService.usageRefId(row.getUsageId()),
+              "用量结算 " + row.getModelAlias(),
+              null);
+      usageService.applySettlementOutcome(
+          row.getUsageId(),
+          result.replayed()
+              ? UsageRecordService.OUTCOME_REPLAYED
+              : UsageRecordService.OUTCOME_ACCEPTED);
+      return RowOutcome.SETTLED;
+    } catch (InsufficientFundsException e) {
+      usageService.applySettlementOutcome(
+          row.getUsageId(), UsageRecordService.OUTCOME_SKIPPED_INSUFFICIENT);
+      return RowOutcome.STILL_INSUFFICIENT;
+    } catch (IdempotencyConflictException e) {
+      // 保留冲突行供后续处理。
+      usageService.touchSettlementAttempt(row.getUsageId());
+      log.error(
+          "待结算行幂等冲突: usageId={} userId={} refId={}",
+          row.getUsageId(),
+          row.getUserId(),
+          IngestService.usageRefId(row.getUsageId()),
+          e);
+      return RowOutcome.FAILED;
+    } catch (RuntimeException e) {
+      // 单行异常不应中断整轮。
+      log.error(
+          "待结算行处理异常: usageId={} userId={} cost={}",
+          row.getUsageId(),
+          row.getUserId(),
+          row.getCostCredits(),
+          e);
+      return RowOutcome.FAILED;
+    }
+  }
+
+  private void logRound(int users, int settled, int stillInsufficient, int failed) {
+    if (settled + stillInsufficient + failed > 0) {
+      log.info("待结算恢复轮完成: 用户数={} 结算={} 仍欠费={} 失败={}", users, settled, stillInsufficient, failed);
+    }
+  }
+
+  private enum RowOutcome {
+    SETTLED,
+    STILL_INSUFFICIENT,
+    FAILED
+  }
+
+  /** 单轮恢复的汇总计数。 */
   public record RecoveryReport(int usersTouched, int settled, int stillInsufficient, int failed) {}
 }

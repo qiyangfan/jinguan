@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+/** 账本分录持久化端口；只允许追加与读取。 */
 public interface LedgerEntryRepository extends JpaRepository<LedgerEntryEntity, Long> {
 
   Optional<LedgerEntryEntity> findByRefId(String refId);

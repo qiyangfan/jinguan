@@ -30,6 +30,7 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
       @Value("${jinguan.security.rate-limit.login-per-minute}") int loginPerMinute,
       @Value("${jinguan.security.rate-limit.register-per-minute}") int registerPerMinute,
       @Value("${jinguan.security.rate-limit.trusted-proxy}") boolean trustedProxy) {
+    super();
     this.mapper = mapper;
     this.loginPerMinute = loginPerMinute;
     this.registerPerMinute = registerPerMinute;

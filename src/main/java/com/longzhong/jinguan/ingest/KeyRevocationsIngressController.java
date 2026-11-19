@@ -5,6 +5,7 @@ import com.longzhong.jinguan.common.MetricNames;
 import com.longzhong.jinguan.user.SuspensionService;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeSet;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -13,17 +14,17 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class KeyRevocationsIngressController {
 
-  private final KeyRevocationRepository revocations;
+  private final KeyRevocationRepository revocationRepository;
   private final ApiKeyBindingRepository bindings;
   private final SuspensionService suspension;
   private final CommittedMetrics metrics;
 
   public KeyRevocationsIngressController(
-      KeyRevocationRepository revocations,
+      KeyRevocationRepository revocationRepository,
       ApiKeyBindingRepository bindings,
       SuspensionService suspension,
       CommittedMetrics metrics) {
-    this.revocations = revocations;
+    this.revocationRepository = revocationRepository;
     this.bindings = bindings;
     this.suspension = suspension;
     this.metrics = metrics;
@@ -33,7 +34,7 @@ public class KeyRevocationsIngressController {
   public Map<String, Object> revocations() {
     // 先读版本再读名单，避免返回新版本却携带旧名单。
     long version = suspension.keyRevocationVersion();
-    TreeSet<String> revoked = new TreeSet<>(revocations.findAllKeyIds());
+    Set<String> revoked = new TreeSet<>(revocationRepository.findAllKeyIds());
     List<Long> suspended = suspension.suspendedUserIds();
     if (!suspended.isEmpty()) {
       bindings.findByUserIdIn(suspended).forEach(b -> revoked.add(b.getKeyId()));

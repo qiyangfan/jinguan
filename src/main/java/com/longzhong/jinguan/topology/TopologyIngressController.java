@@ -13,11 +13,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class TopologyIngressController {
 
-  private final TopologyService topology;
+  private final TopologyService topologyService;
   private final CommittedMetrics metrics;
 
-  public TopologyIngressController(TopologyService topology, CommittedMetrics metrics) {
-    this.topology = topology;
+  public TopologyIngressController(TopologyService topologyService, CommittedMetrics metrics) {
+    this.topologyService = topologyService;
     this.metrics = metrics;
   }
 
@@ -25,8 +25,8 @@ public class TopologyIngressController {
   public ResponseEntity<TopologyService.TopologyPayload> topology(
       @RequestHeader(value = HttpHeaders.IF_NONE_MATCH, required = false) String ifNoneMatch) {
     // 响应体和 ETag 使用同一份拓扑快照。
-    TopologyService.TopologyPayload payload = topology.current();
-    String etag = topology.etagOf(payload);
+    TopologyService.TopologyPayload payload = topologyService.current();
+    String etag = topologyService.etagOf(payload);
     // 仅统计数据面拉取，不统计管理页读取。
     boolean notModified = ifNoneMatch != null && ifNoneMatch.equals(etag);
     metrics.count(

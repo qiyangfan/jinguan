@@ -1,0 +1,67 @@
+<?xml version="1.0"?>
+<ruleset name="jinguan-quality"
+         xmlns="http://pmd.sourceforge.net/ruleset/2.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://pmd.sourceforge.net/ruleset/2.0.0 https://pmd.github.io/schema/ruleset_2_0_0.xsd">
+  <description>
+    jinguan 质量门禁:PMD 官方类别选集,阈值全部取官方默认。
+    结构类规则(GodClass / CyclomaticComplexity / NPathComplexity / NcssCount /
+    CognitiveComplexity / TooManyMethods / ExcessiveMethodLength / ExcessiveClassLength)
+    一律启用,存量违规靠重构消化,不做规则级豁免。
+    排除项均为与语言语义、框架约定或数据契约冲突的规则,逐条注记理由。
+  </description>
+
+  <rule ref="category/java/bestpractices.xml">
+    <!-- SLF4J 参数化日志本就惰性求值,error/info 再套 guard 无收益。 -->
+    <exclude name="GuardLogStatement"/>
+  </rule>
+
+  <rule ref="category/java/errorprone.xml"/>
+
+  <rule ref="category/java/design.xml">
+    <!-- JPA 实体与只读 record 按设计只承载数据,行为在服务/聚合根上。 -->
+    <exclude name="DataClass"/>
+    <!-- usage_records 等表字段由 Flyway schema 决定,拆类会扭曲持久化模型。 -->
+    <exclude name="TooManyFields"/>
+    <!-- 第三方 fluent API(JWT builder、HttpSecurity DSL)不可避免链式访问。 -->
+    <exclude name="LawOfDemeter"/>
+    <!-- Spring Boot 启动类由框架约定持有 main,不适用工具类构造约束。 -->
+    <exclude name="UseUtilityClass"/>
+    <!-- JPA 实体字段由 Hibernate 反射填充,不能声明 final。 -->
+    <exclude name="ImmutableField"/>
+    <!-- 调度器单行故障隔离是显式设计:任何单行异常都不得中断整轮。 -->
+    <exclude name="AvoidCatchingGenericException"/>
+    <!-- Spring Security HttpSecurity#build() 声明受检异常,配置方法须透传。 -->
+    <exclude name="SignatureDeclareThrowsException"/>
+  </rule>
+
+  <rule ref="category/java/codestyle.xml">
+    <!-- final 修饰符属风格偏好,非缺陷。 -->
+    <exclude name="MethodArgumentCouldBeFinal"/>
+    <exclude name="LocalVariableCouldBeFinal"/>
+    <!-- 领域短名(id/tx/e)与常量长名(指标名/跨仓契约字段)均为必要词汇。 -->
+    <exclude name="ShortVariable"/>
+    <exclude name="LongVariable"/>
+    <!-- 单一返回点与 guard clause 冲突。 -->
+    <exclude name="OnlyOneReturn"/>
+    <!-- 字段按 DI/配置/状态分组是既有约定。 -->
+    <exclude name="FieldDeclarationsShouldBeAtStartOfClass"/>
+    <!-- 包可见性注释无信息增益。 -->
+    <exclude name="CommentDefaultAccessModifier"/>
+    <!-- var 属风格偏好。 -->
+    <exclude name="UseExplicitTypes"/>
+    <!-- 静态工具类/框架装配类不需要构造器。 -->
+    <exclude name="AtLeastOneConstructor"/>
+    <!-- of/ok 等标准工厂方法名。 -->
+    <exclude name="ShortMethodName"/>
+    <!-- SLF4J logger 字段统一小写 log。 -->
+    <exclude name="FieldNamingConventions"/>
+  </rule>
+
+  <rule ref="category/java/performance.xml"/>
+  <rule ref="category/java/multithreading.xml">
+    <!-- 命中的是方法内有序 Map(确定性输出),不是共享并发容器。 -->
+    <exclude name="UseConcurrentHashMap"/>
+  </rule>
+  <rule ref="category/java/security.xml"/>
+</ruleset>

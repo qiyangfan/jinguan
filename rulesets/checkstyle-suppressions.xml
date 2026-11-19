@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<!DOCTYPE suppressions PUBLIC
+    "-//Checkstyle//DTD SuppressionFilter Configuration 1.2//EN"
+    "https://checkstyle.org/dtds/suppressions_1_2.dtd">
+
+<!--
+  唯一条目:IngestUsageRow 的 record 组件名是跨仓契约(AGENTS 纪律 5,
+  与 muniu UsageRow 逐字段对齐,Go 无 json tag 输出 PascalCase),不能改名。
+  其余文件不设豁免。
+-->
+<suppressions>
+  <suppress checks="RecordComponentName|AbbreviationAsWordInName"
+            files=".*[\\/]IngestUsageRow\.java$"/>
+</suppressions>

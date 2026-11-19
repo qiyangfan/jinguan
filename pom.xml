@@ -233,6 +233,9 @@
           <printFailingErrorsToStdout>true</printFailingErrorsToStdout>
           <failOnViolation>true</failOnViolation>
           <analysisCache>true</analysisCache>
+          <rulesets>
+            <ruleset>rulesets/pmd-rules.xml</ruleset>
+          </rulesets>
         </configuration>
         <executions>
           <execution>
@@ -252,6 +255,36 @@
           <effort>Max</effort>
           <threshold>Medium</threshold>
           <excludeFilterFile>spotbugs-exclude.xml</excludeFilterFile>
+        </configuration>
+        <executions>
+          <execution>
+            <goals>
+              <goal>check</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+
+      <!-- Checkstyle:官方 Google 规则(本地化中文句号与契约件命名豁免)。 -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-checkstyle-plugin</artifactId>
+        <version>3.6.0</version>
+        <dependencies>
+          <!-- 插件默认 9.3 不含 google_checks 10.x 所需过滤器,显式对齐官方最新。 -->
+          <dependency>
+            <groupId>com.puppycrawl.tools</groupId>
+            <artifactId>checkstyle</artifactId>
+            <version>10.26.1</version>
+          </dependency>
+        </dependencies>
+        <configuration>
+          <configLocation>rulesets/checkstyle.xml</configLocation>
+          <suppressionsLocation>rulesets/checkstyle-suppressions.xml</suppressionsLocation>
+          <violationSeverity>warning</violationSeverity>
+          <failOnViolation>true</failOnViolation>
+          <consoleOutput>true</consoleOutput>
+          <linkXRef>false</linkXRef>
         </configuration>
         <executions>
           <execution>

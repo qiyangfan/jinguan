@@ -4,6 +4,7 @@ import java.util.Collection;
 import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+/** API key 与用户绑定关系持久化端口。 */
 public interface ApiKeyBindingRepository extends JpaRepository<ApiKeyBindingEntity, String> {
 
   /** 吊销下发名单派生:欠费停服用户名下全部绑定 key。 */

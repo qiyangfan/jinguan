@@ -4,6 +4,7 @@ import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
+/** key 吊销名单持久化端口。 */
 public interface KeyRevocationRepository extends JpaRepository<KeyRevocationEntity, Long> {
 
   boolean existsByKeyId(String keyId);

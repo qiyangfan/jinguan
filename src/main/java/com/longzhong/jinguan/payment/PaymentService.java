@@ -17,6 +17,10 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class PaymentService {
 
+  private static final String KEY_ORDER_ID = "orderId";
+  private static final String ORDER_NOT_FOUND = "订单不存在: ";
+  private static final String STATUS_EXPIRED = "EXPIRED";
+
   private final Map<String, PaymentProvider> providers;
   private final MockOrderRepository mockOrders;
   private final ApplicationEventPublisher events;
@@ -57,7 +61,7 @@ public class PaymentService {
     metrics.countOnCommit(
         MetricNames.PAYMENT_ORDERS, MetricNames.TAG_EVENT, MetricNames.EVENT_CREATED);
     return Map.of(
-        "orderId",
+        KEY_ORDER_ID,
         orderId,
         "provider",
         providerName,
@@ -76,8 +80,10 @@ public class PaymentService {
       throw new IllegalArgumentException("回调验签失败");
     }
     MockOrderEntity order =
-        mockOrders.findById(orderId).orElseThrow(() -> new NotFoundException("订单不存在: " + orderId));
-    if (order.isExpired(Instant.now()) || "EXPIRED".equals(order.getStatus())) {
+        mockOrders
+            .findById(orderId)
+            .orElseThrow(() -> new NotFoundException(ORDER_NOT_FOUND + orderId));
+    if (order.isExpired(Instant.now()) || STATUS_EXPIRED.equals(order.getStatus())) {
       throw new OrderExpiredException(orderId);
     }
     Instant paidAt = Instant.now();
@@ -88,18 +94,18 @@ public class PaymentService {
           mockOrders
               .findById(orderId)
               .map(MockOrderEntity::getStatus)
-              .orElseThrow(() -> new NotFoundException("订单不存在: " + orderId));
-      if ("EXPIRED".equals(status)) {
+              .orElseThrow(() -> new NotFoundException(ORDER_NOT_FOUND + orderId));
+      if (STATUS_EXPIRED.equals(status)) {
         throw new OrderExpiredException(orderId);
       }
-      return Map.of("orderId", orderId, "status", status, "replayed", true);
+      return Map.of(KEY_ORDER_ID, orderId, "status", status, "replayed", true);
     }
     metrics.countOnCommit(
         MetricNames.PAYMENT_ORDERS, MetricNames.TAG_EVENT, MetricNames.EVENT_PAID);
     events.publishEvent(
         new PaymentPaidEvent(
             orderId, order.getUserId(), order.getAmountCredits(), order.getCurrency(), paidAt));
-    return Map.of("orderId", orderId, "status", "PAID", "replayed", false);
+    return Map.of(KEY_ORDER_ID, orderId, "status", "PAID", "replayed", false);
   }
 
   /** 查询本人订单；非本人订单返回 404。 */
@@ -107,7 +113,7 @@ public class PaymentService {
   public Map<String, Object> query(String providerName, String orderId, long requesterUid) {
     MockOrderEntity order = ownedOrder(orderId, requesterUid);
     return Map.of(
-        "orderId",
+        KEY_ORDER_ID,
         orderId,
         "providerStatus",
         provider(providerName).queryStatus(orderId),
@@ -127,10 +133,12 @@ public class PaymentService {
 
   private MockOrderEntity ownedOrder(String orderId, long requesterUid) {
     MockOrderEntity order =
-        mockOrders.findById(orderId).orElseThrow(() -> new NotFoundException("订单不存在: " + orderId));
+        mockOrders
+            .findById(orderId)
+            .orElseThrow(() -> new NotFoundException(ORDER_NOT_FOUND + orderId));
     if (order.getUserId() != requesterUid) {
       // 越权访问他人订单时按不存在处理，避免泄露订单归属。
-      throw new NotFoundException("订单不存在: " + orderId);
+      throw new NotFoundException(ORDER_NOT_FOUND + orderId);
     }
     return order;
   }

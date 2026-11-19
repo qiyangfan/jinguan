@@ -11,18 +11,20 @@ import java.time.Instant;
 /** 声明式模型能力目录，以 (provider, model) 精确匹配。 */
 @Entity
 @Table(name = "topology_models")
-@IdClass(TopologyModelEntity.Pk.class)
+@IdClass(TopologyModelEntity.ModelKey.class)
 public class TopologyModelEntity {
 
   /** JPA 复合主键，与实体字段同名。 */
-  public static class Pk implements Serializable {
+  public static class ModelKey implements Serializable {
+
+    private static final long serialVersionUID = 1L;
 
     private String provider;
     private String model;
 
-    public Pk() {}
+    public ModelKey() {}
 
-    public Pk(String provider, String model) {
+    public ModelKey(String provider, String model) {
       this.provider = provider;
       this.model = model;
     }
@@ -37,8 +39,12 @@ public class TopologyModelEntity {
 
     @Override
     public boolean equals(Object o) {
-      if (this == o) return true;
-      if (!(o instanceof Pk pk)) return false;
+      if (this == o) {
+        return true;
+      }
+      if (!(o instanceof ModelKey pk)) {
+        return false;
+      }
       return provider.equals(pk.provider) && model.equals(pk.model);
     }
 
@@ -68,8 +74,8 @@ public class TopologyModelEntity {
   @Column(name = "updated_at", nullable = false)
   private Instant updatedAt;
 
-  public Pk id() {
-    return new Pk(provider, model);
+  public ModelKey id() {
+    return new ModelKey(provider, model);
   }
 
   public String getProvider() {

@@ -9,7 +9,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class MockPaymentProvider implements PaymentProvider {
 
-  public static final String NAME = "mock";
+  public static final String PROVIDER_NAME = "mock";
 
   private final MockOrderRepository orders;
   private final java.time.Duration orderTtl;
@@ -23,7 +23,7 @@ public class MockPaymentProvider implements PaymentProvider {
 
   @Override
   public String name() {
-    return NAME;
+    return PROVIDER_NAME;
   }
 
   @Override

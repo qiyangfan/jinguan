@@ -9,11 +9,13 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+/** 演示支付订单持久化端口。 */
 public interface MockOrderRepository extends JpaRepository<MockOrderEntity, String> {
 
   /** 分页查询已过期且仍为 CREATED 的订单，按订单号升序。 */
   @Query(
-      "SELECT o FROM MockOrderEntity o WHERE o.status = :status AND o.expiresAt < :before ORDER BY o.id ASC")
+      "SELECT o FROM MockOrderEntity o WHERE o.status = :status AND o.expiresAt < :before"
+          + " ORDER BY o.id ASC")
   List<MockOrderEntity> findOverdue(
       @Param("status") String status, @Param("before") Instant before, Pageable pageable);
 
@@ -23,13 +25,15 @@ public interface MockOrderRepository extends JpaRepository<MockOrderEntity, Stri
   /** 原子地将 CREATED 订单改为 PAID，防止并发回调重复处理。 */
   @Modifying(clearAutomatically = true)
   @Query(
-      "UPDATE MockOrderEntity o SET o.status = 'PAID', o.paidAt = :paidAt WHERE o.orderId = :orderId AND o.status = 'CREATED'")
+      "UPDATE MockOrderEntity o SET o.status = 'PAID', o.paidAt = :paidAt"
+          + " WHERE o.orderId = :orderId AND o.status = 'CREATED'")
   int markPaidIfCreated(@Param("orderId") String orderId, @Param("paidAt") Instant paidAt);
 
   /** 原子地将 CREATED 订单改为 EXPIRED，避免覆盖并发支付。 */
   @Modifying(clearAutomatically = true)
   @Query(
-      "UPDATE MockOrderEntity o SET o.status = 'EXPIRED' WHERE o.orderId IN :orderIds AND o.status = 'CREATED'")
+      "UPDATE MockOrderEntity o SET o.status = 'EXPIRED'"
+          + " WHERE o.orderId IN :orderIds AND o.status = 'CREATED'")
   int expireIfCreated(@Param("orderIds") List<String> orderIds);
 
   /** 按订单号倒序分页查询用户订单。 */

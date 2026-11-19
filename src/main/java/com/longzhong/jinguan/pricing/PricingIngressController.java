@@ -9,18 +9,19 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class PricingIngressController {
 
-  private final PricingService pricing;
+  private final PricingService pricingService;
   private final CommittedMetrics metrics;
 
-  public PricingIngressController(PricingService pricing, CommittedMetrics metrics) {
-    this.pricing = pricing;
+  public PricingIngressController(PricingService pricingService, CommittedMetrics metrics) {
+    this.pricingService = pricingService;
     this.metrics = metrics;
   }
 
   @GetMapping("/control/v1/pricing")
   public PricingService.PricingEnvelope pricing() {
     // 完成组包后再计数，避免读库失败被记为成功拉取。
-    PricingService.PricingEnvelope envelope = new PricingService.PricingEnvelope(pricing.list());
+    PricingService.PricingEnvelope envelope =
+        new PricingService.PricingEnvelope(pricingService.list());
     metrics.count(
         MetricNames.CONTROL_PULL,
         MetricNames.TAG_PIPE,

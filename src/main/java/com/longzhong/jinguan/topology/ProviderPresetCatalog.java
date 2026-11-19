@@ -21,6 +21,13 @@ public final class ProviderPresetCatalog {
 
   static final String REGION_GLOBAL = "global";
 
+  /** 同一模型在多家厂商条目中重复引用,集中为常量。 */
+  static final String MODEL_KIMI_K3 = "kimi-k3";
+
+  static final String MODEL_KIMI_K2_7_CODE = "kimi-k2.7-code";
+  static final String MODEL_GLM_5_3 = "glm-5.3";
+  static final String MODEL_GLM_5_3_FLASH = "glm-5.3-flash";
+
   /** 单条厂商接入预设，字段使用下发契约的 snake_case 命名。 */
   public record Preset(
       @JsonProperty("name") String name,
@@ -36,7 +43,7 @@ public final class ProviderPresetCatalog {
   /** 厂商预设响应。 */
   public record PresetEnvelope(@JsonProperty("presets") List<Preset> presets) {}
 
-  private static final List<Preset> PRESETS =
+  private static final List<Preset> CATALOG =
       List.of(
           // ── 国内官方 · OpenAI 兼容分支 ──
           new Preset(
@@ -56,7 +63,7 @@ public final class ProviderPresetCatalog {
               ADAPTER_MOONSHOT,
               "https://api.moonshot.cn/v1",
               "MOONSHOT_API_KEY",
-              List.of("kimi-k3", "kimi-k2.7-code", "kimi-k2.7-code-highspeed"),
+              List.of(MODEL_KIMI_K3, MODEL_KIMI_K2_7_CODE, "kimi-k2.7-code-highspeed"),
               "https://platform.kimi.com",
               REGION_CN,
               "国内站;当期旗舰 K3,K2 系旧快照与 moonshot-v1 系已下线;"
@@ -67,7 +74,7 @@ public final class ProviderPresetCatalog {
               ADAPTER_GLM,
               "https://open.bigmodel.cn/api/paas/v4",
               "GLM_API_KEY",
-              List.of("glm-5.3", "glm-5.3-flash"),
+              List.of(MODEL_GLM_5_3, MODEL_GLM_5_3_FLASH),
               "https://open.bigmodel.cn",
               REGION_CN,
               "国内主站(开放平台);国际站见 glm-global(z.ai)"),
@@ -169,7 +176,7 @@ public final class ProviderPresetCatalog {
               ADAPTER_ANTHROPIC,
               "https://api.moonshot.cn/anthropic",
               "MOONSHOT_ANTHROPIC_API_KEY",
-              List.of("kimi-k3", "kimi-k2.7-code"),
+              List.of(MODEL_KIMI_K3, MODEL_KIMI_K2_7_CODE),
               "https://platform.kimi.com",
               REGION_CN,
               "Anthropic 协议分支(Claude Code 生态)"),
@@ -179,7 +186,7 @@ public final class ProviderPresetCatalog {
               ADAPTER_ANTHROPIC,
               "https://open.bigmodel.cn/api/anthropic",
               "GLM_ANTHROPIC_API_KEY",
-              List.of("glm-5.3", "glm-5.3-flash"),
+              List.of(MODEL_GLM_5_3, MODEL_GLM_5_3_FLASH),
               "https://open.bigmodel.cn",
               REGION_CN,
               "Anthropic 协议分支(路径 /api/anthropic)"),
@@ -211,7 +218,7 @@ public final class ProviderPresetCatalog {
               ADAPTER_MOONSHOT,
               "https://api.moonshot.ai/v1",
               "MOONSHOT_GLOBAL_API_KEY",
-              List.of("kimi-k3", "kimi-k2.7-code"),
+              List.of(MODEL_KIMI_K3, MODEL_KIMI_K2_7_CODE),
               "https://platform.kimi.ai",
               REGION_GLOBAL,
               "国际站端点,与国内站账号体系独立"),
@@ -221,7 +228,7 @@ public final class ProviderPresetCatalog {
               ADAPTER_ANTHROPIC,
               "https://api.moonshot.ai/anthropic",
               "MOONSHOT_GLOBAL_ANTHROPIC_API_KEY",
-              List.of("kimi-k3", "kimi-k2.7-code"),
+              List.of(MODEL_KIMI_K3, MODEL_KIMI_K2_7_CODE),
               "https://platform.kimi.ai",
               REGION_GLOBAL,
               "国际站 Anthropic 协议分支(官方明示 Claude Code 可用)"),
@@ -231,7 +238,7 @@ public final class ProviderPresetCatalog {
               ADAPTER_GLM,
               "https://api.z.ai/api/paas/v4",
               "ZAI_API_KEY",
-              List.of("glm-5.3", "glm-5.3-flash"),
+              List.of(MODEL_GLM_5_3, MODEL_GLM_5_3_FLASH),
               "https://z.ai",
               REGION_GLOBAL,
               "国际站(z.ai 开放平台),与国内站账号体系独立"),
@@ -241,7 +248,7 @@ public final class ProviderPresetCatalog {
               ADAPTER_ANTHROPIC,
               "https://api.z.ai/api/anthropic",
               "ZAI_ANTHROPIC_API_KEY",
-              List.of("glm-5.3", "glm-5.3-flash"),
+              List.of(MODEL_GLM_5_3, MODEL_GLM_5_3_FLASH),
               "https://docs.z.ai",
               REGION_GLOBAL,
               "国际站 Anthropic 协议分支(GLM Coding Plan)"),
@@ -340,10 +347,10 @@ public final class ProviderPresetCatalog {
   private ProviderPresetCatalog() {}
 
   public static List<Preset> presets() {
-    return PRESETS;
+    return CATALOG;
   }
 
   public static PresetEnvelope envelope() {
-    return new PresetEnvelope(PRESETS);
+    return new PresetEnvelope(CATALOG);
   }
 }

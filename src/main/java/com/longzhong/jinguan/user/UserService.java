@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class UserService {
 
+  /** 登录签发的双 token：access 短时、refresh 轮换。 */
   public record AuthTokens(String access, String refresh) {}
 
   /** 用户不存在时用于执行一次 BCrypt 校验，降低登录响应时差。 */

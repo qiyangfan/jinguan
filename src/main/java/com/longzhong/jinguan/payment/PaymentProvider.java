@@ -14,6 +14,7 @@ public interface PaymentProvider {
 
   String queryStatus(String orderId);
 
+  /** 渠道下单结果：渠道引用、支付地址与有效期。 */
   record CreatedOrder(String providerRef, String payUrl, Instant expiresAt) {}
 
   /** 已解析的渠道回调。 */

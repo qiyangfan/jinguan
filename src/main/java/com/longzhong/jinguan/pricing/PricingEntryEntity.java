@@ -56,38 +56,34 @@ public class PricingEntryEntity {
     this.updatedAt = Instant.now();
   }
 
-  public static PricingEntryEntity create(
-      String alias,
+  /** 价目内容载体；与别名解耦，供创建与替换共用。 */
+  public record PricingDraft(
       String currency,
       long inputCredits,
       long cachedInputCredits,
       long outputCredits,
       String timezone,
-      String timeWindowsJson) {
+      String timeWindowsJson) {}
+
+  public static PricingEntryEntity create(String alias, PricingDraft draft) {
     return new PricingEntryEntity(
         alias,
-        currency,
-        inputCredits,
-        cachedInputCredits,
-        outputCredits,
-        timezone,
-        timeWindowsJson);
+        draft.currency(),
+        draft.inputCredits(),
+        draft.cachedInputCredits(),
+        draft.outputCredits(),
+        draft.timezone(),
+        draft.timeWindowsJson());
   }
 
   /** 替换价目内容并刷新更新时间。 */
-  public void update(
-      String currency,
-      long inputCredits,
-      long cachedInputCredits,
-      long outputCredits,
-      String timezone,
-      String timeWindowsJson) {
-    this.currency = currency;
-    this.inputCredits = inputCredits;
-    this.cachedInputCredits = cachedInputCredits;
-    this.outputCredits = outputCredits;
-    this.timezone = timezone;
-    this.timeWindowsJson = timeWindowsJson;
+  public void update(PricingDraft draft) {
+    this.currency = draft.currency();
+    this.inputCredits = draft.inputCredits();
+    this.cachedInputCredits = draft.cachedInputCredits();
+    this.outputCredits = draft.outputCredits();
+    this.timezone = draft.timezone();
+    this.timeWindowsJson = draft.timeWindowsJson();
     this.updatedAt = Instant.now();
   }
 

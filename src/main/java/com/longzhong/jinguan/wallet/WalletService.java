@@ -5,16 +5,12 @@ import com.longzhong.jinguan.common.IdempotencyConflictException;
 import com.longzhong.jinguan.common.InsufficientFundsException;
 import com.longzhong.jinguan.common.MetricNames;
 import com.longzhong.jinguan.user.SuspensionService;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Supplier;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -31,17 +27,22 @@ public class WalletService {
   private final TransactionTemplate tx;
   private final SuspensionService suspension;
   private final CommittedMetrics metrics;
-  private final Map<Long, ReentrantLock> userLocks = new ConcurrentHashMap<>();
+  private final UserLockRegistry locks;
+  private final LedgerEntryWriter writer;
 
   public WalletService(
       LedgerEntryRepository ledger,
       org.springframework.transaction.PlatformTransactionManager tm,
       SuspensionService suspension,
-      CommittedMetrics metrics) {
+      CommittedMetrics metrics,
+      UserLockRegistry locks,
+      LedgerEntryWriter writer) {
     this.ledger = ledger;
     this.tx = new TransactionTemplate(tm);
     this.suspension = suspension;
     this.metrics = metrics;
+    this.locks = locks;
+    this.writer = writer;
   }
 
   /** 账本写入结果；replayed 表示返回了既有分录。 */
@@ -71,7 +72,7 @@ public class WalletService {
     return counted(
         MetricNames.KIND_DEBIT,
         () ->
-            withUserLock(
+            locks.run(
                 userId,
                 () -> debitLocked(userId, amountCredits, reason, refId, note, operatorUserId)));
   }
@@ -90,16 +91,10 @@ public class WalletService {
           status -> {
             var existing = ledger.findByRefId(refId);
             if (existing.isPresent()) {
-              return adjudicate(existing.get(), userId, signed, reason);
+              return writer.adjudicate(existing.get(), userId, signed, reason);
             }
-            long current = balance(userId);
-            if (current + signed < 0) {
-              throw new InsufficientFundsException(userId, amountCredits, current);
-            }
-            return new EntryResult(
-                ledger.save(
-                    LedgerEntryEntity.of(userId, signed, reason, refId, note, operatorUserId)),
-                false);
+            return insertIfAffordable(
+                userId, signed, amountCredits, reason, refId, note, operatorUserId);
           });
     } catch (InsufficientFundsException e) {
       suspension.markSuspended(userId); // 扣账回滚后，在同一用户锁内单独标记停服。
@@ -115,9 +110,27 @@ public class WalletService {
             if (existing.isEmpty()) {
               throw e; // 重读无分录，说明完整性错误并非唯一键竞争。
             }
-            return adjudicate(existing.get(), userId, signed, reason);
+            return writer.adjudicate(existing.get(), userId, signed, reason);
           });
     }
+  }
+
+  /** 余额不足以覆盖扣账时抛出停服异常；throw 置于独立方法，供调用方统一标记停服。 */
+  private EntryResult insertIfAffordable(
+      long userId,
+      long signed,
+      long requested,
+      String reason,
+      String refId,
+      String note,
+      Long operatorUserId) {
+    long current = balance(userId);
+    if (current + signed < 0) {
+      throw new InsufficientFundsException(userId, requested, current);
+    }
+    return new EntryResult(
+        ledger.save(LedgerEntryEntity.of(userId, signed, reason, refId, note, operatorUserId)),
+        false);
   }
 
   @Transactional(readOnly = true)
@@ -132,7 +145,7 @@ public class WalletService {
 
   private EntryResult apply(
       long userId, long amount, String reason, String refId, String note, Long operatorUserId) {
-    return withUserLock(
+    return locks.run(
         userId,
         () -> {
           boolean outerTxActive = TransactionSynchronizationManager.isActualTransactionActive();
@@ -140,7 +153,7 @@ public class WalletService {
             return tx.execute(
                 status -> {
                   EntryResult result =
-                      insertOrReplay(userId, amount, reason, refId, note, operatorUserId);
+                      writer.insertOrReplay(userId, amount, reason, refId, note, operatorUserId);
                   // 与入账同事务清除停服，避免充值成功后账号仍被停用。
                   suspension.clearIfSuspended(userId);
                   return result;
@@ -151,57 +164,10 @@ public class WalletService {
             }
             // 重读唯一约束胜方；重放不再清除停服状态。
             return tx.execute(
-                status -> insertOrReplay(userId, amount, reason, refId, note, operatorUserId));
+                status ->
+                    writer.insertOrReplay(userId, amount, reason, refId, note, operatorUserId));
           }
         });
-  }
-
-  /** 按用户串行执行资金操作，并在外层事务提交或回滚后释放锁。 */
-  private <T> T withUserLock(long userId, Supplier<T> work) {
-    ReentrantLock lock = userLocks.computeIfAbsent(userId, k -> new ReentrantLock());
-    lock.lock();
-    boolean deferred = false;
-    try {
-      if (TransactionSynchronizationManager.isActualTransactionActive()
-          && TransactionSynchronizationManager.isSynchronizationActive()) {
-        TransactionSynchronizationManager.registerSynchronization(
-            new TransactionSynchronization() {
-              @Override
-              public void afterCompletion(int status) {
-                lock.unlock();
-              }
-            });
-        deferred = true;
-      }
-      return work.get();
-    } finally {
-      if (!deferred) {
-        lock.unlock();
-      }
-    }
-  }
-
-  /** 按 refId 插入分录，已存在时校验载荷并返回重放或冲突。 */
-  private EntryResult insertOrReplay(
-      long userId, long amount, String reason, String refId, String note, Long operatorUserId) {
-    var existing = ledger.findByRefId(refId);
-    if (existing.isPresent()) {
-      return adjudicate(existing.get(), userId, amount, reason);
-    }
-    return new EntryResult(
-        ledger.save(LedgerEntryEntity.of(userId, amount, reason, refId, note, operatorUserId)),
-        false);
-  }
-
-  /** 同 refId 的用户、金额或原因不一致时抛出幂等冲突。 */
-  private EntryResult adjudicate(
-      LedgerEntryEntity existing, long userId, long amount, String reason) {
-    if (existing.getUserId() != userId
-        || existing.getAmountCredits() != amount
-        || !existing.getReason().equals(reason)) {
-      throw new IdempotencyConflictException(existing.getRefId());
-    }
-    return new EntryResult(existing, true);
   }
 
   /** 分录成功在提交后计数；余额不足和幂等冲突作为拒绝结果立即计数。 */

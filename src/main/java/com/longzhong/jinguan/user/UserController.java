@@ -42,6 +42,7 @@ public class UserController {
     this.refreshTtlDays = refreshTtlDays;
   }
 
+  /** 用户名与密码凭据体。 */
   public record Credentials(
       @NotBlank @Size(min = 3, max = 64) String username,
       @NotBlank @Size(min = 8, max = 72) String password) {}

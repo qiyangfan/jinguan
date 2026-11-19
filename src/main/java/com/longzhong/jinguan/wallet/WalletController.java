@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+/** 钱包余额、流水与管理员手工入账接口。 */
 @RestController
 @RequestMapping("/wallet")
 @Validated
@@ -29,9 +30,11 @@ public class WalletController {
     this.wallet = wallet;
   }
 
+  /** 入账请求体；refId 幂等键由调用方提供。 */
   public record CreditRequest(
       @NotNull Long userId, @Positive long amountCredits, String refId, String note) {}
 
+  /** 扣账请求体；refId 幂等键由调用方提供。 */
   public record DebitRequest(
       @NotNull Long userId, @Positive long amountCredits, String refId, String note) {}
 

@@ -27,6 +27,7 @@ public class IngestService {
     this.metrics = metrics;
   }
 
+  /** 单批 ingest 的分桶计数结果。 */
   public record IngestResult(
       int received,
       int accepted,
@@ -42,12 +43,12 @@ public class IngestService {
 
   /** 每行独立提交；欠费行保留待结算，存储故障或事实冲突返回非 2xx。 */
   public IngestResult accept(List<IngestUsageRow> rows) {
-    int received = 0,
-        accepted = 0,
-        replayed = 0,
-        skippedUnbound = 0,
-        skippedFree = 0,
-        skippedInsufficient = 0;
+    int received = 0;
+    int accepted = 0;
+    int replayed = 0;
+    int skippedUnbound = 0;
+    int skippedFree = 0;
+    int skippedInsufficient = 0;
     for (IngestUsageRow row : rows) {
       received++;
       boolean billable = row.isSuccess() && row.CostCredits() > 0;

@@ -6,6 +6,7 @@ import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import java.time.Instant;
+import java.util.concurrent.atomic.AtomicLong;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -23,7 +24,7 @@ public class PaymentExpiryScheduler {
   private final int batchSize;
   private final Counter convergedCounter;
   private final Timer scanTimer;
-  private volatile long backlog;
+  private final AtomicLong overdueBacklog = new AtomicLong();
 
   public PaymentExpiryScheduler(
       MockOrderRepository orders,
@@ -44,7 +45,7 @@ public class PaymentExpiryScheduler {
 
   /** 最近一轮扫描后的待收敛数量。 */
   public long backlog() {
-    return backlog;
+    return overdueBacklog.get();
   }
 
   /** 按配置批次定时收敛过期订单。 */
@@ -61,7 +62,9 @@ public class PaymentExpiryScheduler {
     scanTimer.record(
         () -> {
           Instant now = Instant.now();
-          int total = 0, rounds = 0, batch;
+          int total = 0;
+          int rounds = 0;
+          int batch;
           do {
             var candidates = orders.findOverdue("CREATED", now, PageRequest.of(0, batchLimit));
             batch = candidates.size();
@@ -75,10 +78,11 @@ public class PaymentExpiryScheduler {
             total += updated;
             rounds++;
           } while (batch == batchLimit);
-          backlog = orders.countByStatusAndExpiresAtBefore("CREATED", now);
+          long remaining = orders.countByStatusAndExpiresAtBefore("CREATED", now);
+          overdueBacklog.set(remaining);
           if (total > 0) {
             convergedCounter.increment(total);
-            log.info("支付订单过期收敛: {} 笔 CREATED → EXPIRED(共 {} 轮),剩余积压 {}", total, rounds, backlog);
+            log.info("支付订单过期收敛: {} 笔 CREATED → EXPIRED(共 {} 轮),剩余积压 {}", total, rounds, remaining);
           }
         });
   }

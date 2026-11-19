@@ -6,12 +6,14 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
 
+/** Web 安全配置：无状态双 token 认证、匿名端点白名单与管理员角色。 */
 @Configuration
 @EnableMethodSecurity
 public class SecurityConfig {
@@ -24,7 +26,7 @@ public class SecurityConfig {
   @Bean
   public SecurityFilterChain filterChain(HttpSecurity http, JwtAuthFilter jwtAuthFilter)
       throws Exception {
-    return http.csrf(csrf -> csrf.disable()) // API 使用无状态 token 认证。
+    return http.csrf(AbstractHttpConfigurer::disable) // API 使用无状态 token 认证。
         .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
         .authorizeHttpRequests(
             auth ->

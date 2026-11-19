@@ -25,6 +25,7 @@ public class PricingService {
     this.entries = entries;
   }
 
+  /** 分时段倍率窗口。 */
   public record TimeWindow(String window, String multiplier) {}
 
   /** 与 muniu PricingView 对齐的下发格式。 */
@@ -40,6 +41,7 @@ public class PricingService {
       @JsonProperty("time_windows") List<TimeWindow> timeWindows,
       @JsonProperty("updated_at") Instant updatedAt) {}
 
+  /** 价目新增/替换命令；金额以 credit 整数表示。 */
   public record UpsertCommand(
       String currency,
       long inputCredits,
@@ -55,27 +57,18 @@ public class PricingService {
   public void upsert(String alias, UpsertCommand cmd) {
     validateMultiplier(cmd.timeWindows());
     String windowsJson = serialize(cmd.timeWindows());
+    PricingEntryEntity.PricingDraft draft =
+        new PricingEntryEntity.PricingDraft(
+            cmd.currency(),
+            cmd.inputCredits(),
+            cmd.cachedInputCredits(),
+            cmd.outputCredits(),
+            cmd.timezone(),
+            windowsJson);
     entries
         .findById(alias)
         .ifPresentOrElse(
-            e ->
-                e.update(
-                    cmd.currency(),
-                    cmd.inputCredits(),
-                    cmd.cachedInputCredits(),
-                    cmd.outputCredits(),
-                    cmd.timezone(),
-                    windowsJson),
-            () ->
-                entries.save(
-                    PricingEntryEntity.create(
-                        alias,
-                        cmd.currency(),
-                        cmd.inputCredits(),
-                        cmd.cachedInputCredits(),
-                        cmd.outputCredits(),
-                        cmd.timezone(),
-                        windowsJson)));
+            e -> e.update(draft), () -> entries.save(PricingEntryEntity.create(alias, draft)));
   }
 
   @Transactional

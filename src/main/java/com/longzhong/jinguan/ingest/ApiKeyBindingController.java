@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 @PreAuthorize("hasRole('ADMIN')")
 public class ApiKeyBindingController {
 
+  /** key 绑定请求体。 */
   public record BindRequest(@NotBlank String keyId, @Positive long userId) {}
 
   private final ApiKeyBindingRepository bindings;

@@ -10,7 +10,11 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+/** 用量明细持久化端口；结算投影用条件更新保证终态不降级。 */
 public interface UsageRecordRepository extends JpaRepository<UsageRecordEntity, Long> {
+
+  String PARAM_USAGE_ID = "usageId";
+  String PARAM_NOW = "now";
 
   Optional<UsageRecordEntity> findByUsageId(String usageId);
 
@@ -29,10 +33,10 @@ public interface UsageRecordRepository extends JpaRepository<UsageRecordEntity, 
       WHERE r.usageId = :usageId
       """)
   int bumpAttemptAndTransition(
-      @Param("usageId") String usageId,
+      @Param(PARAM_USAGE_ID) String usageId,
       @Param("outcome") String outcome,
       @Param("pinned") Long pinned,
-      @Param("now") Instant now);
+      @Param(PARAM_NOW) Instant now);
 
   /** 更新结算结果和轮转时间；已结算终态不降级，也不增加接收尝试次数。 */
   @Modifying
@@ -45,23 +49,23 @@ public interface UsageRecordRepository extends JpaRepository<UsageRecordEntity, 
       WHERE r.usageId = :usageId
       """)
   int applySettlementOutcome(
-      @Param("usageId") String usageId,
+      @Param(PARAM_USAGE_ID) String usageId,
       @Param("outcome") String outcome,
-      @Param("now") Instant now);
+      @Param(PARAM_NOW) Instant now);
 
   /** 仅刷新结算尝试时间。 */
   @Modifying
   @Query(
       "UPDATE UsageRecordEntity r SET r.lastSettlementAttemptAt = :now"
           + " WHERE r.usageId = :usageId")
-  int touchSettlementAttempt(@Param("usageId") String usageId, @Param("now") Instant now);
+  int touchSettlementAttempt(@Param(PARAM_USAGE_ID) String usageId, @Param(PARAM_NOW) Instant now);
 
   /** 增加恢复尝试次数并更新时间。 */
   @Modifying
   @Query(
       "UPDATE UsageRecordEntity r SET r.attempts = r.attempts + 1, r.lastAttemptAt = :now"
           + " WHERE r.usageId = :usageId")
-  int bumpRecoveryAttempt(@Param("usageId") String usageId, @Param("now") Instant now);
+  int bumpRecoveryAttempt(@Param(PARAM_USAGE_ID) String usageId, @Param(PARAM_NOW) Instant now);
 
   /** 按最近结算尝试时间轮转候选用户；从未尝试者优先，同刻按用户 ID 排序。 */
   @Query(

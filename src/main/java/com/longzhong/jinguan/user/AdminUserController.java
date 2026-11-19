@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 @PreAuthorize("hasRole('ADMIN')")
 public class AdminUserController {
 
+  /** 管理员重置密码请求体。 */
   public record ResetPasswordRequest(@NotBlank @Size(min = 8, max = 72) String newPassword) {}
 
   private final UserService users;

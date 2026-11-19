@@ -14,14 +14,14 @@ public class SyncWatermarkEntity {
   @Column(length = 32)
   private String name;
 
-  @Column(nullable = false)
-  private long version;
+  @Column(name = "version", nullable = false)
+  private long appliedVersion;
 
   protected SyncWatermarkEntity() {} // JPA
 
   private SyncWatermarkEntity(String name, long version) {
     this.name = name;
-    this.version = version;
+    this.appliedVersion = version;
   }
 
   public static SyncWatermarkEntity of(String name, long version) {
@@ -29,6 +29,6 @@ public class SyncWatermarkEntity {
   }
 
   public long version() {
-    return version;
+    return appliedVersion;
   }
 }

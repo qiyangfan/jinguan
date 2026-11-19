@@ -21,10 +21,12 @@ import org.springframework.web.bind.annotation.RestController;
 @PreAuthorize("hasRole('ADMIN')")
 public class PricingAdminController {
 
+  /** 价目时段窗口请求项。 */
   public record TimeWindowReq(
       @NotBlank String window,
       @NotBlank @Pattern(regexp = "^\\d+(\\.\\d{1,4})?$") String multiplier) {}
 
+  /** 价目新增/替换请求体。 */
   public record UpsertReq(
       @NotBlank String currency,
       @PositiveOrZero long inputCredits,
