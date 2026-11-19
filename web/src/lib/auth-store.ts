@@ -1,6 +1,7 @@
 /* 认证态：access 存内存，refresh 使用 httpOnly cookie；api 层通过回调清除 store，避免循环依赖。 */
 
 import { create } from "zustand";
+
 import {
   clearAccessToken,
   client,
@@ -28,11 +29,16 @@ interface AuthState {
 
 function decode(token: string): LoginUser | null {
   try {
-    const payload = JSON.parse(atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+    const payload = token.split(".")[1];
+    if (!payload) return null;
+    const claims = JSON.parse(atob(payload.replace(/-/g, "+").replace(/_/g, "/"))) as Record<
+      string,
+      unknown
+    >;
     return {
-      uid: Number(payload.uid),
-      username: String(payload.sub),
-      role: String(payload.role ?? "USER"),
+      uid: Number(claims.uid),
+      username: String(claims.sub),
+      role: typeof claims.role === "string" ? claims.role : "USER",
     };
   } catch {
     return null;

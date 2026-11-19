@@ -5,3 +5,5 @@ allowBuilds:
 minimumReleaseAgeExclude:
   - "@tanstack/query-core@5.104.4"
   - "@tanstack/react-query@5.104.4"
+  - "@vitest/mocker@5.1.1"
+  - "@vitest/spy@5.1.1"

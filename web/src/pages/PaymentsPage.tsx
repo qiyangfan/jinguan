@@ -1,7 +1,16 @@
 /* 演示支付与订单查询；金额以元录入并换算为 credit 提交。 */
 
-import { useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { type FormEvent, useState } from "react";
+
+import { EmptyState } from "@/components/empty-state";
+import { ErrorAlert } from "@/components/error-alert";
+import { FormGrid } from "@/components/form-grid";
+import { FormRow } from "@/components/form-row";
+import { MobileCard } from "@/components/mobile-card";
+import { PageHeader } from "@/components/page-header";
+import { Pagination } from "@/components/pagination";
+import { StatusBadge, type StatusMeta } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -13,18 +22,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { PageHeader } from "@/components/page-header";
-import { Pagination } from "@/components/pagination";
-import { FormRow } from "@/components/form-row";
-import { FormGrid } from "@/components/form-grid";
-import { ErrorAlert } from "@/components/error-alert";
-import { EmptyState } from "@/components/empty-state";
-import { StatusBadge, type StatusMeta } from "@/components/status-badge";
-import { MobileCard } from "@/components/mobile-card";
 import { errorDetail } from "@/lib/api";
-import { createOrder, listOrders, mockPay } from "@/lib/payment-api";
-import { credits2yuan, yuan2credits } from "@/lib/money";
 import { formatDateTime } from "@/lib/datetime";
+import { credits2yuan, yuan2credits } from "@/lib/money";
+import { createOrder, listOrders, mockPay } from "@/lib/payment-api";
 
 /* 未知状态由 StatusBadge 显示原值。 */
 const STATUS_META: StatusMeta = {
@@ -48,14 +49,14 @@ export default function PaymentsPage() {
   const pay = useMutation({
     mutationFn: (orderId: string) => mockPay(orderId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["payments", "orders"] });
+      void queryClient.invalidateQueries({ queryKey: ["payments", "orders"] });
     },
   });
 
   function handleCreated() {
     // 新订单排在第一页。
     setPage(0);
-    queryClient.invalidateQueries({ queryKey: ["payments", "orders"] });
+    void queryClient.invalidateQueries({ queryKey: ["payments", "orders"] });
   }
 
   return (

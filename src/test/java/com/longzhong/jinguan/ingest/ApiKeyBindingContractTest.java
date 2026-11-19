@@ -1,12 +1,15 @@
 package com.longzhong.jinguan.ingest;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.jayway.jsonpath.JsonPath;
+import com.longzhong.jinguan.wallet.WalletService;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInstance;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -18,6 +21,7 @@ import org.springframework.test.web.servlet.MvcResult;
 /** 验证绑定 ID 为不透明字符串，允许自定义格式并拒绝空白值。 */
 @SpringBootTest
 @AutoConfigureMockMvc
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @TestPropertySource(
     properties = {
       "spring.datasource.url=jdbc:h2:mem:jinguan-bind;MODE=PostgreSQL;DB_CLOSE_DELAY=-1",
@@ -29,9 +33,9 @@ class ApiKeyBindingContractTest {
 
   @Autowired MockMvc mvc;
   @Autowired IngestService ingest;
-  @Autowired com.longzhong.jinguan.wallet.WalletService wallet;
+  @Autowired WalletService wallet;
 
-  static String adminToken; // 类级共享:JUnit 每方法新实例,避免重名注册 400
+  String adminToken; // 类级共享:首位注册的管理员凭证
 
   /** 注册首位管理员并取得凭证。 */
   private String admin() throws Exception {
@@ -49,16 +53,10 @@ class ApiKeyBindingContractTest {
   }
 
   @Test
-  void customIdentifier_boundAndMetered_byOriginalValue() {
+  void customIdentifierBoundAndMeteredByOriginalValue() {
     // 自定义标识按原值参与计量归账。
     bindingsOrMvcBind("k-1", 1);
-    wallet.credit(
-        1L,
-        1_000,
-        com.longzhong.jinguan.wallet.WalletService.REASON_MANUAL_TOPUP,
-        "bind-seed",
-        null,
-        null);
+    wallet.credit(1L, 1_000, WalletService.REASON_MANUAL_TOPUP, "bind-seed", null, null);
     var result =
         ingest.accept(
             List.of(
@@ -83,8 +81,8 @@ class ApiKeyBindingContractTest {
                     null,
                     1L,
                     "2026-10-02T00:00:00Z")));
-    org.junit.jupiter.api.Assertions.assertEquals(1, result.accepted(), "k-1 计量命中绑定归账");
-    org.junit.jupiter.api.Assertions.assertEquals(900, wallet.balance(1L));
+    assertEquals(1, result.accepted(), "k-1 计量命中绑定归账");
+    assertEquals(900, wallet.balance(1L), "自定义标识扣款 100 后余额 900");
   }
 
   private void bindingsOrMvcBind(String keyId, long userId) {
@@ -102,23 +100,27 @@ class ApiKeyBindingContractTest {
   }
 
   @Test
-  void mkPrefix_notBlank_wholeClassRejected() throws Exception {
+  void mkPrefixNotBlankWholeClassRejected() throws Exception {
     // mk- 前缀标识仍然有效。
-    mvc.perform(
-            post("/admin/key-bindings")
-                .header("Authorization", "Bearer " + admin())
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"keyId\":\"mk-test-1\",\"userId\":1}"))
-        .andExpect(status().isCreated());
+    MvcResult created =
+        mvc.perform(
+                post("/admin/key-bindings")
+                    .header("Authorization", "Bearer " + admin())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"keyId\":\"mk-test-1\",\"userId\":1}"))
+            .andReturn();
+    assertEquals(201, created.getResponse().getStatus(), "mk- 前缀标识应绑定成功");
   }
 
   @Test
-  void blankIdentifier_rejected() throws Exception {
-    mvc.perform(
-            post("/admin/key-bindings")
-                .header("Authorization", "Bearer " + admin())
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"keyId\":\"   \",\"userId\":1}"))
-        .andExpect(status().isBadRequest());
+  void blankIdentifierRejected() throws Exception {
+    MvcResult rejected =
+        mvc.perform(
+                post("/admin/key-bindings")
+                    .header("Authorization", "Bearer " + admin())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"keyId\":\"   \",\"userId\":1}"))
+            .andReturn();
+    assertEquals(400, rejected.getResponse().getStatus(), "空白标识必须 400");
   }
 }

@@ -1,11 +1,12 @@
 /* 登录与注册共用表单。 */
 
-import { useState, type FormEvent } from "react";
+import { type FormEvent, useState } from "react";
 import { useNavigate } from "react-router";
+
+import { FormRow } from "@/components/form-row";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { FormRow } from "@/components/form-row";
 import { errorDetail } from "@/lib/api";
 import { useAuth } from "@/lib/auth-store";
 
@@ -28,7 +29,7 @@ export default function LoginPage() {
       } else {
         await register(username, password);
       }
-      navigate("/wallet");
+      void navigate("/wallet");
     } catch (err) {
       setError(errorDetail(err));
     } finally {

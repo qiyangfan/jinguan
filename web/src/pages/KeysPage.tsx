@@ -1,13 +1,14 @@
 /* 管理 muniu key 与控制面用户的绑定。 */
 
-import { useState, type FormEvent } from "react";
 import { useMutation } from "@tanstack/react-query";
+import { type FormEvent, useState } from "react";
+
+import { FormGrid } from "@/components/form-grid";
+import { FormRow } from "@/components/form-row";
+import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { PageHeader } from "@/components/page-header";
-import { FormRow } from "@/components/form-row";
-import { FormGrid } from "@/components/form-grid";
 import { errorDetail } from "@/lib/api";
 import { bindKey } from "@/lib/keys-api";
 

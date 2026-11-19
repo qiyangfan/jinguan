@@ -4,6 +4,9 @@ on:
   push:
     branches: [main]
   pull_request:
+  schedule:
+    # 每周一 09:17(UTC+8)重扫依赖与镜像:新披露漏洞无需代码变更即可被发现。
+    - cron: "17 1 * * 1"
 
 permissions:
   contents: read
@@ -13,12 +16,140 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
       - name: gitleaks
         run: |
           VERSION=8.30.1
-          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_linux_x64.tar.gz" \
-            | sudo tar -xz -C /usr/local/bin gitleaks
+          BASE="https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}"
+          curl -sSfL "${BASE}/gitleaks_${VERSION}_linux_x64.tar.gz" -o /tmp/gitleaks.tar.gz
+          curl -sSfL "${BASE}/gitleaks_${VERSION}_checksums.txt" -o /tmp/gitleaks_checksums.txt
+          (cd /tmp && grep " gitleaks_${VERSION}_linux_x64.tar.gz\$" gitleaks_checksums.txt | sha256sum --check)
+          tar -xzf /tmp/gitleaks.tar.gz -C /tmp gitleaks
+          sudo install /tmp/gitleaks /usr/local/bin/gitleaks
           gitleaks detect --source . --redact --verbose --exit-code 1
+
+  # ── 依赖漏洞门禁:osv-scanner 扫 pom.xml(含传递依赖)与 pnpm-lock.yaml。
+  #    Maven 测试作用域依赖不在解析图中(上游限制);发现漏洞即 exit 1。
+  deps:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: osv-scanner
+        run: |
+          VERSION=2.7.1
+          BASE="https://github.com/google/osv-scanner/releases/download/v${VERSION}"
+          BIN="/tmp/osv-scanner_linux_amd64"
+          curl -sSfL "${BASE}/osv-scanner_linux_amd64" -o "${BIN}"
+          curl -sSfL "${BASE}/osv-scanner_SHA256SUMS" -o /tmp/osv-scanner_SHA256SUMS
+          # 只校验本次下载的二进制;缺条目时 grep/sha256sum 必须失败,不能用 --ignore-missing 放行。
+          (cd /tmp && grep " osv-scanner_linux_amd64$" osv-scanner_SHA256SUMS | sha256sum --check)
+          chmod +x "${BIN}"
+          "${BIN}" scan source -r . --format=table
+
+  # ── 许可证门禁与 SBOM:后端 CycloneDX(含许可证),前端 pnpm licenses 同源。 ──
+  compliance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: maven
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
+        with:
+          package_json_file: web/package.json
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: "24"
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - name: backend sbom
+        run: |
+          mkdir -p target
+          mvn -B -q org.cyclonedx:cyclonedx-maven-plugin:2.9.3:makeAggregateBom
+      - name: web licenses and sbom
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm licenses list --prod --json > ../target/web-licenses.json
+          cd ..
+          node scripts/web-sbom.mjs target/web-licenses.json target/web-bom.json
+        working-directory: web
+      - name: license gate
+        run: node scripts/license-guard.mjs target/bom.json target/web-licenses.json
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        with:
+          name: sbom
+          path: |
+            target/bom.json
+            target/web-bom.json
+          if-no-files-found: error
+          retention-days: 7
+
+  # ── 容器供应链:构建镜像并扫描 HIGH/CRITICAL 可修复漏洞。 ──
+  container:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: jinguan
+          POSTGRES_USER: jinguan
+          POSTGRES_PASSWORD: jinguan
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U jinguan"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: build image
+        run: docker build --tag jinguan:ci .
+      # 构建成功不等于可运行:容器起在真实 PostgreSQL 上并等健康检查通过。
+      - name: startup smoke on real postgres
+        run: |
+          docker run -d --name jinguan-smoke --network host --rm \
+            -e JINGUAN_DB_URL=jdbc:postgresql://127.0.0.1:5432/jinguan \
+            -e JINGUAN_DB_USER=jinguan \
+            -e JINGUAN_DB_PASSWORD=jinguan \
+            jinguan:ci
+          healthy=0
+          for _ in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8090/actuator/health | grep -q '"status":"UP"'; then
+              healthy=1
+              break
+            fi
+            sleep 2
+          done
+          if [ "$healthy" -ne 1 ]; then
+            docker logs jinguan-smoke
+            exit 1
+          fi
+          echo "health endpoint UP"
+          docker stop jinguan-smoke
+      - name: trivy image sbom and scan
+        run: |
+          VERSION=0.76.2
+          BASE="https://github.com/aquasecurity/trivy/releases/download/v${VERSION}"
+          curl -sSfL "${BASE}/trivy_${VERSION}_Linux-64bit.tar.gz" -o /tmp/trivy.tar.gz
+          curl -sSfL "${BASE}/trivy_${VERSION}_checksums.txt" -o /tmp/trivy_checksums.txt
+          (cd /tmp && grep " trivy_${VERSION}_Linux-64bit.tar.gz\$" trivy_checksums.txt | sha256sum --check)
+          tar -xzf /tmp/trivy.tar.gz -C /tmp trivy
+          # 镜像 SBOM 覆盖基础镜像 OS 包,与应用侧 SBOM 互补。
+          /tmp/trivy image --format cyclonedx --output trivy-image.cdx.json jinguan:ci
+          # 无上游修复的漏洞不阻塞构建,避免基础镜像已知问题长期红灯;
+          # 有修复版本却未升级则必须处理。
+          /tmp/trivy image --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 jinguan:ci
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        with:
+          name: image-sbom
+          path: trivy-image.cdx.json
+          if-no-files-found: error
+          retention-days: 7

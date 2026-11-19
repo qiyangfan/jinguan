@@ -1,9 +1,11 @@
 package com.longzhong.jinguan;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.micrometer.metrics.test.autoconfigure.AutoConfigureMetrics;
@@ -33,7 +35,8 @@ class OpsMetricsReachabilityTest {
   @Autowired RestTestClient rest;
 
   @Test
-  void prometheus端点经真容器可达且为004文本() {
+  @DisplayName("prometheus端点经真容器可达且为004文本")
+  void prometheusReachableInRealContainerAs004Text() {
     var result =
         rest.get()
             .uri("/actuator/prometheus")
@@ -58,16 +61,15 @@ class OpsMetricsReachabilityTest {
   }
 
   @Test
-  void 健康检查与指标同端口可达() {
-    rest.get()
-        .uri("/actuator/health")
-        .exchange()
-        .expectStatus()
-        .is2xxSuccessful(); // health 路径与承载语义不得改变(镜像 HEALTHCHECK 依赖)
+  @DisplayName("健康检查与指标同端口可达")
+  void healthAndMetricsReachableOnSamePort() {
+    var result = rest.get().uri("/actuator/health").exchange().returnResult(String.class);
+    assertEquals(200, result.getStatus().value(), "health 路径与承载语义不得改变(镜像 HEALTHCHECK 依赖)");
   }
 
   @Test
-  void 封闭词表序列在零值时即存在() {
+  @DisplayName("封闭词表序列在零值时即存在")
+  void closedVocabularySeriesExistAtZero() {
     String body =
         rest.get()
             .uri("/actuator/prometheus")
@@ -82,9 +84,11 @@ class OpsMetricsReachabilityTest {
     List<String> required =
         List.of(
             "jinguan_ingest_rows_total{application=\"jinguan\",outcome=\"accepted\"}",
-            "jinguan_wallet_operations_total{application=\"jinguan\",kind=\"debit\",outcome=\"rejected_conflict\"}",
+            "jinguan_wallet_operations_total{application=\"jinguan\",kind=\"debit\","
+                + "outcome=\"rejected_conflict\"}",
             "jinguan_payment_orders_total{application=\"jinguan\",event=\"created\"}",
-            "jinguan_control_pull_total{application=\"jinguan\",outcome=\"full\",pipe=\"topology\"}");
+            "jinguan_control_pull_total{application=\"jinguan\",outcome=\"full\","
+                + "pipe=\"topology\"}");
     for (String series : required) {
       assertTrue(body.contains(series), "启动期应预建零值序列,缺失:" + series);
     }

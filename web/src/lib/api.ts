@@ -1,6 +1,7 @@
 /* OpenAPI 类型化客户端和会话处理：access 只存内存，refresh 使用 httpOnly cookie；401 时单飞续期并重放一次。 */
 
 import createClient, { type Middleware } from "openapi-fetch";
+
 import type { paths } from "./api-types.gen";
 
 // Node 测试环境没有 location。
@@ -100,14 +101,11 @@ function readableDetail(detail: unknown, fallback: string): string {
   return CJK_RE.test(detail) ? detail : fallback;
 }
 
-async function toStatusError(
-  resp: Response,
-  body: unknown,
-): Promise<Error & { status?: number; raw?: string }> {
+function toStatusError(resp: Response, body: unknown): Error & { status?: number; raw?: string } {
   const fallback = HTTP_MESSAGES[resp.status] ?? `请求失败(HTTP ${resp.status})`;
   let detail: unknown;
   if (body && typeof body === "object" && "detail" in body) {
-    detail = (body as { detail: unknown }).detail;
+    detail = body.detail;
   }
   const e = new Error(readableDetail(detail, fallback)) as Error & {
     status?: number;
@@ -128,7 +126,7 @@ export async function unwrap<T>(
 ): Promise<T> {
   try {
     const { data, error, response } = await call;
-    if (!response.ok) throw await toStatusError(response, error);
+    if (!response.ok) throw toStatusError(response, error);
     return data as T;
   } catch (err) {
     // 保留主动取消错误，不将其包装为网络错误。
@@ -150,7 +148,7 @@ export async function unwrapEtag(
   }>,
 ): Promise<string> {
   const { error, response } = await call;
-  if (!response.ok) throw await toStatusError(response, error);
+  if (!response.ok) throw toStatusError(response, error);
   return response.headers.get("ETag") ?? "";
 }
 

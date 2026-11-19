@@ -9,20 +9,74 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
+  # ── 门禁 0:脚本、工作流与配置文件静态检查 ──────────────
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: "24"
+      - name: shellcheck
+        run: shellcheck scripts/*.sh
+      - name: node --check
+        run: for f in scripts/*.mjs; do node --check "$f"; done
+      - name: actionlint
+        run: |
+          VERSION=1.7.12
+          BASE="https://github.com/rhysd/actionlint/releases/download/v${VERSION}"
+          curl -sSfL "${BASE}/actionlint_${VERSION}_linux_amd64.tar.gz" -o /tmp/actionlint.tar.gz
+          curl -sSfL "${BASE}/actionlint_${VERSION}_checksums.txt" -o /tmp/actionlint_checksums.txt
+          (cd /tmp && grep " actionlint_${VERSION}_linux_amd64.tar.gz\$" actionlint_checksums.txt | sha256sum --check)
+          tar -xzf /tmp/actionlint.tar.gz -C /tmp actionlint
+          /tmp/actionlint -color
+      - name: yamllint
+        run: pipx run yamllint==1.38.0 -c .yamllint.yml .github docker-compose.yml
+      - name: xmllint
+        run: |
+          if ! command -v xmllint >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq libxml2-utils
+          fi
+          xmllint --noout pom.xml spotbugs-exclude.xml rulesets/*.xml docker/maven-settings.xml
+      - name: hadolint
+        run: |
+          docker run --rm -i -v "$PWD:/mnt" hadolint/hadolint:2.14.0 \
+            hadolint --config /mnt/.hadolint.yaml /mnt/Dockerfile
+
   # ── 门禁 1:后端(Java)── mvn verify 即全量门禁:
   #    spotless check(validate) → test + jacoco → pmd check → spotbugs check
   backend:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-java@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # 迁移只增不改需要基线提交历史。
+          fetch-depth: 0
+      - uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6
         with:
           distribution: temurin
           java-version: "25"
           cache: maven
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: "24"
+      # ── 迁移破坏性门禁:账本 schema 只增不减,删列/删表/清空/改名/改类型须登记基线 ──
+      - run: bash scripts/migration-guard.sh
+      # ── 迁移不可变门禁:既有迁移只增不改,相对 PR 基线或 push 前提交检查 ──
+      - run: bash scripts/migration-immutability.sh
+        env:
+          MIGRATION_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
       - run: mvn -B verify
+      # PG 用例在无 Docker 时会自动跳过;CI 必须真实执行,否则迁移验证形同虚设。
+      - name: assert postgres tests executed
+        run: node scripts/assert-postgres-tests.mjs
       # ── 契约漂移门禁:重新导出根级 openapi.json,与入库版本不一致即红 ──
       - name: openapi contract drift gate
         run: |
@@ -35,28 +89,37 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
         # 版本经 web/package.json 的 packageManager 字段钉死;
         # action 默认只读仓库根 package.json,须显式指向 web/
         with:
           package_json_file: web/package.json
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: "24"
           cache: pnpm
           cache-dependency-path: web/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
         working-directory: web
+      # ── 生成类型漂移门禁:openapi.json 变化后必须重新生成前端类型 ──
+      - name: generated types drift gate
+        run: |
+          pnpm contracts:gen
+          git diff --exit-code -- src/lib/api-types.gen.ts
+        working-directory: web
       - run: pnpm typecheck
         working-directory: web
       - run: pnpm lint
+        working-directory: web
+      - run: pnpm lint:deps
         working-directory: web
       - run: pnpm lint:css
         working-directory: web
       - run: pnpm format:check
         working-directory: web
-      - run: pnpm test
+      # 覆盖率阈值随测试一并执行,低于阈值即红。
+      - run: pnpm test:coverage
         working-directory: web
       - run: pnpm build
         working-directory: web

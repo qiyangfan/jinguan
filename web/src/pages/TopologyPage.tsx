@@ -1,12 +1,27 @@
 /* 管理供应商、模型路由和能力目录；保存时整包替换。密钥只保存环境变量名。 */
 
-import { useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, RefreshCw, Trash2 } from "lucide-react";
+import { type FormEvent, useState } from "react";
+
+import { BottomSheetContent } from "@/components/bottom-sheet-dialog";
+import { ErrorAlert } from "@/components/error-alert";
+import { FormRow } from "@/components/form-row";
+import { PageHeader } from "@/components/page-header";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -21,31 +36,17 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { BottomSheetContent } from "@/components/bottom-sheet-dialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { PageHeader } from "@/components/page-header";
-import { FormRow } from "@/components/form-row";
-import { ErrorAlert } from "@/components/error-alert";
 import { errorDetail } from "@/lib/api";
 import {
-  ADAPTERS,
   ADAPTER_LABELS,
+  ADAPTERS,
+  type CapabilityDef,
   fetchPresets,
   fetchTopology,
-  saveTopology,
-  type CapabilityDef,
   type ProviderDef,
   type ProviderPreset,
+  saveTopology,
   type TopologyPayload,
 } from "@/lib/topology-api";
 
@@ -923,6 +924,7 @@ export default function TopologyPage() {
                         const variant =
                           vendor.variants.find((x) => x.adapter === edit.form.adapter) ??
                           vendor.variants[0];
+                        if (!variant) return null;
                         return (
                           <Button
                             key={vendor.name}

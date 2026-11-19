@@ -1,8 +1,81 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- SpotBugs 排除项需限定范围并说明理由。 -->
 <FindBugsFilter xmlns="https://github.com/spotbugs/filter/3.0.0">
-  <!-- 豁免 Spring 单例服务和供 Jackson 绑定的 record DTO。 -->
+  <!-- Spring 单例由容器注入协作者;字段不对外暴露,REP2 为框架范式误报。 -->
   <Match>
-    <Bug pattern="EI_EXPOSE_REP, EI_EXPOSE_REP2"/>
+    <Bug pattern="EI_EXPOSE_REP2"/>
+    <Annotation name="org.springframework.stereotype.Component"/>
+  </Match>
+  <Match>
+    <Bug pattern="EI_EXPOSE_REP2"/>
+    <Annotation name="org.springframework.stereotype.Service"/>
+  </Match>
+  <Match>
+    <Bug pattern="EI_EXPOSE_REP2"/>
+    <Annotation name="org.springframework.stereotype.Repository"/>
+  </Match>
+  <Match>
+    <Bug pattern="EI_EXPOSE_REP2"/>
+    <Annotation name="org.springframework.stereotype.Controller"/>
+  </Match>
+  <Match>
+    <Bug pattern="EI_EXPOSE_REP2"/>
+    <Annotation name="org.springframework.web.bind.annotation.RestController"/>
+  </Match>
+  <Match>
+    <Bug pattern="EI_EXPOSE_REP2"/>
+    <Annotation name="org.springframework.context.annotation.Configuration"/>
+  </Match>
+
+  <!-- record 是浅不可变载体;内部 List 由构造方持有,不对外可变。 -->
+  <Match>
+    <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
+    <Class name="com.longzhong.jinguan.ingest.IngestController$Envelope"/>
+  </Match>
+  <Match>
+    <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
+    <Class name="com.longzhong.jinguan.pricing.PricingAdminController$UpsertReq"/>
+  </Match>
+  <Match>
+    <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
+    <Class name="com.longzhong.jinguan.pricing.PricingService$PricingEnvelope"/>
+  </Match>
+  <Match>
+    <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
+    <Class name="com.longzhong.jinguan.pricing.PricingService$PricingView"/>
+  </Match>
+  <Match>
+    <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
+    <Class name="com.longzhong.jinguan.pricing.PricingService$UpsertCommand"/>
+  </Match>
+  <Match>
+    <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
+    <Class name="com.longzhong.jinguan.topology.ProviderPresetCatalog$Preset"/>
+  </Match>
+  <Match>
+    <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
+    <Class name="com.longzhong.jinguan.topology.ProviderPresetCatalog$PresetEnvelope"/>
+  </Match>
+  <Match>
+    <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
+    <Class name="com.longzhong.jinguan.topology.TopologyService$CapabilityDef"/>
+  </Match>
+  <Match>
+    <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
+    <Class name="com.longzhong.jinguan.topology.TopologyService$ProviderDef"/>
+  </Match>
+  <Match>
+    <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
+    <Class name="com.longzhong.jinguan.topology.TopologyService$TopologyPayload"/>
+  </Match>
+
+  <!-- 测试里的 .formatted 目标是 JSON 请求体:换行只是合法空白,%n 会引入平台相关字符,
+       与规则面向的控制台输出场景无关。仅豁免这两个构造器。 -->
+  <Match>
+    <Bug pattern="VA_FORMAT_STRING_USES_NEWLINE"/>
+    <Or>
+      <Method name="usageRow" class="com.longzhong.jinguan.OpsMetricsTestSupport"/>
+      <Method name="ingestRow" class="com.longzhong.jinguan.RevocationLoopIntegrationTest"/>
+    </Or>
   </Match>
 </FindBugsFilter>

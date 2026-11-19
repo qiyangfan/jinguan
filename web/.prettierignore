@@ -1,3 +1,4 @@
 dist
+coverage
 pnpm-lock.yaml
 src/lib/api-types.gen.ts

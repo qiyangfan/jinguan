@@ -33,59 +33,63 @@ public class TopologyProviderEntity {
   @Column(name = "updated_at", nullable = false)
   private Instant updatedAt;
 
-  public String getName() {
-    return name;
+  /** JPA 无参构造。 */
+  protected TopologyProviderEntity() {}
+
+  private TopologyProviderEntity(
+      String name,
+      String adapter,
+      String baseUrl,
+      String keysJson,
+      long weight,
+      long priority,
+      Instant updatedAt) {
+    this.name = name;
+    this.adapter = adapter;
+    this.baseUrl = baseUrl;
+    this.keysJson = keysJson;
+    this.weight = weight;
+    this.priority = priority;
+    this.updatedAt = updatedAt;
   }
 
-  public void setName(String name) {
-    this.name = name;
+  static TopologyProviderEntity of(
+      String name,
+      String adapter,
+      String baseUrl,
+      String keysJson,
+      long weight,
+      long priority,
+      Instant updatedAt) {
+    return new TopologyProviderEntity(
+        name, adapter, baseUrl, keysJson, weight, priority, updatedAt);
+  }
+
+  public String getName() {
+    return name;
   }
 
   public String getAdapter() {
     return adapter;
   }
 
-  public void setAdapter(String adapter) {
-    this.adapter = adapter;
-  }
-
   public String getBaseUrl() {
     return baseUrl;
-  }
-
-  public void setBaseUrl(String baseUrl) {
-    this.baseUrl = baseUrl;
   }
 
   public String getKeysJson() {
     return keysJson;
   }
 
-  public void setKeysJson(String keysJson) {
-    this.keysJson = keysJson;
-  }
-
   public long getWeight() {
     return weight;
-  }
-
-  public void setWeight(long weight) {
-    this.weight = weight;
   }
 
   public long getPriority() {
     return priority;
   }
 
-  public void setPriority(long priority) {
-    this.priority = priority;
-  }
-
   public Instant getUpdatedAt() {
     return updatedAt;
-  }
-
-  public void setUpdatedAt(Instant updatedAt) {
-    this.updatedAt = updatedAt;
   }
 }

@@ -74,6 +74,35 @@ public class TopologyModelEntity {
   @Column(name = "updated_at", nullable = false)
   private Instant updatedAt;
 
+  /** JPA 无参构造。 */
+  protected TopologyModelEntity() {}
+
+  private TopologyModelEntity(
+      String provider,
+      String model,
+      String dropParamsJson,
+      boolean thinkingLock,
+      long maxOutputTokens,
+      Instant updatedAt) {
+    this.provider = provider;
+    this.model = model;
+    this.dropParamsJson = dropParamsJson;
+    this.thinkingLock = thinkingLock;
+    this.maxOutputTokens = maxOutputTokens;
+    this.updatedAt = updatedAt;
+  }
+
+  static TopologyModelEntity of(
+      String provider,
+      String model,
+      String dropParamsJson,
+      boolean thinkingLock,
+      long maxOutputTokens,
+      Instant updatedAt) {
+    return new TopologyModelEntity(
+        provider, model, dropParamsJson, thinkingLock, maxOutputTokens, updatedAt);
+  }
+
   public ModelKey id() {
     return new ModelKey(provider, model);
   }
@@ -82,47 +111,23 @@ public class TopologyModelEntity {
     return provider;
   }
 
-  public void setProvider(String provider) {
-    this.provider = provider;
-  }
-
   public String getModel() {
     return model;
-  }
-
-  public void setModel(String model) {
-    this.model = model;
   }
 
   public String getDropParamsJson() {
     return dropParamsJson;
   }
 
-  public void setDropParamsJson(String dropParamsJson) {
-    this.dropParamsJson = dropParamsJson;
-  }
-
   public boolean isThinkingLock() {
     return thinkingLock;
-  }
-
-  public void setThinkingLock(boolean thinkingLock) {
-    this.thinkingLock = thinkingLock;
   }
 
   public long getMaxOutputTokens() {
     return maxOutputTokens;
   }
 
-  public void setMaxOutputTokens(long maxOutputTokens) {
-    this.maxOutputTokens = maxOutputTokens;
-  }
-
   public Instant getUpdatedAt() {
     return updatedAt;
-  }
-
-  public void setUpdatedAt(Instant updatedAt) {
-    this.updatedAt = updatedAt;
   }
 }

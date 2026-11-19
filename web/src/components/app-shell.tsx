@@ -1,7 +1,5 @@
 /* 应用外壳：桌面侧栏；移动端顶栏、底部导航和账户弹层。 */
 
-import { useState } from "react";
-import { NavLink, Outlet, useNavigate } from "react-router";
 import {
   KeyRound,
   LogOut,
@@ -13,10 +11,12 @@ import {
   UserRound,
   Wallet,
 } from "lucide-react";
+import { useState } from "react";
+import { NavLink, Outlet, useNavigate } from "react-router";
 
+import { BottomSheetContent } from "@/components/bottom-sheet-dialog";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { BottomSheetContent } from "@/components/bottom-sheet-dialog";
 import { useAuth } from "@/lib/auth-store";
 import { useTheme } from "@/lib/theme-store";
 
@@ -108,7 +108,7 @@ export function AppShell() {
             className="w-full"
             onClick={() => {
               void logout();
-              navigate("/login");
+              void navigate("/login");
             }}
           >
             <LogOut className="mr-1 size-3.5" />
@@ -150,7 +150,7 @@ export function AppShell() {
             onClick={() => {
               setAccountOpen(false);
               void logout();
-              navigate("/login");
+              void navigate("/login");
             }}
           >
             <LogOut className="size-4" />

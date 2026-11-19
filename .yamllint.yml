@@ -1,0 +1,13 @@
+extends: default
+
+rules:
+  # 工作流中的长 URL/命令不做换行要求,避免噪音。
+  line-length:
+    max: 200
+    allow-non-breakable-words: true
+  document-start: disable
+  comments:
+    min-spaces-from-content: 1
+  # GitHub Actions 的顶层 `on:` 会被 YAML 1.1 解析成布尔键,只检查值不检查键。
+  truthy:
+    check-keys: false

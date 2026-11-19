@@ -3,6 +3,7 @@
 target/
 web/node_modules/
 web/dist/
+web/coverage/
 web/*.tsbuildinfo
 src/main/resources/static/
 .github/

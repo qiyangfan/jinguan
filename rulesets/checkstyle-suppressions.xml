@@ -4,11 +4,14 @@
     "https://checkstyle.org/dtds/suppressions_1_2.dtd">
 
 <!--
-  唯一条目:IngestUsageRow 的 record 组件名是跨仓契约(AGENTS 纪律 5,
+  条目一:IngestUsageRow 的 record 组件名是跨仓契约(AGENTS 纪律 5,
   与 muniu UsageRow 逐字段对齐,Go 无 json tag 输出 PascalCase),不能改名。
+  条目二:Flyway Java 迁移类名由版本前缀约定(V9__描述),不能改名。
   其余文件不设豁免。
 -->
 <suppressions>
   <suppress checks="RecordComponentName|AbbreviationAsWordInName"
             files=".*[\\/]IngestUsageRow\.java$"/>
+  <suppress checks="TypeName"
+            files=".*[\\/]db[\\/]migration[\\/].*\.java$"/>
 </suppressions>

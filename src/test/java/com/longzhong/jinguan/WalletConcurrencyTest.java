@@ -7,12 +7,13 @@ import com.longzhong.jinguan.ingest.ApiKeyBindingEntity;
 import com.longzhong.jinguan.ingest.ApiKeyBindingRepository;
 import com.longzhong.jinguan.ingest.IngestService;
 import com.longzhong.jinguan.ingest.IngestUsageRow;
+import com.longzhong.jinguan.ingest.UsageRecordRepository;
 import com.longzhong.jinguan.user.UserEntity;
 import com.longzhong.jinguan.user.UserRepository;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,155 +30,160 @@ import org.springframework.test.context.TestPropertySource;
     })
 class WalletConcurrencyTest {
 
+  private static final String CURRENCY = "CNY";
+  private static final String PROVIDER = "deepseek";
+  private static final String MODEL = "deepseek-chat";
+  private static final String PASSWORD_HASH = "hash";
+  private static final String ROLE_USER = "USER";
+  private static final String KEY_POOR2 = "mk-poor2";
+
   @Autowired WalletService wallet;
   @Autowired UserRepository users;
   @Autowired ApiKeyBindingRepository bindings;
   @Autowired IngestService ingest;
-  @Autowired com.longzhong.jinguan.ingest.UsageRecordRepository usageRecords;
+  @Autowired UsageRecordRepository usageRecords;
 
   @Test
-  void concurrent_debits_never_overdraw() throws Exception {
-    var user = users.save(UserEntity.create("conc-u1", "hash", "USER"));
+  void concurrentDebitsNeverOverdraw() throws Exception {
+    var user = users.save(UserEntity.create("conc-u1", PASSWORD_HASH, ROLE_USER));
     long uid = user.getId();
-    wallet.credit(uid, 100000, WalletService.REASON_MANUAL_TOPUP, "conc-seed", null, null);
+    wallet.credit(uid, 100_000, WalletService.REASON_MANUAL_TOPUP, "conc-seed", null, null);
 
-    int threads = 20, perDebit = 30000; // 余额只够 3 笔
-    var latch = new CountDownLatch(1);
-    var pool = Executors.newFixedThreadPool(threads);
-    var success = new AtomicInteger();
-    var rejected = new AtomicInteger();
-    var futures = new java.util.ArrayList<Future<?>>();
+    int threads = 20;
+    int perDebit = 30_000; // 余额只够 3 笔
+    CountDownLatch latch = new CountDownLatch(1);
+    AtomicInteger success = new AtomicInteger();
+    AtomicInteger rejected = new AtomicInteger();
 
+    List<CompletableFuture<Void>> futures = new ArrayList<>();
     for (int i = 0; i < threads; i++) {
       final String ref = "conc-d-" + i;
       futures.add(
-          pool.submit(
+          CompletableFuture.runAsync(
               () -> {
-                latch.await();
+                try {
+                  latch.await();
+                } catch (InterruptedException e) {
+                  throw new IllegalStateException("并发等待被中断", e);
+                }
                 try {
                   wallet.debit(uid, perDebit, WalletService.REASON_USAGE, ref, null, null);
                   success.incrementAndGet();
                 } catch (InsufficientFundsException e) {
                   rejected.incrementAndGet();
                 }
-                return null;
               }));
     }
     latch.countDown();
-    for (Future<?> f : futures) {
-      f.get();
-    }
-    pool.shutdown();
+    CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new)).join();
 
     assertEquals(3, success.get(), "成功笔数应恰为余额可覆盖的笔数");
     assertEquals(threads - 3, rejected.get(), "其余应被非负不变量拒绝");
-    assertEquals(10000, wallet.balance(uid), "终态余额 = 100000 - 3×30000");
+    assertEquals(10_000, wallet.balance(uid), "终态余额 = 100000 - 3×30000");
     assertEquals(threads, success.get() + rejected.get(), "每笔恰好一种结局(无丢失)");
   }
 
   @Test
-  void ingest_insufficientRow_skipped_notPoison() {
-    var user = users.save(UserEntity.create("conc-u2", "hash", "USER"));
+  void ingestInsufficientRowSkipped() {
+    var user = users.save(UserEntity.create("conc-u2", PASSWORD_HASH, ROLE_USER));
     bindings.save(new ApiKeyBindingEntity("mk-poor", user.getId()));
 
-    var row =
-        new IngestUsageRow(
-            "poison-1",
-            "r-1",
-            "t1",
-            "mk-poor",
-            "deepseek",
-            "deepseek-chat",
-            "deepseek-chat",
-            false,
-            "ok",
-            "",
-            10,
-            5,
-            0,
-            0,
-            false,
-            999999000,
-            "CNY",
-            null,
-            100,
-            "2026-09-12T00:00:00Z");
-    var result = ingest.accept(List.of(row));
+    var result = ingest.accept(List.of(expensiveRow("poison-1", "mk-poor")));
 
-    assertEquals(1, result.skippedInsufficient());
-    assertEquals(0, result.accepted());
-    // 失败行不应阻断后续正常行。
-    var good =
-        new IngestUsageRow(
-            "ok-1",
-            "r-2",
-            "t1",
-            "mk-poor",
-            "deepseek",
-            "deepseek-chat",
-            "deepseek-chat",
-            false,
-            "ok",
-            "",
-            1,
-            1,
-            0,
-            0,
-            false,
-            1000,
-            "CNY",
-            null,
-            50,
-            "2026-09-12T00:00:01Z");
-    // 先入账，确保后续扣款可成功。
-    wallet.credit(user.getId(), 1000, WalletService.REASON_MANUAL_TOPUP, "conc-seed-2", null, null);
-    var result2 = ingest.accept(List.of(row, good));
-    assertEquals(1, result2.skippedInsufficient());
-    assertEquals(1, result2.accepted());
-    // 欠费明细保留，正常行完成扣款。
+    assertEquals(1, result.skippedInsufficient(), "欠费行应跳过");
+    assertEquals(0, result.accepted(), "欠费行不得计为接收");
     assertEquals(
         "skipped_insufficient",
-        usageRecords.findByUsageId("poison-1").orElseThrow().getFinalOutcome());
-    assertEquals("accepted", usageRecords.findByUsageId("ok-1").orElseThrow().getFinalOutcome());
+        usageRecords.findByUsageId("poison-1").orElseThrow().getFinalOutcome(),
+        "欠费明细保留终态");
+  }
+
+  @Test
+  void ingestGoodRowSettlesAfterEarlierInsufficient() {
+    var user = users.save(UserEntity.create("conc-u2b", PASSWORD_HASH, ROLE_USER));
+    bindings.save(new ApiKeyBindingEntity(KEY_POOR2, user.getId()));
+
+    ingest.accept(List.of(expensiveRow("poison-2", KEY_POOR2)));
+    // 先入账，确保后续扣款可成功。
+    wallet.credit(
+        user.getId(), 1_000, WalletService.REASON_MANUAL_TOPUP, "conc-seed-2", null, null);
+    var result2 = ingest.accept(List.of(expensiveRow("poison-2", KEY_POOR2), goodRow()));
+
+    assertEquals(1, result2.skippedInsufficient(), "欠费行仍跳过");
+    assertEquals(1, result2.accepted(), "后续正常行应完成扣款");
+    assertEquals(
+        "accepted", usageRecords.findByUsageId("ok-1").orElseThrow().getFinalOutcome(), "正常行终态");
   }
 
   /** 并发同键写入应收敛为成功与幂等重放。 */
   @Test
-  void concurrent_sameRefId_credits_replay_notFailure() throws Exception {
-    var user = users.save(UserEntity.create("conc-dup", "hash", "USER"));
+  void concurrentSameRefIdCreditsReplayNotFailure() throws Exception {
+    var user = users.save(UserEntity.create("conc-dup", PASSWORD_HASH, ROLE_USER));
     long uid = user.getId();
 
     int threads = 20;
-    var latch = new CountDownLatch(1);
-    var pool = Executors.newFixedThreadPool(threads);
-    var accepted = new AtomicInteger();
-    var replayed = new AtomicInteger();
-    var futures = new java.util.ArrayList<Future<?>>();
+    CountDownLatch latch = new CountDownLatch(1);
+    AtomicInteger accepted = new AtomicInteger();
+    AtomicInteger replayed = new AtomicInteger();
 
+    List<CompletableFuture<Void>> futures = new ArrayList<>();
     for (int i = 0; i < threads; i++) {
       futures.add(
-          pool.submit(
+          CompletableFuture.runAsync(
               () -> {
-                latch.await();
+                try {
+                  latch.await();
+                } catch (InterruptedException e) {
+                  throw new IllegalStateException("并发等待被中断", e);
+                }
                 var r =
                     wallet.credit(
-                        uid, 50000, WalletService.REASON_MANUAL_TOPUP, "conc-dup-ref", null, null);
+                        uid, 50_000, WalletService.REASON_MANUAL_TOPUP, "conc-dup-ref", null, null);
                 if (r.replayed()) {
                   replayed.incrementAndGet();
                 } else {
                   accepted.incrementAndGet();
                 }
-                return null;
               }));
     }
     latch.countDown();
-    for (Future<?> f : futures) {
-      f.get(); // 任一线程抛异常(约束违例裸 500 化)在此即失败
-    }
-    pool.shutdown();
+    // 任一任务异常(约束违例裸 500 化)在此即失败
+    CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new)).join();
 
     assertEquals(1, accepted.get(), "恰一笔新写入生效");
     assertEquals(threads - 1, replayed.get(), "其余并发方应幂等重放,不得异常");
-    assertEquals(50000, wallet.balance(uid), "余额只加一次");
+    assertEquals(50_000, wallet.balance(uid), "余额只加一次");
+  }
+
+  private static IngestUsageRow expensiveRow(String usageId, String keyId) {
+    return row(usageId, keyId, 999_999_000, "2026-09-12T00:00:00Z");
+  }
+
+  private static IngestUsageRow goodRow() {
+    return row("ok-1", KEY_POOR2, 1_000, "2026-09-12T00:00:01Z");
+  }
+
+  private static IngestUsageRow row(String usageId, String keyId, long cost, String createdAt) {
+    return new IngestUsageRow(
+        usageId,
+        "r-" + usageId,
+        "t1",
+        keyId,
+        PROVIDER,
+        MODEL,
+        MODEL,
+        false,
+        "ok",
+        "",
+        10,
+        5,
+        0,
+        0,
+        false,
+        cost,
+        CURRENCY,
+        null,
+        100,
+        createdAt);
   }
 }

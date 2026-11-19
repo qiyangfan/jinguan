@@ -1,12 +1,14 @@
 /* 验证 401 续期、并发合并、失败清态和 access token 内存存储。 */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 
-function jsonResponse(status: number, body: unknown): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { "Content-Type": "application/json" },
-  });
+function jsonResponse(status: number, body: unknown): Promise<Response> {
+  return Promise.resolve(
+    new Response(JSON.stringify(body), {
+      status,
+      headers: { "Content-Type": "application/json" },
+    }),
+  );
 }
 
 /** 构造客户端可解码的假 JWT。 */
@@ -35,10 +37,10 @@ function headersOf(input: RequestInfo | URL): Headers {
   return input instanceof Request ? input.headers : new Headers();
 }
 
-let fetchMock: ReturnType<typeof vi.fn>;
+let fetchMock: Mock<typeof fetch>;
 
 beforeEach(() => {
-  fetchMock = vi.fn();
+  fetchMock = vi.fn<typeof fetch>();
   vi.stubGlobal("fetch", fetchMock);
 });
 afterEach(() => vi.unstubAllGlobals());
@@ -47,7 +49,7 @@ describe("api 会话链路", () => {
   it("401 单飞:并发 3 个请求只触发一次 /auth/refresh,且全部重放成功", async () => {
     let refreshCount = 0;
     let refreshed = false;
-    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
       const path = pathOf(input);
       if (path === "/auth/refresh") {
         refreshCount++;
@@ -71,7 +73,7 @@ describe("api 会话链路", () => {
   });
 
   it("刷新失败:清态回落(广播 sessionCleared),原请求不无限重试", async () => {
-    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
       const path = pathOf(input);
       if (path === "/auth/refresh") return jsonResponse(401, { detail: "refresh 无效" });
       if (path === "/wallet/balance") return jsonResponse(401, { detail: "token 过期" });
@@ -89,7 +91,7 @@ describe("api 会话链路", () => {
 
   it("登录 401 属认证端点自身错误:不得触发 /auth/refresh", async () => {
     let refreshCount = 0;
-    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
       const path = pathOf(input);
       if (path === "/auth/refresh") {
         refreshCount++;
@@ -109,7 +111,7 @@ describe("api 会话链路", () => {
   it("重放后仍 401:熔断(不再第二次刷新)并清态回落", async () => {
     let refreshCount = 0;
     let balanceCalls = 0;
-    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
       const path = pathOf(input);
       if (path === "/auth/refresh") {
         refreshCount++;
@@ -135,7 +137,7 @@ describe("api 会话链路", () => {
 
   it("access 仅内存:清态后的请求不携带 Authorization 头", async () => {
     let lastAuthHeader: string | null = null;
-    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
       const path = pathOf(input);
       if (path === "/wallet/balance") {
         lastAuthHeader = headersOf(input).get("Authorization");

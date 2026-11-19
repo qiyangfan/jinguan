@@ -1,0 +1,3 @@
+# 迁移守卫基线(格式:<文件名> <规则名>)。仅登记已评审的历史迁移,新增条目须附理由。
+# V6 把计量单位从 micros 重命名为 credits,与 muniu 契约同步的一次性改名(双方 change 已对齐)。
+V6__credit_base.sql rename

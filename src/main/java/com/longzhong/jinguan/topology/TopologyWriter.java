@@ -36,36 +36,31 @@ class TopologyWriter {
 
   private TopologyRouteEntity routeRow(
       String alias, List<TopologyService.RouteCandidate> candidates, Instant now) {
-    TopologyRouteEntity row = new TopologyRouteEntity();
-    row.setAlias(alias);
-    row.setCandidatesJson(codec.serialize(candidates));
-    row.setUpdatedAt(now);
-    return row;
+    return TopologyRouteEntity.of(alias, codec.serialize(candidates), now);
   }
 
   private TopologyModelEntity modelRow(TopologyService.CapabilityDef model, Instant now) {
-    TopologyModelEntity row = new TopologyModelEntity();
-    row.setProvider(model.provider());
-    row.setModel(model.model());
-    row.setDropParamsJson(
+    String dropParamsJson =
         model.dropParams() == null || model.dropParams().isEmpty()
             ? null
-            : codec.serialize(model.dropParams()));
-    row.setThinkingLock(model.thinkingLock());
-    row.setMaxOutputTokens(model.maxOutputTokens());
-    row.setUpdatedAt(now);
-    return row;
+            : codec.serialize(model.dropParams());
+    return TopologyModelEntity.of(
+        model.provider(),
+        model.model(),
+        dropParamsJson,
+        model.thinkingLock(),
+        model.maxOutputTokens(),
+        now);
   }
 
   private TopologyProviderEntity providerRow(TopologyService.ProviderDef provider, Instant now) {
-    TopologyProviderEntity row = new TopologyProviderEntity();
-    row.setName(provider.name());
-    row.setAdapter(provider.adapter());
-    row.setBaseUrl(provider.baseUrl());
-    row.setKeysJson(codec.serialize(provider.keys()));
-    row.setWeight(provider.weight());
-    row.setPriority(provider.priority());
-    row.setUpdatedAt(now);
-    return row;
+    return TopologyProviderEntity.of(
+        provider.name(),
+        provider.adapter(),
+        provider.baseUrl(),
+        codec.serialize(provider.keys()),
+        provider.weight(),
+        provider.priority(),
+        now);
   }
 }

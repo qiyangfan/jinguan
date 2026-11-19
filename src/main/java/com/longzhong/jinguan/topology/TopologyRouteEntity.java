@@ -21,27 +21,28 @@ public class TopologyRouteEntity {
   @Column(name = "updated_at", nullable = false)
   private Instant updatedAt;
 
-  public String getAlias() {
-    return alias;
+  /** JPA 无参构造。 */
+  protected TopologyRouteEntity() {}
+
+  private TopologyRouteEntity(String alias, String candidatesJson, Instant updatedAt) {
+    this.alias = alias;
+    this.candidatesJson = candidatesJson;
+    this.updatedAt = updatedAt;
   }
 
-  public void setAlias(String alias) {
-    this.alias = alias;
+  static TopologyRouteEntity of(String alias, String candidatesJson, Instant updatedAt) {
+    return new TopologyRouteEntity(alias, candidatesJson, updatedAt);
+  }
+
+  public String getAlias() {
+    return alias;
   }
 
   public String getCandidatesJson() {
     return candidatesJson;
   }
 
-  public void setCandidatesJson(String candidatesJson) {
-    this.candidatesJson = candidatesJson;
-  }
-
   public Instant getUpdatedAt() {
     return updatedAt;
-  }
-
-  public void setUpdatedAt(Instant updatedAt) {
-    this.updatedAt = updatedAt;
   }
 }

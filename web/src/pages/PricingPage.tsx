@@ -3,19 +3,15 @@
  * 下发为最多 9 位小数的元/token。
  */
 
-import { useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { type FormEvent, useState } from "react";
+
+import { EmptyState } from "@/components/empty-state";
+import { ErrorAlert } from "@/components/error-alert";
+import { FormGrid } from "@/components/form-grid";
+import { FormRow } from "@/components/form-row";
+import { MobileCard } from "@/components/mobile-card";
+import { PageHeader } from "@/components/page-header";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,6 +22,18 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -34,17 +42,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { PageHeader } from "@/components/page-header";
-import { FormRow } from "@/components/form-row";
-import { FormGrid } from "@/components/form-grid";
-import { ErrorAlert } from "@/components/error-alert";
-import { EmptyState } from "@/components/empty-state";
-import { MobileCard } from "@/components/mobile-card";
-import { Badge } from "@/components/ui/badge";
 import { errorDetail } from "@/lib/api";
 import { yuanPerMillion2credits } from "@/lib/money";
-import { adminList, remove, upsert } from "@/lib/pricing-api";
 import type { PricingView, TimeWindow } from "@/lib/pricing-api";
+import { adminList, remove, upsert } from "@/lib/pricing-api";
 
 interface UpsertForm {
   alias: string;

@@ -4,7 +4,8 @@
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://pmd.sourceforge.net/ruleset/2.0.0 https://pmd.github.io/schema/ruleset_2_0_0.xsd">
   <description>
-    jinguan 质量门禁:PMD 官方类别选集,阈值全部取官方默认。
+    jinguan 质量门禁:PMD 官方类别选集,阈值取官方默认;
+    唯一参数调整是 UnitTestContainsTooManyAsserts 的断言上限(理由见下)。
     结构类规则(GodClass / CyclomaticComplexity / NPathComplexity / NcssCount /
     CognitiveComplexity / TooManyMethods / ExcessiveMethodLength / ExcessiveClassLength)
     一律启用,存量违规靠重构消化,不做规则级豁免。
@@ -14,11 +15,27 @@
   <rule ref="category/java/bestpractices.xml">
     <!-- SLF4J 参数化日志本就惰性求值,error/info 再套 guard 无收益。 -->
     <exclude name="GuardLogStatement"/>
+    <!-- 单独引用以配置断言上限(见下)。 -->
+    <exclude name="UnitTestContainsTooManyAsserts"/>
   </rule>
+
+  <!--
+    默认上限为 1(规则面向上游单测);本仓集成用例是多步有状态流程(注册→续期→登出、
+    恢复器轮次等),拆分会复制昂贵 setup 并破坏场景完整性,故保留规则、只调上限。
+    超过 5 个断言的用例仍必须拆分。
+  -->
+  <rule ref="category/java/bestpractices.xml/UnitTestContainsTooManyAsserts">
+    <properties>
+      <property name="maximumAsserts" value="5"/>
+    </properties>
+  </rule>
+
 
   <rule ref="category/java/errorprone.xml"/>
 
   <rule ref="category/java/design.xml">
+    <!-- 该规则要求显式配置包耦合白名单,本仓模块边界由 Modulith 验证覆盖。 -->
+    <exclude name="LoosePackageCoupling"/>
     <!-- JPA 实体与只读 record 按设计只承载数据,行为在服务/聚合根上。 -->
     <exclude name="DataClass"/>
     <!-- usage_records 等表字段由 Flyway schema 决定,拆类会扭曲持久化模型。 -->

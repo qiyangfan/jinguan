@@ -8,6 +8,7 @@ import com.longzhong.jinguan.common.MetricNames;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.util.HashSet;
 import java.util.Set;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.actuate.endpoint.web.PathMappedEndpoints;
@@ -24,7 +25,8 @@ import org.springframework.test.context.TestPropertySource;
 @AutoConfigureMetrics // 测试上下文需显式启用指标导出。
 @TestPropertySource(
     properties = {
-      "spring.datasource.url=jdbc:h2:mem:jinguan-metrics-exposure;MODE=PostgreSQL;DB_CLOSE_DELAY=-1",
+      "spring.datasource.url=jdbc:h2:mem:jinguan-metrics-exposure;MODE=PostgreSQL;"
+          + "DB_CLOSE_DELAY=-1",
       "spring.datasource.username=sa",
       "spring.datasource.password=",
       "spring.jpa.hibernate.ddl-auto=validate",
@@ -36,7 +38,8 @@ class OpsMetricsExposureTest {
   @Autowired MeterRegistry registry;
 
   @Test
-  void 暴露面只含health与prometheus() {
+  @DisplayName("暴露面只含health与prometheus")
+  void exposureOnlyHealthAndPrometheus() {
     Set<String> rootPaths = new HashSet<>(endpoints.getAllRootPaths());
     assertTrue(
         rootPaths.contains("health"), "health 必须保留(镜像 HEALTHCHECK 依赖其路径与语义),实际暴露:" + rootPaths);
@@ -52,7 +55,8 @@ class OpsMetricsExposureTest {
   }
 
   @Test
-  void 积压Gauge在装配期注册且既有指标可解析() {
+  @DisplayName("积压Gauge在装配期注册且既有指标可解析")
+  void backlogGaugeRegisteredAndExistingMetersResolvable() {
     assertNotNull(registry.find(MetricNames.PAYMENT_EXPIRY_BACKLOG).gauge(), "backlog 必须注册为 Gauge");
     assertNotNull(registry.find(MetricNames.PAYMENT_EXPIRY_SCAN).timer(), "既有扫描耗时指标必须可解析");
   }

@@ -7,6 +7,7 @@ src/main/resources/static/
 # 前端工程
 web/node_modules/
 web/dist/
+web/coverage/
 web/*.tsbuildinfo
 
 # 环境变量与本地配置(真实配置不入库,*.example 模板放行)

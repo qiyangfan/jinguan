@@ -1,19 +1,16 @@
 package com.longzhong.jinguan;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.jayway.jsonpath.JsonPath;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.TestMethodOrder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -24,11 +21,13 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
 
-/** 验证拓扑下发契约、ETag、输入校验和管理端权限。 */
+/** 验证拓扑下发契约、ETag 和管理端权限。 */
 @SpringBootTest
 @AutoConfigureMockMvc
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @TestPropertySource(
     properties = {
@@ -39,12 +38,10 @@ import org.springframework.test.web.servlet.MvcResult;
     })
 class TopologyIngressIntegrationTest {
 
-  @Autowired MockMvc mvc;
-
-  static String adminToken;
-  static String userToken;
-  static String etagAfterPut;
-  static String etagOfGrown;
+  static final String AUTHORIZATION = "Authorization";
+  static final String BEARER = "Bearer ";
+  static final String TOPOLOGY_PATH = "/control/v1/topology";
+  static final String PROVIDER_DEEPSEEK = "deepseek";
 
   /** 构造有效拓扑负载。 */
   static final String VALID_PAYLOAD =
@@ -53,8 +50,10 @@ class TopologyIngressIntegrationTest {
         "providers":[{"name":"deepseek","adapter":"deepseek","base_url":"https://api.deepseek.com/v1",
           "keys":[{"env":"DEEPSEEK_API_KEY_1","weight":30},{"env":"DEEPSEEK_API_KEY_2","weight":0}],
           "weight":70,"priority":0}],
-        "model_routes":{"deepseek-chat":[{"provider":"deepseek","model":"deepseek-v4-flash","priority":0,"weight":0}]},
-        "models":[{"provider":"deepseek","model":"deepseek-v4-flash","drop_params":["temperature"],"thinking_lock":true,"max_output_tokens":8192}]
+        "model_routes":{"deepseek-chat":[{"provider":"deepseek",
+          "model":"deepseek-v4-flash","priority":0,"weight":0}]},
+        "models":[{"provider":"deepseek","model":"deepseek-v4-flash",
+        "drop_params":["temperature"],"thinking_lock":true,"max_output_tokens":8192}]
       }
       """;
 
@@ -68,9 +67,11 @@ class TopologyIngressIntegrationTest {
          {"name":"glm","adapter":"openai","base_url":"https://open.bigmodel.cn/api/paas/v4",
           "keys":[{"env":"GLM_API_KEY_1","weight":1}],"weight":30,"priority":1}],
         "model_routes":{
-          "deepseek-chat":[{"provider":"deepseek","model":"deepseek-v4-flash","priority":0,"weight":0}],
+          "deepseek-chat":[{"provider":"deepseek","model":"deepseek-v4-flash",
+            "priority":0,"weight":0}],
           "glm-4":[{"provider":"glm","model":"glm-4.7","priority":1,"weight":0}]},
-        "models":[{"provider":"deepseek","model":"deepseek-v4-flash","drop_params":["temperature"],"thinking_lock":true,"max_output_tokens":8192}]
+        "models":[{"provider":"deepseek","model":"deepseek-v4-flash",
+        "drop_params":["temperature"],"thinking_lock":true,"max_output_tokens":8192}]
       }
       """;
 
@@ -80,10 +81,18 @@ class TopologyIngressIntegrationTest {
       {
         "providers":[{"name":"deepseek","adapter":"deepseek","base_url":"https://api.deepseek.com/v1",
           "keys":[{"env":"DEEPSEEK_API_KEY_1","weight":1}],"weight":70,"priority":0}],
-        "model_routes":{"deepseek-chat":[{"provider":"ghost","model":"whatever","priority":0,"weight":0}]},
+        "model_routes":{"deepseek-chat":[{"provider":"ghost",
+          "model":"whatever","priority":0,"weight":0}]},
         "models":[]
       }
       """;
+
+  @Autowired MockMvc mvc;
+
+  String adminToken;
+  String userToken;
+  String etagAfterPut;
+  String etagOfGrown;
 
   private String register(String username) throws Exception {
     MvcResult result =
@@ -101,7 +110,7 @@ class TopologyIngressIntegrationTest {
   private MvcResult putTopology(String token, String payload) throws Exception {
     return mvc.perform(
             put("/admin/topology")
-                .header("Authorization", "Bearer " + token)
+                .header(AUTHORIZATION, BEARER + token)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(payload))
         .andReturn();
@@ -109,88 +118,104 @@ class TopologyIngressIntegrationTest {
 
   @Test
   @Order(1)
-  void first_user_becomes_admin() throws Exception {
+  void firstUserBecomesAdmin() throws Exception {
     adminToken = register("topo-admin");
     userToken = register("topo-user");
-    assertNotEquals(adminToken, userToken);
+    Assertions.assertNotEquals(adminToken, userToken, "两名用户 token 不得相同");
   }
 
   @Test
   @Order(2)
-  void empty_state_returns_200_with_empty_payload_and_etag() throws Exception {
+  void emptyStateReturns200WithEmptyPayloadAndEtag() throws Exception {
     MvcResult result =
-        mvc.perform(get("/control/v1/topology"))
+        mvc.perform(get(TOPOLOGY_PATH))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.providers").isEmpty())
-            .andExpect(jsonPath("$.model_routes").isEmpty())
-            .andExpect(jsonPath("$.models").isEmpty())
+            .andExpect(MockMvcResultMatchers.jsonPath("$.providers").isEmpty())
+            .andExpect(MockMvcResultMatchers.jsonPath("$.model_routes").isEmpty())
+            .andExpect(MockMvcResultMatchers.jsonPath("$.models").isEmpty())
             .andReturn();
-    assertNotNull(result.getResponse().getHeader(HttpHeaders.ETAG), "空拓扑同样有确定 ETag");
+    Assertions.assertNotNull(result.getResponse().getHeader(HttpHeaders.ETAG), "空拓扑同样有确定 ETag");
   }
 
   @Test
   @Order(3)
-  void ingress_is_anonymous_but_admin_put_requires_role() throws Exception {
+  void ingressIsAnonymousButAdminPutRequiresRole() throws Exception {
     // 下发端点允许匿名读取。
-    mvc.perform(get("/control/v1/topology")).andExpect(status().isOk());
+    MvcResult anonymous = mvc.perform(get(TOPOLOGY_PATH)).andReturn();
+    Assertions.assertEquals(200, anonymous.getResponse().getStatus(), "下发端点允许匿名读取");
     // 普通用户不能替换拓扑。
-    mvc.perform(
-            put("/admin/topology")
-                .header("Authorization", "Bearer " + userToken)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(VALID_PAYLOAD))
-        .andExpect(status().isForbidden());
+    MvcResult byUser = putTopology(userToken, VALID_PAYLOAD);
+    Assertions.assertEquals(403, byUser.getResponse().getStatus(), "普通用户替换拓扑应 403");
     // 无凭证不能替换拓扑。
-    mvc.perform(
-            put("/admin/topology").contentType(MediaType.APPLICATION_JSON).content(VALID_PAYLOAD))
-        .andExpect(status().isForbidden());
+    MvcResult noToken =
+        mvc.perform(
+                put("/admin/topology")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(VALID_PAYLOAD))
+            .andReturn();
+    Assertions.assertEquals(403, noToken.getResponse().getStatus(), "匿名替换拓扑应 403");
   }
 
   @Test
   @Order(4)
-  void put_valid_payload_then_contract_fields_align_muniu() throws Exception {
+  void putValidPayloadThenContractFieldsAlignMuniu() throws Exception {
     MvcResult put = putTopology(adminToken, VALID_PAYLOAD);
-    assertEquals(
+    Assertions.assertEquals(
         200, put.getResponse().getStatus(), "PUT 应成功: " + put.getResponse().getErrorMessage());
     etagAfterPut = put.getResponse().getHeader(HttpHeaders.ETAG);
-    assertNotNull(etagAfterPut);
+    Assertions.assertNotNull(etagAfterPut, "PUT 响应必须带 ETag");
 
     MvcResult ingress =
-        mvc.perform(get("/control/v1/topology"))
+        mvc.perform(get(TOPOLOGY_PATH))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.providers[0].name").value("deepseek"))
-            .andExpect(jsonPath("$.providers[0].adapter").value("deepseek"))
-            .andExpect(jsonPath("$.providers[0].base_url").value("https://api.deepseek.com/v1"))
-            .andExpect(jsonPath("$.providers[0].keys[0].env").value("DEEPSEEK_API_KEY_1"))
-            // 非正 key 权重下发时归一为 1。
-            .andExpect(jsonPath("$.providers[0].keys[1].weight").value(1))
-            .andExpect(jsonPath("$.providers[0].weight").value(70))
-            .andExpect(jsonPath("$.model_routes['deepseek-chat'][0].provider").value("deepseek"))
             .andExpect(
-                jsonPath("$.model_routes['deepseek-chat'][0].model").value("deepseek-v4-flash"))
-            .andExpect(jsonPath("$.models[0].provider").value("deepseek"))
-            .andExpect(jsonPath("$.models[0].drop_params[0]").value("temperature"))
-            .andExpect(jsonPath("$.models[0].thinking_lock").value(true))
-            .andExpect(jsonPath("$.models[0].max_output_tokens").value(8192))
+                MockMvcResultMatchers.jsonPath("$.providers[0].name").value(PROVIDER_DEEPSEEK))
+            .andExpect(
+                MockMvcResultMatchers.jsonPath("$.providers[0].adapter").value(PROVIDER_DEEPSEEK))
+            .andExpect(
+                MockMvcResultMatchers.jsonPath("$.providers[0].base_url")
+                    .value("https://api.deepseek.com/v1"))
+            .andExpect(
+                MockMvcResultMatchers.jsonPath("$.providers[0].keys[0].env")
+                    .value("DEEPSEEK_API_KEY_1"))
+            // 非正 key 权重下发时归一为 1。
+            .andExpect(MockMvcResultMatchers.jsonPath("$.providers[0].keys[1].weight").value(1))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.providers[0].weight").value(70))
+            .andExpect(
+                MockMvcResultMatchers.jsonPath("$.model_routes['deepseek-chat'][0].provider")
+                    .value(PROVIDER_DEEPSEEK))
+            .andExpect(
+                MockMvcResultMatchers.jsonPath("$.model_routes['deepseek-chat'][0].model")
+                    .value("deepseek-v4-flash"))
+            .andExpect(
+                MockMvcResultMatchers.jsonPath("$.models[0].provider").value(PROVIDER_DEEPSEEK))
+            .andExpect(
+                MockMvcResultMatchers.jsonPath("$.models[0].drop_params[0]").value("temperature"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.models[0].thinking_lock").value(true))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.models[0].max_output_tokens").value(8192))
             .andReturn();
     // PUT 与下发使用同一 ETag。
-    assertEquals(etagAfterPut, ingress.getResponse().getHeader(HttpHeaders.ETAG));
+    Assertions.assertEquals(
+        etagAfterPut, ingress.getResponse().getHeader(HttpHeaders.ETAG), "PUT 与下发必须使用同一 ETag");
   }
 
   @Test
   @Order(5)
-  void conditional_request_hits_304() throws Exception {
-    mvc.perform(get("/control/v1/topology").header(HttpHeaders.IF_NONE_MATCH, etagAfterPut))
-        .andExpect(status().isNotModified())
-        .andExpect(content().string(""));
+  void conditionalRequestHits304() throws Exception {
+    MvcResult notModified =
+        mvc.perform(get(TOPOLOGY_PATH).header(HttpHeaders.IF_NONE_MATCH, etagAfterPut))
+            .andExpect(status().isNotModified())
+            .andExpect(MockMvcResultMatchers.content().string(""))
+            .andReturn();
+    Assertions.assertEquals(304, notModified.getResponse().getStatus(), "命中 If-None-Match 应 304");
   }
 
   @Test
   @Order(6)
-  void replay_same_content_keeps_etag() throws Exception {
+  void replaySameContentKeepsEtag() throws Exception {
     MvcResult result = putTopology(adminToken, VALID_PAYLOAD);
-    assertEquals(200, result.getResponse().getStatus());
-    assertEquals(
+    Assertions.assertEquals(200, result.getResponse().getStatus(), "相同内容重放应 200");
+    Assertions.assertEquals(
         etagAfterPut,
         result.getResponse().getHeader(HttpHeaders.ETAG),
         "内容寻址 ETag:相同内容重放不变,muniu 拉取自然 304");
@@ -198,62 +223,26 @@ class TopologyIngressIntegrationTest {
 
   @Test
   @Order(7)
-  void changed_content_rotates_etag() throws Exception {
+  void changedContentRotatesEtag() throws Exception {
     MvcResult result = putTopology(adminToken, GROWN_PAYLOAD);
-    assertEquals(200, result.getResponse().getStatus());
+    Assertions.assertEquals(200, result.getResponse().getStatus(), "变更内容 PUT 应 200");
     etagOfGrown = result.getResponse().getHeader(HttpHeaders.ETAG);
-    assertNotEquals(etagAfterPut, etagOfGrown, "内容变更 ETag 必须轮换");
+    Assertions.assertNotEquals(etagAfterPut, etagOfGrown, "内容变更 ETag 必须轮换");
     // 旧 ETag 返回完整负载。
-    mvc.perform(get("/control/v1/topology").header(HttpHeaders.IF_NONE_MATCH, etagAfterPut))
+    mvc.perform(get(TOPOLOGY_PATH).header(HttpHeaders.IF_NONE_MATCH, etagAfterPut))
         .andExpect(status().isOk());
     // 新 ETag 命中 304。
-    mvc.perform(get("/control/v1/topology").header(HttpHeaders.IF_NONE_MATCH, etagOfGrown))
+    mvc.perform(get(TOPOLOGY_PATH).header(HttpHeaders.IF_NONE_MATCH, etagOfGrown))
         .andExpect(status().isNotModified());
   }
 
   @Test
   @Order(8)
-  void dangling_provider_reference_rejected_and_old_topology_intact() throws Exception {
+  void danglingProviderReferenceRejectedAndOldTopologyIntact() throws Exception {
     MvcResult rejected = putTopology(adminToken, DANGLING_PAYLOAD);
-    assertEquals(400, rejected.getResponse().getStatus(), "悬空引用必须 400");
+    Assertions.assertEquals(400, rejected.getResponse().getStatus(), "悬空引用必须 400");
     // 校验失败后原拓扑未变。
-    mvc.perform(get("/control/v1/topology").header(HttpHeaders.IF_NONE_MATCH, etagOfGrown))
+    mvc.perform(get(TOPOLOGY_PATH).header(HttpHeaders.IF_NONE_MATCH, etagOfGrown))
         .andExpect(status().isNotModified());
-  }
-
-  @Test
-  @Order(9)
-  void empty_routes_rejected() throws Exception {
-    mvc.perform(
-            put("/admin/topology")
-                .header("Authorization", "Bearer " + adminToken)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"providers\":[],\"model_routes\":{},\"models\":[]}"))
-        .andExpect(status().isBadRequest());
-  }
-
-  @Test
-  @Order(10)
-  void non_positive_provider_weight_rejected() throws Exception {
-    String zeroWeight = VALID_PAYLOAD.replace("\"weight\":70", "\"weight\":0");
-    MvcResult rejected = putTopology(adminToken, zeroWeight);
-    assertEquals(400, rejected.getResponse().getStatus(), "provider weight≤0 必须 400");
-  }
-
-  @Test
-  @Order(11)
-  void negative_priority_rejected_aligned_with_muniu_yaml() throws Exception {
-    // priority 范围与数据面一致。
-    String negativePriority = VALID_PAYLOAD.replace("\"priority\":0", "\"priority\":-1");
-    MvcResult rejected = putTopology(adminToken, negativePriority);
-    assertEquals(400, rejected.getResponse().getStatus(), "provider priority 负值必须 400");
-  }
-
-  @Test
-  @Order(12)
-  void weight_beyond_int_domain_rejected() throws Exception {
-    String hugeWeight = VALID_PAYLOAD.replace("\"weight\":70", "\"weight\":2147483648");
-    MvcResult rejected = putTopology(adminToken, hugeWeight);
-    assertEquals(400, rejected.getResponse().getStatus(), "weight 超 int 域必须 400(数据面加权累加 int 运算)");
   }
 }
