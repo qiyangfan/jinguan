@@ -10,6 +10,8 @@
       验证:`gitleaks git --pre-commit --staged --redact --exit-code 1` 对暂存区泄漏样例 EXIT 1,无泄漏 EXIT 0。
 - [x] 1.3 新增 `.github/workflows/security.yml`:`secrets` job,checkout@v7(fetch-depth 0)+ gitleaks 8.30.1 二进制下载,`detect --source . --redact --verbose --exit-code 1`;`timeout-minutes: 10`、`permissions: contents: read`。
       验证:YAML 可解析;Action/工具版本与 handoff §5.0 基准一致(checkout@v7)。
+- [x] 1.4 新增 `.gitleaksignore`:首版 tasks.md 负向记录含样例键原文,条目按「提交:文件:规则:行」精确忽略并在文档中脱敏。
+      验证:`gitleaks detect --source . --redact --exit-code 1` EXIT 0。
 
 ## 2. CI 落点
 
@@ -21,7 +23,7 @@
 ## 3. 负向验收(等价 CI 命令)
 
 - [x] 3.1 干净树:`gitleaks detect --source . --redact --exit-code 1` EXIT 0(27 commits 全历史,no leaks found)。
-- [x] 3.2 临时 clone 中提交泄漏样例 `aws_access_key_id = AKIAJ7RQ2XW5ZP4M6T3Y`,同一命令 EXIT 1(Finding: aws-access-token, File: leak-probe.txt)。
+- [x] 3.2 临时 clone 中提交泄漏样例 `aws_access_key_id = AKIAJ7RQ…(已脱敏)`,同一命令 EXIT 1(Finding: aws-access-token, File: leak-probe.txt)。
       注:handoff 示例值 `AKIAIOSFODNN7EXAMPLE` 在 gitleaks 8.30.1 默认白名单内、不触发,故改用非白名单样例键;`detect` 只扫 git 历史、不扫未跟踪文件,故样例须提交(用一次性 clone,不污染本仓历史)。
 - [x] 3.3 不含探针提交的一次性 clone 重跑同一命令 EXIT 0(全历史扫描下「移除」等价于回退该提交,单删文件不会清出历史),本仓干净树亦 EXIT 0。
 

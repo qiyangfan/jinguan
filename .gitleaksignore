@@ -1,0 +1,4 @@
+# 指纹级忽略:负向验收样例键在 2026-11-19 首版 tasks.md 中被原文记录,
+# 键值为一次性合成样例(AKIAJ7RQ 开头,从未用于任何环境),已在后续提交脱敏。
+# 负责人:Solvela;到期:2027-06-30(该提交不在祖先链外时条目可删除)。
+9669355424d375f65fa269f0c4713787550762f6:openspec/changes/2026-11-19-add-secret-scanning/tasks.md:aws-access-token:24
