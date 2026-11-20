@@ -1,0 +1,4 @@
+schema: spec-driven
+created: 2026-11-20
+goal: 补齐架构与前端门禁——ArchUnit、Playwright+axe、jscpd/size-limit、文档 lint/link，并拆除 Spotless/Checkstyle 重叠
+skip_specs: true

@@ -27,6 +27,7 @@
     <spotbugs.version>4.10.5.0</spotbugs.version>
     <springdoc.version>3.1.1</springdoc.version>
     <testcontainers.version>1.21.4</testcontainers.version>
+    <archunit.version>1.4.2</archunit.version>
   </properties>
 
   <dependencyManagement>
@@ -156,6 +157,13 @@
     <dependency>
       <groupId>org.junit.platform</groupId>
       <artifactId>junit-platform-launcher</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <!-- 字节码级架构规则(ArchitectureTest):包依赖与无环切片。 -->
+    <dependency>
+      <groupId>com.tngtech.archunit</groupId>
+      <artifactId>archunit-junit5</artifactId>
+      <version>${archunit.version}</version>
       <scope>test</scope>
     </dependency>
   </dependencies>

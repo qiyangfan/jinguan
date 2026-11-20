@@ -25,6 +25,8 @@ lint-config:
 	uvx yamllint==1.38.0 -c .yamllint.yml .github docker-compose.yml
 	xmllint --noout pom.xml spotbugs-exclude.xml rulesets/*.xml docker/maven-settings.xml
 	hadolint --config .hadolint.yaml Dockerfile
+	npx --yes markdownlint-cli2@0.24.1
+	python3 scripts/check_md_links.py --dir contracts
 
 # 依赖许可证门禁与前端 SBOM:BOM 由 mvn verify 阶段的 cyclonedx 插件产出。
 license-check:

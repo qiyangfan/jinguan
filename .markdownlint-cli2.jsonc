@@ -1,0 +1,8 @@
+{
+  "config": {
+    "MD013": false,
+    "MD060": false
+  },
+  "globs": ["README.md", "AGENTS.md", "contracts/**/*.md"],
+  "ignores": ["HANDOFF.md", "web/node_modules/**", "web/dist/**", "web/coverage/**"]
+}

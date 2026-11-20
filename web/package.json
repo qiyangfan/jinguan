@@ -15,7 +15,10 @@
     "format:check": "prettier --check .",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "contracts:gen": "openapi-typescript ../openapi.json --output src/lib/api-types.gen.ts"
+    "contracts:gen": "openapi-typescript ../openapi.json --output src/lib/api-types.gen.ts",
+    "e2e": "playwright test",
+    "lint:dup": "jscpd src",
+    "size": "size-limit"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.108.0",
@@ -31,7 +34,10 @@
     "zustand": "^5.1.0"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.14.0",
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.65.1",
+    "@size-limit/file": "^14.3.0",
     "@tailwindcss/vite": "^4.3.5",
     "@testing-library/dom": "^10.4.2",
     "@testing-library/jest-dom": "^7.0.1",
@@ -47,10 +53,12 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.8",
     "eslint-plugin-simple-import-sort": "^14.0.0",
+    "jscpd": "^5.4.3",
     "jsdom": "^31.0.1",
     "knip": "6.45.1",
     "openapi-typescript": "^7.13.0",
     "prettier": "^3.10.1",
+    "size-limit": "^14.3.0",
     "stylelint": "^17.16.0",
     "stylelint-config-standard": "^40.0.0",
     "tailwindcss": "^4.3.5",

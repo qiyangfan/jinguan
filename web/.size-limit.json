@@ -1,0 +1,14 @@
+[
+  {
+    "name": "app-js (gzip)",
+    "path": "../src/main/resources/static/assets/*.js",
+    "limit": "158.03 kB",
+    "gzip": true
+  },
+  {
+    "name": "app-css (gzip)",
+    "path": "../src/main/resources/static/assets/*.css",
+    "limit": "10.32 kB",
+    "gzip": true
+  }
+]

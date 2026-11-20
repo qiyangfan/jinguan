@@ -50,6 +50,7 @@
 ## 一致性校验
 
 聚合层脚本(不入仓):`../../scripts/contract-consistency.sh` —— 三组字段名级比对:
+
 1. muniu `UsageRow` 结构体字段 ↔ 锦官 `IngestUsageRow.java` record 字段;
 2. `openapi.json` `PricingView` properties ↔ muniu `internal/admin/pricing.go` 源码;
 3. 吊销快照键名(`version`/`revoked`)双端在位。

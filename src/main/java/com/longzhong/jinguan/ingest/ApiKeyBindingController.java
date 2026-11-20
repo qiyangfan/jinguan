@@ -1,6 +1,5 @@
 package com.longzhong.jinguan.ingest;
 
-import com.longzhong.jinguan.common.KeyRevokedException;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Positive;
 import java.util.Map;
@@ -23,21 +22,15 @@ public class ApiKeyBindingController {
   /** key 绑定请求体。 */
   public record BindRequest(@NotBlank String keyId, @Positive long userId) {}
 
-  private final ApiKeyBindingRepository bindings;
-  private final KeyRevocationRepository revocations;
+  private final KeyRevocationQueryService keys;
 
-  public ApiKeyBindingController(
-      ApiKeyBindingRepository bindings, KeyRevocationRepository revocations) {
-    this.bindings = bindings;
-    this.revocations = revocations;
+  public ApiKeyBindingController(KeyRevocationQueryService keys) {
+    this.keys = keys;
   }
 
   @PostMapping
   public ResponseEntity<Map<String, Object>> bind(@RequestBody @Validated BindRequest req) {
-    if (revocations.existsByKeyId(req.keyId())) {
-      throw new KeyRevokedException(req.keyId());
-    }
-    bindings.save(new ApiKeyBindingEntity(req.keyId(), req.userId()));
+    keys.bind(req.keyId(), req.userId());
     return ResponseEntity.status(HttpStatus.CREATED)
         .body(Map.of("keyId", req.keyId(), "userId", String.valueOf(req.userId())));
   }

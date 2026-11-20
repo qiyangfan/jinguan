@@ -9,6 +9,8 @@ web/node_modules/
 web/dist/
 web/coverage/
 web/*.tsbuildinfo
+web/test-results/
+web/playwright-report/
 
 # 环境变量与本地配置(真实配置不入库,*.example 模板放行)
 .env
