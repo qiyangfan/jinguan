@@ -418,7 +418,7 @@ export default function TopologyPage() {
     return (
       <section className="space-y-6">
         <PageHeader title="渠道拓扑" />
-        <ErrorAlert text={topology.isError ? errorDetail(topology.error) : undefined} />
+        <ErrorAlert {...(topology.isError ? { text: errorDetail(topology.error) } : {})} />
       </section>
     );
   }

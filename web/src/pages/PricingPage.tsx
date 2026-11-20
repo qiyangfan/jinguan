@@ -117,7 +117,7 @@ export default function PricingPage() {
         inputCredits: yuanPerMillion2credits(form.inputCredits),
         cachedInputCredits: yuanPerMillion2credits(form.cachedInputCredits),
         outputCredits: yuanPerMillion2credits(form.outputCredits),
-        timezone: form.timezone || undefined,
+        ...(form.timezone ? { timezone: form.timezone } : {}),
         timeWindows: form.windows.map((w) => ({
           window: w.window.trim(),
           multiplier: w.multiplier.trim(),

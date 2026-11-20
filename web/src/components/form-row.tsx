@@ -13,8 +13,8 @@ export function FormRow({
   className,
 }: {
   label: string;
-  htmlFor?: string;
-  help?: string;
+  htmlFor?: string | undefined;
+  help?: string | undefined;
   children: React.ReactNode;
   className?: string;
 }) {

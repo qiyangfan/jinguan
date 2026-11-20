@@ -11,7 +11,7 @@ export function Pagination({
 }: {
   page: number;
   pageCount: number;
-  total?: number;
+  total?: number | undefined;
   onPageChange: (page: number) => void;
   className?: string;
 }) {

@@ -78,7 +78,7 @@ export default function WalletPage() {
       adminCredit({
         userId: Number(balance.data?.userId ?? 0),
         amountCredits: yuan2credits(amount),
-        refId: refId || undefined,
+        ...(refId ? { refId } : {}),
       }),
     onSuccess: (out) => {
       setSuccess(`已入账,当前余额 ¥${credits2yuan(out.balanceCredits)}`);
