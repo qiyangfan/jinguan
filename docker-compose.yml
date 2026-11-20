@@ -26,6 +26,8 @@ services:
       JINGUAN_DB_USER: jinguan
       JINGUAN_DB_PASSWORD: jinguan
       JINGUAN_INGEST_TOKEN: ${JINGUAN_INGEST_TOKEN:-dev-ingest-token}
+      # 生产挂载签名密钥目录(active.pem + retired/*.pem);dev 不设则用进程内临时密钥。
+      # JINGUAN_JWT_KEYS_DIR: /run/secrets/jwt-keys
     ports:
       - "127.0.0.1:8090:8090"
 

@@ -34,6 +34,9 @@ jinguan:
     # RS256 issuer 与 audience;RP 按 aud 验签,公钥经 JWKS 发布。
     jwt-issuer: ${JINGUAN_JWT_ISSUER:http://localhost:8090}
     jwt-audience: ${JINGUAN_JWT_AUDIENCE:jinguan}
+    # 签名密钥目录:active.pem(PKCS#8 私钥)+ retired/*.pem(退役公钥,保留至旧 token 过期)。
+    # 未配置则使用进程内临时密钥,仅供开发,重启即失效。
+    jwt-keys-dir: ${JINGUAN_JWT_KEYS_DIR:}
     # access 短期有效；refresh 通过 httpOnly cookie 轮换。
     jwt-access-ttl-minutes: ${JINGUAN_JWT_ACCESS_TTL_MINUTES:30}
     jwt-refresh-ttl-days: ${JINGUAN_JWT_REFRESH_TTL_DAYS:7}

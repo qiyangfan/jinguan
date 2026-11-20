@@ -22,8 +22,9 @@ import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
 class JwtCryptoIntegrationTest {
 
   private final JwtCryptoConfig config = new JwtCryptoConfig();
-  private final JWKSource<SecurityContext> jwkSource = config.jwkSource();
-  private final JwtEncoder encoder = config.jwtEncoder(jwkSource);
+  private final SigningKeys signingKeys = SigningKeys.load("");
+  private final JWKSource<SecurityContext> jwkSource = config.jwkSource(signingKeys);
+  private final JwtEncoder encoder = config.jwtEncoder(signingKeys);
   private final JwtDecoder decoder = config.jwtDecoder(jwkSource);
 
   @Test

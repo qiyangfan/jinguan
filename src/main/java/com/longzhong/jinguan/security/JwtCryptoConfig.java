@@ -1,15 +1,12 @@
 package com.longzhong.jinguan.security;
 
+import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jose.jwk.JWKSet;
-import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.jwk.source.ImmutableJWKSet;
 import com.nimbusds.jose.jwk.source.JWKSource;
 import com.nimbusds.jose.proc.SecurityContext;
-import java.security.KeyPair;
-import java.security.KeyPairGenerator;
-import java.security.interfaces.RSAPrivateKey;
-import java.security.interfaces.RSAPublicKey;
-import java.util.UUID;
+import java.util.List;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
@@ -21,37 +18,28 @@ import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 @Configuration
 public class JwtCryptoConfig {
 
-  /** JWKS 公钥集与签发私钥;当前进程内生成,持久化与轮换见 change design D2。 */
+  /** 密钥库:挂载目录(`active.pem` + `retired/*.pem`)优先,未配置退化为进程内临时密钥。 */
   @Bean
-  public JWKSource<SecurityContext> jwkSource() {
-    KeyPair keyPair = generateRsa();
-    RSAKey jwk =
-        new RSAKey.Builder((RSAPublicKey) keyPair.getPublic())
-            .privateKey((RSAPrivateKey) keyPair.getPrivate())
-            .keyID(UUID.randomUUID().toString())
-            .build();
-    return new ImmutableJWKSet<>(new JWKSet(jwk));
+  public SigningKeys signingKeys(@Value("${jinguan.security.jwt-keys-dir:}") String keysDir) {
+    return SigningKeys.load(keysDir);
   }
 
-  /** 以同一 JWK 源签发 RS256 token。 */
+  /** JWKS 公钥集:active + 退役公钥,供 RP 与自身验签。 */
   @Bean
-  public JwtEncoder jwtEncoder(JWKSource<SecurityContext> jwkSource) {
-    return new NimbusJwtEncoder(jwkSource);
+  public JWKSource<SecurityContext> jwkSource(SigningKeys signingKeys) {
+    return new ImmutableJWKSet<>(signingKeys.jwkSet());
   }
 
-  /** 以同一 JWK 源验签,按 kid 选中公钥。 */
+  /** 仅以 active 私钥签发 RS256 token。 */
+  @Bean
+  public JwtEncoder jwtEncoder(SigningKeys signingKeys) {
+    return new NimbusJwtEncoder(
+        new ImmutableJWKSet<>(new JWKSet(List.<JWK>of(signingKeys.active()))));
+  }
+
+  /** 以全部公钥验签,按 kid 选中签发键(含退役键,旧 token 可用至过期)。 */
   @Bean
   public JwtDecoder jwtDecoder(JWKSource<SecurityContext> jwkSource) {
     return NimbusJwtDecoder.withJwkSource(jwkSource).build();
-  }
-
-  private static KeyPair generateRsa() {
-    try {
-      KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
-      generator.initialize(2048);
-      return generator.generateKeyPair();
-    } catch (Exception e) {
-      throw new IllegalStateException("无法生成 RSA 签名密钥", e);
-    }
   }
 }
