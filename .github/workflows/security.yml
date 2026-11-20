@@ -81,7 +81,7 @@ jobs:
         working-directory: web
       - name: license gate
         run: node scripts/license-guard.mjs target/bom.json target/web-licenses.json
-      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: sbom
           path: |
@@ -147,7 +147,7 @@ jobs:
           # 无上游修复的漏洞不阻塞构建,避免基础镜像已知问题长期红灯;
           # 有修复版本却未升级则必须处理。
           /tmp/trivy image --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 jinguan:ci
-      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: image-sbom
           path: trivy-image.cdx.json
