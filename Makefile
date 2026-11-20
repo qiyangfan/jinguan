@@ -15,7 +15,7 @@ check:
 	mvn -B -q -Popenapi verify -DskipTests -Djacoco.skip=true -Dpmd.skip=true -Dspotbugs.skip=true
 	git diff --exit-code -- openapi.json
 	cd web && pnpm contracts:gen && git diff --exit-code -- src/lib/api-types.gen.ts
-	cd web && pnpm typecheck && pnpm lint && pnpm lint:deps && pnpm lint:css && pnpm format:check && pnpm test:coverage && pnpm build
+	cd web && pnpm typecheck && pnpm lint && pnpm lint:deps && pnpm lint:css && pnpm format:check && pnpm test:coverage && pnpm build && pnpm lint:dup && pnpm size && pnpm e2e
 
 # 脚本、工作流与构建文件静态检查(与 CI lint 作业同源)。
 lint-config:

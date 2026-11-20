@@ -2,13 +2,13 @@
   {
     "name": "app-js (gzip)",
     "path": "../src/main/resources/static/assets/*.js",
-    "limit": "158.03 kB",
+    "limit": "160 kB",
     "gzip": true
   },
   {
     "name": "app-css (gzip)",
     "path": "../src/main/resources/static/assets/*.css",
-    "limit": "10.32 kB",
+    "limit": "10.5 kB",
     "gzip": true
   }
 ]

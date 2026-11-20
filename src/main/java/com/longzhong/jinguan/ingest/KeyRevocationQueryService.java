@@ -5,6 +5,7 @@ import com.longzhong.jinguan.user.SuspensionService;
 import java.util.List;
 import java.util.TreeSet;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 /** key 绑定登记与吊销名单快照的用例入口，控制器不直接触达仓储。 */
@@ -34,7 +35,7 @@ public class KeyRevocationQueryService {
   }
 
   /** 汇总当前下发版本与吊销名单，包含终态吊销和停服用户的绑定 key。 */
-  @Transactional(readOnly = true)
+  @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
   public Snapshot snapshot() {
     // 先读版本再读名单，避免返回新版本却携带旧名单。
     long version = suspension.keyRevocationVersion();

@@ -127,3 +127,9 @@ jobs:
         working-directory: web
       - run: pnpm build
         working-directory: web
+      - run: pnpm lint:dup
+        working-directory: web
+      - run: pnpm size
+        working-directory: web
+      - run: pnpm e2e
+        working-directory: web
