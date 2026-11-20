@@ -9,6 +9,7 @@ import com.longzhong.jinguan.user.UserEntity;
 import com.longzhong.jinguan.user.UserRepository;
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -50,7 +51,9 @@ class PaymentExpiryTest {
   }
 
   private static void login(long uid, String username) {
-    var principal = new com.longzhong.jinguan.security.JwtService.LoginUser(uid, username, "USER");
+    var principal =
+        new com.longzhong.jinguan.security.JwtService.LoginUser(
+            uid, username, "USER", UUID.randomUUID().toString(), Instant.now().plusSeconds(60));
     SecurityContextHolder.getContext()
         .setAuthentication(
             new UsernamePasswordAuthenticationToken(

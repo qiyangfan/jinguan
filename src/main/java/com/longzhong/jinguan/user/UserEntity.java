@@ -33,6 +33,10 @@ public class UserEntity {
   @Column(name = "suspended_at")
   private Instant suspendedAt;
 
+  /** 账号禁用：独立于欠费停服；禁用后拒绝登录与续期。 */
+  @Column(nullable = false)
+  private boolean disabled;
+
   protected UserEntity() {} // JPA
 
   private UserEntity(String username, String passwordHash, String role) {
@@ -73,5 +77,19 @@ public class UserEntity {
 
   public Instant getSuspendedAt() {
     return suspendedAt;
+  }
+
+  public boolean isDisabled() {
+    return disabled;
+  }
+
+  /** 禁用账号(运维意图):拒绝登录与续期。 */
+  public void disable() {
+    this.disabled = true;
+  }
+
+  /** 恢复账号。 */
+  public void enable() {
+    this.disabled = false;
   }
 }

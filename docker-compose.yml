@@ -25,8 +25,6 @@ services:
       JINGUAN_DB_URL: jdbc:postgresql://db:5432/jinguan
       JINGUAN_DB_USER: jinguan
       JINGUAN_DB_PASSWORD: jinguan
-      # 生产环境需注入至少 32 字节的密钥。
-      JINGUAN_JWT_SECRET: ${JINGUAN_JWT_SECRET:-dev-only-secret-change-me-0123456789abcdef}
       JINGUAN_INGEST_TOKEN: ${JINGUAN_INGEST_TOKEN:-dev-ingest-token}
     ports:
       - "127.0.0.1:8090:8090"

@@ -1,5 +1,6 @@
 package com.longzhong.jinguan.user;
 
+import com.longzhong.jinguan.common.AccountDisabledException;
 import com.longzhong.jinguan.common.NotFoundException;
 import com.longzhong.jinguan.security.JwtService;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -20,11 +21,20 @@ public class UserService {
   private final UserRepository users;
   private final PasswordEncoder passwordEncoder;
   private final JwtService jwtService;
+  private final RefreshTokenService refreshTokens;
+  private final IdentityBootstrapRepository bootstraps;
 
-  public UserService(UserRepository users, PasswordEncoder passwordEncoder, JwtService jwtService) {
+  public UserService(
+      UserRepository users,
+      PasswordEncoder passwordEncoder,
+      JwtService jwtService,
+      RefreshTokenService refreshTokens,
+      IdentityBootstrapRepository bootstraps) {
     this.users = users;
     this.passwordEncoder = passwordEncoder;
     this.jwtService = jwtService;
+    this.refreshTokens = refreshTokens;
+    this.bootstraps = bootstraps;
   }
 
   @Transactional
@@ -32,9 +42,12 @@ public class UserService {
     if (users.existsByUsername(username)) {
       throw new IllegalArgumentException("用户名已存在: " + username);
     }
-    String role = users.count() == 0 ? "ADMIN" : "USER";
-    UserEntity user =
-        users.save(UserEntity.create(username, passwordEncoder.encode(rawPassword), role));
+    String passwordHash = passwordEncoder.encode(rawPassword);
+    // 护栏行写锁串行化并发首注册:恰好一个请求占用 ADMIN 席位。
+    IdentityBootstrap guard =
+        bootstraps.lockGuard().orElseThrow(() -> new IllegalStateException("身份引导护栏行缺失"));
+    String role = guard.claimAdmin() ? "ADMIN" : "USER";
+    UserEntity user = users.save(UserEntity.create(username, passwordHash, role));
     return issueFor(user);
   }
 
@@ -49,6 +62,9 @@ public class UserService {
     if (!passwordEncoder.matches(rawPassword, user.getPasswordHash())) {
       throw new IllegalArgumentException("用户名或密码错误");
     }
+    if (user.isDisabled()) {
+      throw new AccountDisabledException();
+    }
     return issueFor(user);
   }
 
@@ -59,6 +75,8 @@ public class UserService {
         users.findById(userId).orElseThrow(() -> new NotFoundException("用户不存在: " + userId));
     user.updatePasswordHash(passwordEncoder.encode(rawPassword));
     users.save(user);
+    // 重置后踢下线:吊销该用户全部 refresh 会话。
+    refreshTokens.revokeAll(userId);
   }
 
   @Transactional(readOnly = true)
@@ -67,6 +85,15 @@ public class UserService {
         .findByUsername(username)
         .map(UserEntity::getId)
         .orElseThrow(() -> new NotFoundException("用户不存在: " + username));
+  }
+
+  /** 续期前校验账号存在且未禁用;否则抛 403。 */
+  @Transactional(readOnly = true)
+  public void assertEnabled(long uid) {
+    UserEntity user = users.findById(uid).orElseThrow(AccountDisabledException::new);
+    if (user.isDisabled()) {
+      throw new AccountDisabledException();
+    }
   }
 
   private AuthTokens issueFor(UserEntity user) {

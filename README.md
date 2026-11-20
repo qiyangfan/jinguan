@@ -89,6 +89,7 @@ React 19 + Vite 8(Rolldown)+ TypeScript 6 + Tailwind 4 + openapi-fetch(类型化
 
 ## 演进登记
 
+- 身份安全(2026-11-20,`unified-identity-oidc` 已归档):HS256→RS256 非对称签名 + JWKS 公钥发布;refresh 落库轮换、重用检测与 30 秒并发宽限;账号禁用(disabled)与欠费停服语义分离;首注册 ADMIN 以护栏行锁原子化。**签名密钥当前为进程内生成**,生产前须落持久化(挂载密钥或 `signing_keys` 表)并支持退役公钥保留;IdP 另立独立项目(`hufu`),本仓暂不做 IdP、RP 对接待 IdP 立项后另登。
 - Event Publication Registry(事件持久化+重放):当前支付入账为同事务强一致;
   规模化后切换持久化事件实现最终一致。
 - 收款维持 Mock(2026-10-02 owner 终态裁决,无限期):真实 PSP 不排期、不评审;`PaymentProvider` 出站端口契约保留,重启条件 = owner 明确立项(出现真实收款需求),此前任何会话不得将其列为待办或开放项。本轮待结算恢复与 Key ID 绑定亦按此边界不接真实渠道。

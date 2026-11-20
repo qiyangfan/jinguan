@@ -41,6 +41,9 @@ public class SecurityConfig {
                     // OpenAPI 文档供契约检查和前端类型生成使用。
                     .requestMatchers("/v3/api-docs/**")
                     .permitAll()
+                    // JWKS 公钥集匿名可读,供 RP 验签。
+                    .requestMatchers(HttpMethod.GET, "/.well-known/jwks.json")
+                    .permitAll()
                     // 页面骨架可匿名读取；受保护操作由 API 认证。
                     .requestMatchers(HttpMethod.GET, "/", "/index.html", "/assets/**")
                     .permitAll()
