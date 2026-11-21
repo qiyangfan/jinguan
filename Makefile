@@ -10,6 +10,7 @@ check:
 	$(MAKE) lint-config
 	mvn -q verify
 	node scripts/assert-postgres-tests.mjs
+	$(MAKE) spec-check
 	$(MAKE) license-check
 	# 契约漂移:重新导出根级 openapi.json,与入库版本不一致即失败。
 	mvn -B -q -Popenapi verify -DskipTests -Djacoco.skip=true -Dpmd.skip=true -Dspotbugs.skip=true
@@ -18,6 +19,10 @@ check:
 	cd web && pnpm typecheck && pnpm lint && pnpm lint:deps && pnpm lint:css && pnpm format:check && pnpm test:coverage && pnpm build && pnpm lint:dup && pnpm size && pnpm e2e
 
 # 脚本、工作流与构建文件静态检查(与 CI lint 作业同源)。
+## spec-check: OpenSpec 规格 strict 校验(工具缺失时跳过)
+spec-check:
+	@if command -v openspec >/dev/null 2>&1; then openspec validate --all --strict; else echo "[spec-check] openspec 未安装,跳过"; fi
+
 lint-config:
 	shellcheck scripts/*.sh
 	for f in scripts/*.mjs; do node --check "$$f" || exit 1; done

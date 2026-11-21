@@ -116,22 +116,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/auth/register": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["register"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/auth/refresh": {
         parameters: {
             query?: never;
@@ -164,7 +148,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/auth/login": {
+    "/auth/break-glass": {
         parameters: {
             query?: never;
             header?: never;
@@ -173,14 +157,14 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["login"];
+        post: operations["issue"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/admin/users/{id}/reset-password": {
+    "/auth/break-glass/enabled": {
         parameters: {
             query?: never;
             header?: never;
@@ -189,7 +173,55 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["resetPassword"];
+        post: operations["enabled"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/users/{subject}/role": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["role"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/users/{subject}/enable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["enable"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/users/{subject}/disable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["disable"];
         delete?: never;
         options?: never;
         head?: never;
@@ -340,6 +372,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/oidc/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["start"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/oidc/enabled": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["enabled_1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/oidc/callback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["callback"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/logout/sso": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["logoutSso"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/usage": {
         parameters: {
             query?: never;
@@ -347,7 +443,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["byUserId"];
+        get: operations["bySubject"];
         put?: never;
         post?: never;
         delete?: never;
@@ -462,16 +558,14 @@ export interface components {
             timeWindows?: components["schemas"]["TimeWindowReq"][];
         };
         DebitRequest: {
-            /** Format: int64 */
-            userId: number;
+            subject: string;
             /** Format: int64 */
             amountCredits?: number;
             refId?: string;
             note?: string;
         };
         CreditRequest: {
-            /** Format: int64 */
-            userId: number;
+            subject: string;
             /** Format: int64 */
             amountCredits?: number;
             refId?: string;
@@ -516,20 +610,15 @@ export interface components {
             CreatedAt?: string;
             success?: boolean;
         };
-        Credentials: {
-            username: string;
-            password: string;
-        };
-        ResetPasswordRequest: {
-            newPassword: string;
+        RoleRequest: {
+            role: string;
         };
         RevokeRequest: {
             reason: string;
         };
         BindRequest: {
             keyId: string;
-            /** Format: int64 */
-            userId?: number;
+            subject: string;
         };
         UsageRecordEntity: {
             /** Format: int64 */
@@ -553,8 +642,7 @@ export interface components {
             costCredits?: number;
             currency?: string;
             sourceCreatedAt?: string;
-            /** Format: int64 */
-            userId?: number;
+            subject?: string;
             finalOutcome?: string;
             /** Format: int32 */
             attempts?: number;
@@ -564,22 +652,19 @@ export interface components {
         LedgerEntryEntity: {
             /** Format: int64 */
             id?: number;
-            /** Format: int64 */
-            userId?: number;
+            subject?: string;
             /** Format: int64 */
             amountCredits?: number;
             reason?: string;
             refId?: string;
             note?: string;
-            /** Format: int64 */
-            operatorUserId?: number;
+            operatorSubject?: string;
             /** Format: date-time */
             createdAt?: string;
         };
         MockOrderEntity: {
             orderId?: string;
-            /** Format: int64 */
-            userId?: number;
+            subject?: string;
             /** Format: int64 */
             amountCredits?: number;
             currency?: string;
@@ -871,32 +956,6 @@ export interface operations {
             };
         };
     };
-    register: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["Credentials"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": {
-                        [key: string]: string;
-                    };
-                };
-            };
-        };
-    };
     refresh: {
         parameters: {
             query?: never;
@@ -939,18 +998,16 @@ export interface operations {
             };
         };
     };
-    login: {
+    issue: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "X-Break-Glass-Token"?: string;
+            };
             path?: never;
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["Credentials"];
-            };
-        };
+        requestBody?: never;
         responses: {
             /** @description OK */
             200: {
@@ -965,20 +1022,82 @@ export interface operations {
             };
         };
     };
-    resetPassword: {
+    enabled: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: boolean;
+                    };
+                };
+            };
+        };
+    };
+    role: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                id: number;
+                subject: string;
             };
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["ResetPasswordRequest"];
+                "application/json": components["schemas"]["RoleRequest"];
             };
         };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    enable: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                subject: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    disable: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                subject: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description OK */
             200: {
@@ -1199,10 +1318,95 @@ export interface operations {
             };
         };
     };
-    byUserId: {
+    start: {
+        parameters: {
+            query?: {
+                returnTo?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    enabled_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    callback: {
+        parameters: {
+            query?: {
+                state?: string;
+                code?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: {
+                "jinguan.oidc.state"?: string;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    logoutSso: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                "jinguan.refresh"?: string;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    bySubject: {
         parameters: {
             query: {
-                userId: number;
+                subject: string;
                 page?: number;
                 size?: number;
             };

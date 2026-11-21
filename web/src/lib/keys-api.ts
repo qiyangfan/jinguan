@@ -7,7 +7,7 @@ type Schemas = components["schemas"];
 export type KeyBindingRequest = Schemas["BindRequest"];
 export type RevokeRequest = Schemas["RevokeRequest"];
 
-export function bindKey(req: KeyBindingRequest): Promise<{ keyId: string; userId: string }> {
+export function bindKey(req: KeyBindingRequest): Promise<{ keyId: string; subject: string }> {
   return unwrap(client.POST("/admin/key-bindings", { body: req }));
 }
 

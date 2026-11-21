@@ -67,7 +67,7 @@ class RefreshRotationIntegrationTest extends RefreshTestSupport {
     String r1 = register("rot-u4");
     JwtService.LoginUser info = jwtService.verifyRefresh(r1);
     // 绕过签发链路造一枚签名合法但未落库的 refresh:必须 fail-closed。
-    String unrecorded = jwtService.issueRefresh(info.uid(), info.username(), info.role());
+    String unrecorded = jwtService.issueRefresh(info.subject(), info.username(), info.role());
     Assertions.assertEquals(
         HttpStatus.UNAUTHORIZED.value(),
         refresh(unrecorded).getResponse().getStatus(),

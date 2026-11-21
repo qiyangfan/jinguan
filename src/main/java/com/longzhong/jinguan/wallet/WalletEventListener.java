@@ -18,7 +18,7 @@ public class WalletEventListener {
   @TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT)
   public void onPaymentPaid(PaymentPaidEvent event) {
     wallet.credit(
-        event.userId(),
+        event.subject(),
         event.amountCredits(),
         WalletService.REASON_PAYMENT_TOPUP,
         event.ledgerRefId(),

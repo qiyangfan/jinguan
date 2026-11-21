@@ -37,5 +37,5 @@ public interface MockOrderRepository extends JpaRepository<MockOrderEntity, Stri
   int expireIfCreated(@Param("orderIds") List<String> orderIds);
 
   /** 按订单号倒序分页查询用户订单。 */
-  Page<MockOrderEntity> findByUserIdOrderByOrderIdDesc(long userId, Pageable pageable);
+  Page<MockOrderEntity> findBySubjectOrderByOrderIdDesc(String subject, Pageable pageable);
 }

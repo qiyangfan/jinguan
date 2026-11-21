@@ -15,17 +15,17 @@ public class ApiKeyBindingEntity {
   @Column(name = "key_id", nullable = false, length = 64)
   private String keyId; // = muniu UsageRow.APIKeyID
 
-  @Column(name = "user_id", nullable = false)
-  private long userId;
+  @Column(name = "subject", nullable = false)
+  private String subject;
 
   @Column(name = "bound_at", nullable = false)
   private Instant boundAt = Instant.now();
 
   protected ApiKeyBindingEntity() {} // JPA
 
-  public ApiKeyBindingEntity(String keyId, long userId) {
+  public ApiKeyBindingEntity(String keyId, String subject) {
     this.keyId = keyId;
-    this.userId = userId;
+    this.subject = subject;
     this.boundAt = Instant.now();
   }
 
@@ -33,8 +33,8 @@ public class ApiKeyBindingEntity {
     return keyId;
   }
 
-  public long getUserId() {
-    return userId;
+  public String getSubject() {
+    return subject;
   }
 
   public Instant getBoundAt() {

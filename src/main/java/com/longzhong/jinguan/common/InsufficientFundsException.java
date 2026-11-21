@@ -5,7 +5,7 @@ public class InsufficientFundsException extends DomainException {
 
   private static final long serialVersionUID = 1L;
 
-  public InsufficientFundsException(long userId, long required, long balance) {
-    super("余额不足: user=%d 需要=%d 余额=%d".formatted(userId, required, balance));
+  public InsufficientFundsException(String subject, long required, long balance) {
+    super("余额不足: subject=%s 需要=%d 余额=%d".formatted(subject, required, balance));
   }
 }

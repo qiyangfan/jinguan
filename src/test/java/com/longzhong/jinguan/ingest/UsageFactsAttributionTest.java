@@ -5,8 +5,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.longzhong.jinguan.common.IdempotencyConflictException;
-import com.longzhong.jinguan.user.UserEntity;
-import com.longzhong.jinguan.user.UserRepository;
+import com.longzhong.jinguan.user.PrincipalEntity;
+import com.longzhong.jinguan.user.PrincipalRepository;
 import com.longzhong.jinguan.wallet.WalletService;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -42,11 +42,11 @@ class UsageFactsAttributionTest {
   @Autowired UsageRecordRepository usageRecords;
   @Autowired UsageRecordService usageService;
   @Autowired ApiKeyBindingRepository bindings;
-  @Autowired UserRepository users;
+  @Autowired PrincipalRepository users;
   @Autowired WalletService wallet;
 
-  private long newUser(String username) {
-    return users.save(UserEntity.create(username, "hash", "USER")).getId();
+  private String newUser(String username) {
+    return users.save(PrincipalEntity.jit("sub-" + username, username)).getSubject();
   }
 
   private IngestUsageRow row(String id, String keyId, long cost) {
@@ -75,9 +75,9 @@ class UsageFactsAttributionTest {
 
   @Test
   void sameIdDifferentBillingFactsRejectedBeforeFunds() {
-    long uid = newUser("facts-u1");
-    bindings.save(new ApiKeyBindingEntity("mk-f1", uid));
-    wallet.credit(uid, 1_000, WalletService.REASON_MANUAL_TOPUP, "facts-seed-1", null, null);
+    String subject = newUser("facts-u1");
+    bindings.save(new ApiKeyBindingEntity("mk-f1", subject));
+    wallet.credit(subject, 1_000, WalletService.REASON_MANUAL_TOPUP, "facts-seed-1", null, null);
 
     var first = ingest.accept(List.of(row("fact-1", "mk-f1", 100)));
     assertEquals(1, first.accepted(), "首笔应接收");
@@ -89,13 +89,13 @@ class UsageFactsAttributionTest {
     var stored = usageRecords.findByUsageId("fact-1").orElseThrow();
     assertEquals(100, stored.getCostCredits(), "旧计费事实不可改写");
     assertEquals(UsageRecordService.OUTCOME_ACCEPTED, stored.getFinalOutcome(), "终态保持 accepted");
-    assertEquals(900, wallet.balance(uid), "冲突不产生第二笔扣款");
+    assertEquals(900, wallet.balance(subject), "冲突不产生第二笔扣款");
   }
 
   @Test
   void keyRebindHistoricalRowStaysWithOriginalUser() {
-    long u1 = newUser("facts-u2a");
-    long u2 = newUser("facts-u2b");
+    String u1 = newUser("facts-u2a");
+    String u2 = newUser("facts-u2b");
     bindings.save(new ApiKeyBindingEntity(KEY_F2, u1));
     // 欠费用量留存并固定归属。
     ingest.accept(List.of(row("fact-2", KEY_F2, 100)));
@@ -107,16 +107,16 @@ class UsageFactsAttributionTest {
 
     assertEquals(1, result.replayed() + result.accepted(), "旧行应完成结算(重放或新扣)");
     var stored = usageRecords.findByUsageId("fact-2").orElseThrow();
-    assertEquals(u1, stored.getUserId(), "重绑不得转嫁既有用量归属");
+    assertEquals(u1, stored.getSubject(), "重绑不得转嫁既有用量归属");
     assertEquals(900, wallet.balance(u1), "向原归属用户结算");
     assertEquals(0, wallet.balance(u2), "不得向新绑定用户扣款");
   }
 
   @Test
   void settledProjectionNeverDowngraded() {
-    long uid = newUser("facts-u3");
-    bindings.save(new ApiKeyBindingEntity("mk-f3", uid));
-    wallet.credit(uid, 1_000, WalletService.REASON_MANUAL_TOPUP, "facts-seed-3", null, null);
+    String subject = newUser("facts-u3");
+    bindings.save(new ApiKeyBindingEntity("mk-f3", subject));
+    wallet.credit(subject, 1_000, WalletService.REASON_MANUAL_TOPUP, "facts-seed-3", null, null);
     ingest.accept(List.of(row(FACT_3, "mk-f3", 100)));
 
     // 已结算状态不可降级。
@@ -140,7 +140,7 @@ class UsageFactsAttributionTest {
     var second = ingest.accept(List.of(row(FACT_6, "mk-f6", 100)));
     assertEquals(1, second.skippedUnbound(), "仍按未绑定跳过");
     var stored = usageRecords.findByUsageId(FACT_6).orElseThrow();
-    Assertions.assertNull(stored.getUserId(), "未解析归属前 user_id 保持空");
+    Assertions.assertNull(stored.getSubject(), "未解析归属前 subject 保持空");
     assertEquals(
         UsageRecordService.OUTCOME_SKIPPED_UNBOUND,
         stored.getFinalOutcome(),
@@ -154,9 +154,9 @@ class UsageFactsAttributionTest {
 
   @Test
   void reserveFailureIsNon2xxAndLeavesNoFundsEntry() throws Exception {
-    long uid = newUser("facts-u4");
-    bindings.save(new ApiKeyBindingEntity("mk-f4", uid));
-    wallet.credit(uid, 1_000, WalletService.REASON_MANUAL_TOPUP, "facts-seed-4", null, null);
+    String subject = newUser("facts-u4");
+    bindings.save(new ApiKeyBindingEntity("mk-f4", subject));
+    wallet.credit(subject, 1_000, WalletService.REASON_MANUAL_TOPUP, "facts-seed-4", null, null);
 
     // 超长 usage_id 无法保存时返回非 2xx，且不新增账本分录。
     String longId = "x".repeat(65);
@@ -179,38 +179,38 @@ class UsageFactsAttributionTest {
     Assertions.assertTrue(
         usageRecords.findAll().stream().noneMatch(r -> longId.equals(r.getUsageId())),
         "存储失败的行不得落库");
-    assertEquals(1_000, wallet.balance(uid), "未保存的行不得扣款");
+    assertEquals(1_000, wallet.balance(subject), "未保存的行不得扣款");
   }
 
   @Test
   void unboundRowKeepsOutcomeUntilRedeliveredAfterBinding() {
-    long uid = newUser("facts-u5");
+    String subject = newUser("facts-u5");
     // key 未绑定时保留未绑定明细。
     ingest.accept(List.of(row("fact-5", "mk-f5", 100)));
     var stored = usageRecords.findByUsageId("fact-5").orElseThrow();
     assertEquals(UsageRecordService.OUTCOME_SKIPPED_UNBOUND, stored.getFinalOutcome(), "未绑定首投终态");
 
     // 补绑定不会追收历史行。
-    bindings.save(new ApiKeyBindingEntity("mk-f5", uid));
-    wallet.credit(uid, 1_000, WalletService.REASON_MANUAL_TOPUP, "facts-seed-5", null, null);
+    bindings.save(new ApiKeyBindingEntity("mk-f5", subject));
+    wallet.credit(subject, 1_000, WalletService.REASON_MANUAL_TOPUP, "facts-seed-5", null, null);
     stored = usageRecords.findByUsageId("fact-5").orElseThrow();
     assertEquals(UsageRecordService.OUTCOME_SKIPPED_UNBOUND, stored.getFinalOutcome(), "未重投不自动追收");
-    Assertions.assertNull(stored.getUserId(), "未解析归属前 user_id 保持空");
+    Assertions.assertNull(stored.getSubject(), "未解析归属前 subject 保持空");
   }
 
   @Test
   void unboundRowSettlesOnRedelivery() {
-    long uid = newUser("facts-u7");
+    String subject = newUser("facts-u7");
     ingest.accept(List.of(row("fact-7", "mk-f7", 100)));
-    bindings.save(new ApiKeyBindingEntity("mk-f7", uid));
-    wallet.credit(uid, 1_000, WalletService.REASON_MANUAL_TOPUP, "facts-seed-7", null, null);
+    bindings.save(new ApiKeyBindingEntity("mk-f7", subject));
+    wallet.credit(subject, 1_000, WalletService.REASON_MANUAL_TOPUP, "facts-seed-7", null, null);
 
     // 重投后解析归属并结算。
     var result = ingest.accept(List.of(row("fact-7", "mk-f7", 100)));
     assertEquals(1, result.accepted(), "绑定后重投应完成结算");
     var stored = usageRecords.findByUsageId("fact-7").orElseThrow();
-    assertEquals(uid, stored.getUserId(), "重投后归属解析为新绑定用户");
+    assertEquals(subject, stored.getSubject(), "重投后归属解析为新绑定用户");
     assertEquals(UsageRecordService.OUTCOME_ACCEPTED, stored.getFinalOutcome(), "重投后终态 accepted");
-    assertEquals(900, wallet.balance(uid), "结算扣款 100 后余额 900");
+    assertEquals(900, wallet.balance(subject), "结算扣款 100 后余额 900");
   }
 }

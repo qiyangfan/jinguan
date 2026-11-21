@@ -24,7 +24,7 @@ export interface PaymentOrderQuery {
 
 export interface PaymentOrderSummary {
   orderId: string;
-  userId: number;
+  subject: string;
   amountCredits: string;
   currency: string;
   status: string; // CREATED | PAID | EXPIRED

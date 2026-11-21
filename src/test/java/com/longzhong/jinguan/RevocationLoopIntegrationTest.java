@@ -36,7 +36,7 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
       "spring.datasource.password=",
       "jinguan.security.jwt-secret=test-secret-0123456789abcdef-0123456789abcdef",
     })
-class RevocationLoopIntegrationTest {
+class RevocationLoopIntegrationTest extends RefreshTestSupport {
 
   private static final String AUTHORIZATION = "Authorization";
   private static final String BEARER = "Bearer ";
@@ -47,16 +47,20 @@ class RevocationLoopIntegrationTest {
 
   String adminToken;
 
-  private String register(String username) throws Exception {
-    MvcResult result =
-        mvc.perform(
-                post("/auth/register")
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .content(
-                        "{\"username\":\"%s\",\"password\":\"password-123\"}".formatted(username)))
-            .andExpect(status().isCreated())
-            .andReturn();
-    return JsonPath.read(result.getResponse().getContentAsString(), "$.token");
+  private String loginAs(String username) {
+    String subject = "sub-" + username;
+    var principal =
+        principals
+            .findById(subject)
+            .orElseGet(
+                () ->
+                    principals.save(
+                        com.longzhong.jinguan.user.PrincipalEntity.jit(subject, username)));
+    if (username.contains("admin")) {
+      principal.grantRole("ADMIN");
+      principal = principals.save(principal);
+    }
+    return tokenIssuer.issue(principal).access();
   }
 
   private long currentVersion() throws Exception {
@@ -68,8 +72,8 @@ class RevocationLoopIntegrationTest {
   @Test
   @Order(1)
   void emptyStateContractShape() throws Exception {
-    adminToken = register("revoke-admin"); // 首用户 ADMIN
-    register("revoke-user"); // uid=2
+    adminToken = loginAs("revoke-admin"); // 首用户 ADMIN
+    loginAs("revoke-user"); // subject=sub-revoke-user
     // 空快照的版本为 0，名单为空。
     MvcResult empty =
         mvc.perform(get(REVOCATIONS_PATH))
@@ -89,17 +93,19 @@ class RevocationLoopIntegrationTest {
         post("/admin/key-bindings")
             .header(AUTHORIZATION, BEARER + adminToken)
             .contentType(MediaType.APPLICATION_JSON)
-            .content("{\"keyId\":\"mk-loop-1\",\"userId\":2}"));
+            .content("{\"keyId\":\"mk-loop-1\",\"subject\":\"sub-revoke-user\"}"));
     mvc.perform(
         post("/admin/key-bindings")
             .header(AUTHORIZATION, BEARER + adminToken)
             .contentType(MediaType.APPLICATION_JSON)
-            .content("{\"keyId\":\"mk-loop-2\",\"userId\":2}"));
+            .content("{\"keyId\":\"mk-loop-2\",\"subject\":\"sub-revoke-user\"}"));
     mvc.perform(
         post("/wallet/admin/credit")
             .header(AUTHORIZATION, BEARER + adminToken)
             .contentType(MediaType.APPLICATION_JSON)
-            .content("{\"userId\":2,\"amountCredits\":100_000,\"refId\":\"rv-seed-1\"}"));
+            .content(
+                "{\"subject\":\"sub-revoke-user\",\"amountCredits\":100_000,"
+                    + "\"refId\":\"rv-seed-1\"}"));
 
     final long before = currentVersion();
     // 欠费用量会保留明细并设置停服状态。
@@ -139,7 +145,9 @@ class RevocationLoopIntegrationTest {
             post("/wallet/admin/credit")
                 .header(AUTHORIZATION, BEARER + adminToken)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"userId\":2,\"amountCredits\":1000000000,\"refId\":\"rv-seed-2\"}"))
+                .content(
+                    "{\"subject\":\"sub-revoke-user\",\"amountCredits\":1000000000,"
+                        + "\"refId\":\"rv-seed-2\"}"))
         .andExpect(status().isCreated());
     MvcResult resumed =
         mvc.perform(get(REVOCATIONS_PATH))
@@ -184,7 +192,7 @@ class RevocationLoopIntegrationTest {
             post("/admin/key-bindings")
                 .header(AUTHORIZATION, BEARER + adminToken)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"keyId\":\"mk-loop-1\",\"userId\":2}"))
+                .content("{\"keyId\":\"mk-loop-1\",\"subject\":\"sub-revoke-user\"}"))
         .andExpect(status().isConflict());
   }
 

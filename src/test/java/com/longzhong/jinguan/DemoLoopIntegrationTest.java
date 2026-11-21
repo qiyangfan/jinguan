@@ -33,7 +33,7 @@ import org.springframework.test.web.servlet.MvcResult;
       "spring.jpa.hibernate.ddl-auto=validate",
       "jinguan.security.jwt-secret=test-secret-0123456789abcdef-0123456789abcdef",
     })
-class DemoLoopIntegrationTest {
+class DemoLoopIntegrationTest extends RefreshTestSupport {
 
   private static final String AUTHORIZATION = "Authorization";
   private static final String BEARER = "Bearer ";
@@ -42,22 +42,16 @@ class DemoLoopIntegrationTest {
   @Autowired MockMvc mvc;
 
   String adminToken;
+  String adminSubject = "sub-solvela";
 
   @Test
   @Order(1)
-  void registerFirstUserBecomesAdmin() throws Exception {
-    MvcResult result =
-        mvc.perform(
-                post("/auth/register")
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .content(
-                        """
-                        {"username":"solvela","password":"password-123"}"""))
-            .andExpect(status().isCreated())
-            .andExpect(jsonPath("$.token").exists())
-            .andReturn();
-    adminToken = JsonPath.read(result.getResponse().getContentAsString(), "$.token");
-    Assertions.assertNotNull(adminToken, "首用户注册必须签发 token");
+  void registerFirstUserBecomesAdmin() {
+    var principal =
+        principals.save(com.longzhong.jinguan.user.PrincipalEntity.jit(adminSubject, "solvela"));
+    principal.grantRole("ADMIN");
+    adminToken = tokenIssuer.issue(principals.save(principal)).access();
+    Assertions.assertNotNull(adminToken, "管理员必须取得 token");
   }
 
   @Test
@@ -70,7 +64,8 @@ class DemoLoopIntegrationTest {
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(
                         """
-                        {"userId":1,"amountCredits":10000000000,"refId":"seed-1","note":"种子资金"}"""))
+                        {"subject":"sub-solvela","amountCredits":10000000000,
+                         "refId":"seed-1","note":"种子资金"}"""))
             .andExpect(jsonPath(BALANCE_PATH).value("10000000000"))
             .andReturn();
     Assertions.assertEquals(201, credited.getResponse().getStatus(), "入账应返回 201");
@@ -86,7 +81,7 @@ class DemoLoopIntegrationTest {
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(
                         """
-                        {"userId":1,"amountCredits":10000000000,"refId":"seed-1"}"""))
+                        {"subject":"sub-solvela","amountCredits":10000000000,"refId":"seed-1"}"""))
             .andExpect(status().isCreated())
             .andExpect(jsonPath(BALANCE_PATH).value("10000000000")) // 重放不加钱
             .andReturn();
@@ -129,7 +124,7 @@ class DemoLoopIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     """
-                    {"keyId":"mk-test-1","userId":1}"""))
+                    {"keyId":"mk-test-1","subject":"sub-solvela"}"""))
         .andExpect(status().isCreated());
     // muniu UsageRow 使用 PascalCase 字段名。
     String payload =

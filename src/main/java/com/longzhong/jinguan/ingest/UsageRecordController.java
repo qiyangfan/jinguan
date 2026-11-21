@@ -25,17 +25,17 @@ public class UsageRecordController {
       @AuthenticationPrincipal JwtService.LoginUser user,
       @RequestParam(defaultValue = "0") int page,
       @RequestParam(defaultValue = "20") int size) {
-    return usageRecords.byUser(user.uid(), page, size).getContent();
+    return usageRecords.byUser(user.subject(), page, size).getContent();
   }
 
   /** 管理面:按用户查询用量明细。 */
   @GetMapping("/admin/usage")
   @PreAuthorize("hasRole('ADMIN')")
-  public List<UsageRecordEntity> byUserId(
-      @RequestParam long userId,
+  public List<UsageRecordEntity> bySubject(
+      @RequestParam String subject,
       @RequestParam(defaultValue = "0") int page,
       @RequestParam(defaultValue = "20") int size) {
-    Page<UsageRecordEntity> result = usageRecords.byUser(userId, page, size);
+    Page<UsageRecordEntity> result = usageRecords.byUser(subject, page, size);
     return result.getContent();
   }
 }

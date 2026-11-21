@@ -4,8 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.longzhong.jinguan.common.InsufficientFundsException;
-import com.longzhong.jinguan.user.UserEntity;
-import com.longzhong.jinguan.user.UserRepository;
+import com.longzhong.jinguan.user.PrincipalEntity;
+import com.longzhong.jinguan.user.PrincipalRepository;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -31,16 +31,16 @@ class WalletOuterTransactionLockTest {
   private static final long DEBIT = 60_000;
 
   @Autowired WalletService wallet;
-  @Autowired UserRepository users;
+  @Autowired PrincipalRepository users;
   @Autowired PlatformTransactionManager tm;
 
-  private long newUser(String username) {
-    return users.save(UserEntity.create(username, "hash", "USER")).getId();
+  private String newUser(String username) {
+    return users.save(PrincipalEntity.jit("sub-" + username, username)).getSubject();
   }
 
   @Test
   void outerCommitConcurrentRecoverySeesCreditedBalance() throws Exception {
-    long uid = newUser("outertx-u1");
+    String subject = newUser("outertx-u1");
     TransactionTemplate outer = new TransactionTemplate(tm);
     CountDownLatch creditReturned = new CountDownLatch(1);
     CountDownLatch recoveryStarted = new CountDownLatch(1);
@@ -57,7 +57,7 @@ class WalletOuterTransactionLockTest {
                 }
                 recoveryStarted.countDown();
                 wallet.debit(
-                    uid, DEBIT, WalletService.REASON_USAGE, "usage:outertx-r1", null, null);
+                    subject, DEBIT, WalletService.REASON_USAGE, "usage:outertx-r1", null, null);
               } finally {
                 recoveryDone.countDown();
               }
@@ -67,7 +67,7 @@ class WalletOuterTransactionLockTest {
         status -> {
           // 模拟支付监听器在外层事务提交前入账。
           wallet.credit(
-              uid, CREDIT, WalletService.REASON_PAYMENT_TOPUP, "pay:outertx-1", null, null);
+              subject, CREDIT, WalletService.REASON_PAYMENT_TOPUP, "pay:outertx-1", null, null);
           creditReturned.countDown(); // credit 已返回、外层尚未物理提交
           try {
             Assertions.assertTrue(recoveryStarted.await(5, TimeUnit.SECONDS), "恢复线程应已发起");
@@ -82,32 +82,33 @@ class WalletOuterTransactionLockTest {
     Assertions.assertTrue(recoveryDone.await(10, TimeUnit.SECONDS), "恢复线程应在提交后完成");
     recovery.get(10, TimeUnit.SECONDS);
 
-    Assertions.assertFalse(users.findSuspendedIds().contains(uid), "不得在充值提交后错误重新停服");
-    assertEquals(CREDIT - DEBIT, wallet.balance(uid), "分录与余额一致");
+    Assertions.assertFalse(users.findSuspendedSubjects().contains(subject), "不得在充值提交后错误重新停服");
+    assertEquals(CREDIT - DEBIT, wallet.balance(subject), "分录与余额一致");
   }
 
   @Test
   void outerRollbackLockReleasedNothingPersisted() {
-    long uid = newUser("outertx-u2");
+    String subject = newUser("outertx-u2");
     TransactionTemplate outer = new TransactionTemplate(tm);
 
     outer.execute(
         status -> {
           wallet.credit(
-              uid, CREDIT, WalletService.REASON_PAYMENT_TOPUP, "pay:outertx-rb", null, null);
+              subject, CREDIT, WalletService.REASON_PAYMENT_TOPUP, "pay:outertx-rb", null, null);
           status.setRollbackOnly(); // 外层回滚:未提交的入账与停服清除均不得生效
           return null;
         });
 
-    assertEquals(0, wallet.balance(uid), "回滚后入账不生效");
+    assertEquals(0, wallet.balance(subject), "回滚后入账不生效");
     // 外层事务结束后，同用户仍可继续资金操作。
     assertThrows(
         InsufficientFundsException.class,
-        () -> wallet.debit(uid, 1, WalletService.REASON_USAGE, "usage:outertx-rb-1", null, null));
-    Assertions.assertTrue(users.findSuspendedIds().contains(uid), "无外层事务时扣款拒绝仍在锁内置位停服");
+        () ->
+            wallet.debit(subject, 1, WalletService.REASON_USAGE, "usage:outertx-rb-1", null, null));
+    Assertions.assertTrue(users.findSuspendedSubjects().contains(subject), "无外层事务时扣款拒绝仍在锁内置位停服");
     // 再次入账可恢复停服。
-    wallet.credit(uid, 10, WalletService.REASON_MANUAL_TOPUP, "outertx-after-rb", null, null);
-    Assertions.assertFalse(users.findSuspendedIds().contains(uid), "入账后停服解除");
-    assertEquals(10, wallet.balance(uid), "恢复入账后余额为 10");
+    wallet.credit(subject, 10, WalletService.REASON_MANUAL_TOPUP, "outertx-after-rb", null, null);
+    Assertions.assertFalse(users.findSuspendedSubjects().contains(subject), "入账后停服解除");
+    assertEquals(10, wallet.balance(subject), "恢复入账后余额为 10");
   }
 }

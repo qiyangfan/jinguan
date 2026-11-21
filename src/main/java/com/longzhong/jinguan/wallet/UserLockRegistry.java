@@ -12,10 +12,10 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 @Component
 class UserLockRegistry {
 
-  private final Map<Long, ReentrantLock> locks = new ConcurrentHashMap<>();
+  private final Map<String, ReentrantLock> locks = new ConcurrentHashMap<>();
 
-  <T> T run(long userId, Supplier<T> work) {
-    ReentrantLock lock = locks.computeIfAbsent(userId, k -> new ReentrantLock());
+  <T> T run(String subject, Supplier<T> work) {
+    ReentrantLock lock = locks.computeIfAbsent(subject, k -> new ReentrantLock());
     lock.lock();
     boolean deferred = false;
     try {

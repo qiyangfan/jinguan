@@ -1,7 +1,6 @@
 package com.longzhong.jinguan.ingest;
 
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Positive;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -20,7 +19,9 @@ import org.springframework.web.bind.annotation.RestController;
 public class ApiKeyBindingController {
 
   /** key 绑定请求体。 */
-  public record BindRequest(@NotBlank String keyId, @Positive long userId) {}
+  public record BindRequest(
+      @NotBlank String keyId,
+      @NotBlank @jakarta.validation.constraints.Size(max = 64) String subject) {}
 
   private final KeyRevocationQueryService keys;
 
@@ -30,8 +31,8 @@ public class ApiKeyBindingController {
 
   @PostMapping
   public ResponseEntity<Map<String, Object>> bind(@RequestBody @Validated BindRequest req) {
-    keys.bind(req.keyId(), req.userId());
+    keys.bind(req.keyId(), req.subject());
     return ResponseEntity.status(HttpStatus.CREATED)
-        .body(Map.of("keyId", req.keyId(), "userId", String.valueOf(req.userId())));
+        .body(Map.of("keyId", req.keyId(), "subject", String.valueOf(req.subject())));
   }
 }

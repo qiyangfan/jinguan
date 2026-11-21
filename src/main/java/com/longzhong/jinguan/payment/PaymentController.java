@@ -36,7 +36,8 @@ public class PaymentController {
   public Map<String, Object> create(
       @AuthenticationPrincipal JwtService.LoginUser user,
       @RequestBody @Validated CreateRequest req) {
-    return payments.createOrder(req.provider(), user.uid(), req.amountCredits(), req.currency());
+    return payments.createOrder(
+        req.provider(), user.subject(), req.amountCredits(), req.currency());
   }
 
   /** 模拟收银台确认支付。 */
@@ -54,13 +55,13 @@ public class PaymentController {
       @AuthenticationPrincipal JwtService.LoginUser user,
       @RequestParam(defaultValue = "0") int page,
       @RequestParam(defaultValue = "20") int size) {
-    return payments.list(user.uid(), page, size).getContent();
+    return payments.list(user.subject(), page, size).getContent();
   }
 
   /** 查询本人订单；非本人订单返回 404。 */
   @GetMapping("/orders/{orderId}")
   public Map<String, Object> query(
       @AuthenticationPrincipal JwtService.LoginUser user, @PathVariable String orderId) {
-    return payments.query(MockPaymentProvider.PROVIDER_NAME, orderId, user.uid());
+    return payments.query(MockPaymentProvider.PROVIDER_NAME, orderId, user.subject());
   }
 }

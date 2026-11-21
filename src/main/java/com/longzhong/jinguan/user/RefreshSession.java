@@ -15,8 +15,8 @@ public class RefreshSession {
   @Column(length = 64)
   private String jti;
 
-  @Column(name = "user_id", nullable = false)
-  private long userId;
+  @Column(name = "subject", nullable = false)
+  private String subject;
 
   @Column(name = "expires_at", nullable = false)
   private Instant expiresAt;
@@ -32,24 +32,24 @@ public class RefreshSession {
 
   protected RefreshSession() {} // JPA
 
-  private RefreshSession(String jti, long userId, Instant expiresAt) {
+  private RefreshSession(String jti, String subject, Instant expiresAt) {
     this.jti = jti;
-    this.userId = userId;
+    this.subject = subject;
     this.expiresAt = expiresAt;
     this.consumed = false;
   }
 
   /** 记录一枚新签发的 refresh 票。 */
-  public static RefreshSession create(String jti, long userId, Instant expiresAt) {
-    return new RefreshSession(jti, userId, expiresAt);
+  public static RefreshSession create(String jti, String subject, Instant expiresAt) {
+    return new RefreshSession(jti, subject, expiresAt);
   }
 
   public String getJti() {
     return jti;
   }
 
-  public long getUserId() {
-    return userId;
+  public String getSubject() {
+    return subject;
   }
 
   public Instant getExpiresAt() {

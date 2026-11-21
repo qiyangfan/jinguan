@@ -52,12 +52,12 @@ public class IngestService {
     for (IngestUsageRow row : rows) {
       received++;
       boolean billable = row.isSuccess() && row.CostCredits() > 0;
-      Long boundUser =
+      String boundUser =
           billable
-              ? bindings.findById(row.APIKeyID()).map(ApiKeyBindingEntity::getUserId).orElse(null)
+              ? bindings.findById(row.APIKeyID()).map(ApiKeyBindingEntity::getSubject).orElse(null)
               : null;
       // 先可靠保存事实；失败时返回非 2xx，让数据面重试。
-      Long pinnedUser = usageRecords.reserve(row, boundUser, billable);
+      String pinnedUser = usageRecords.reserve(row, boundUser, billable);
       if (!billable) {
         skippedFree++;
         countRow(MetricNames.OUTCOME_SKIPPED_FREE);

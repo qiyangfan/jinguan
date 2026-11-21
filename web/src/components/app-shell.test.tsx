@@ -8,7 +8,7 @@ import { AppShell } from "./app-shell";
 const { logout, toggle, userState } = vi.hoisted(() => ({
   logout: vi.fn<() => Promise<void>>(),
   toggle: vi.fn(),
-  userState: { current: { uid: 1, username: "alice", role: "ADMIN" } },
+  userState: { current: { subject: "sub-alice", username: "alice", role: "ADMIN" } },
 }));
 
 vi.mock("@/lib/auth-store", () => ({ useAuth: () => ({ user: userState.current, logout }) }));
@@ -28,7 +28,7 @@ function renderShell() {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  userState.current = { uid: 1, username: "alice", role: "ADMIN" };
+  userState.current = { subject: "sub-alice", username: "alice", role: "ADMIN" };
   logout.mockResolvedValue(undefined);
 });
 
@@ -44,7 +44,7 @@ describe("AppShell", () => {
   });
 
   it("普通用户看不到管理员导航", () => {
-    userState.current = { uid: 2, username: "bob", role: "USER" };
+    userState.current = { subject: "sub-bob", username: "bob", role: "USER" };
     renderShell();
 
     expect(screen.getAllByText("钱包").length).toBeGreaterThan(0);

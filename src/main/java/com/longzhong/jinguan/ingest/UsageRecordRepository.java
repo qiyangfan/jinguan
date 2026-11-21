@@ -18,7 +18,7 @@ public interface UsageRecordRepository extends JpaRepository<UsageRecordEntity, 
 
   Optional<UsageRecordEntity> findByUsageId(String usageId);
 
-  Page<UsageRecordEntity> findByUserIdOrderByIdDesc(Long userId, Pageable pageable);
+  Page<UsageRecordEntity> findBySubjectOrderByIdDesc(String subject, Pageable pageable);
 
   /** 增加尝试次数并更新投影；归属仅首次写入，已结算行不降级。 */
   @Modifying
@@ -27,7 +27,7 @@ public interface UsageRecordRepository extends JpaRepository<UsageRecordEntity, 
       UPDATE UsageRecordEntity r SET
         r.attempts = r.attempts + 1,
         r.lastAttemptAt = :now,
-        r.userId = COALESCE(r.userId, :pinned),
+        r.subject = COALESCE(r.subject, :pinned),
         r.finalOutcome = CASE WHEN r.finalOutcome IN ('accepted','replayed')
                               THEN r.finalOutcome ELSE :outcome END
       WHERE r.usageId = :usageId
@@ -35,7 +35,7 @@ public interface UsageRecordRepository extends JpaRepository<UsageRecordEntity, 
   int bumpAttemptAndTransition(
       @Param(PARAM_USAGE_ID) String usageId,
       @Param("outcome") String outcome,
-      @Param("pinned") Long pinned,
+      @Param("pinned") String pinned,
       @Param(PARAM_NOW) Instant now);
 
   /** 更新结算结果和轮转时间；已结算终态不降级，也不增加接收尝试次数。 */
@@ -71,17 +71,17 @@ public interface UsageRecordRepository extends JpaRepository<UsageRecordEntity, 
   @Query(
       value =
           """
-          SELECT c.user_id FROM (
-            SELECT DISTINCT user_id FROM usage_records
-            WHERE final_outcome IN ('pending','skipped_insufficient') AND user_id IS NOT NULL
+          SELECT c.subject FROM (
+            SELECT DISTINCT subject FROM usage_records
+            WHERE final_outcome IN ('pending','skipped_insufficient') AND subject IS NOT NULL
           ) c
           ORDER BY (SELECT MAX(r.last_settlement_attempt_at) FROM usage_records r
-                    WHERE r.user_id = c.user_id) ASC NULLS FIRST,
-                   c.user_id ASC
+                    WHERE r.subject = c.subject) ASC NULLS FIRST,
+                   c.subject ASC
           LIMIT :maxUsers
           """,
       nativeQuery = true)
-  List<Long> findCandidateUsers(@Param("maxUsers") int maxUsers);
+  List<String> findCandidateUsers(@Param("maxUsers") int maxUsers);
 
   /** 查询单用户的待结算行，按首次接收顺序排列并限制数量。 */
   @Query(
@@ -89,14 +89,14 @@ public interface UsageRecordRepository extends JpaRepository<UsageRecordEntity, 
           """
           SELECT id, usage_id, key_id, tenant_id, model_alias, upstream_model, status,
                  error_class, prompt_tokens, completion_tokens, reasoning_tokens,
-                 cached_tokens, cost_credits, currency, source_created_at, user_id,
+                 cached_tokens, cost_credits, currency, source_created_at, subject,
                  final_outcome, attempts, last_attempt_at, last_settlement_attempt_at
           FROM usage_records
-          WHERE user_id = :userId AND final_outcome IN ('pending','skipped_insufficient')
+          WHERE subject = :subject AND final_outcome IN ('pending','skipped_insufficient')
           ORDER BY id ASC
           LIMIT :maxRows
           """,
       nativeQuery = true)
   List<UsageRecordEntity> findCandidateRows(
-      @Param("userId") long userId, @Param("maxRows") int maxRows);
+      @Param("subject") String subject, @Param("maxRows") int maxRows);
 }

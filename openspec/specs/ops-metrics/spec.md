@@ -7,37 +7,79 @@
 
 ### Requirement: 指标暴露面为白名单
 
-系统必须 (MUST) 经 `/actuator/prometheus` 暴露 Prometheus 文本格式指标(`text/plain;version=0.0.4`),并必须 (MUST) 以白名单方式配置 Web 暴露端点集合,当前只含 `health` 与 `prometheus`;能读出配置项名、环境变量引用名或 bean 拓扑的端点(`env`/`configprops`/`beans`/`mappings`/`heapdump` 等)必须 (MUST NOT) 以 actuator 语义可达——响应状态必须为 403 或 404,且响应体必须 (MUST NOT) 含端点数据快照。所有时间序列必须 (MUST) 带 `application` 标签(值取 `spring.application.name`)。指标端点必须 (MUST) 与业务 API 同端口提供,且 `/actuator/health` 的既有路径与 actuator 承载语义不得改变(镜像 HEALTHCHECK 依赖之)。
-
-暴露面判据必须 (MUST) 在真实 Servlet 容器(RANDOM_PORT)下回归:MockMvc 环境不含 actuator 端点映射,未注册的 actuator 路径会落到 SPA 资源回退并返回 200 + `index.html`,验证不出「端点是否注册」与「白名单是否收口」。
+系统必须 (MUST) 经 `/actuator/prometheus` 暴露 Prometheus 文本格式指标(`text/plain;version=0.0.4`),并必须 (MUST) 以白名单方式配置 Web 暴露端点集合,当前只含 `health` 与 `prometheus`。所有时间序列必须 (MUST) 带 `application` 标签(值取 `spring.application.name`)。
 
 #### Scenario: 指标端点可读
 - **WHEN** 匿名 `GET /actuator/prometheus`(真容器)
 - **THEN** 200,`text/plain` 版本 0.0.4 格式,含 `jinguan_` 前缀的业务序列与 JVM/HTTP 默认序列,每条带 `application="jinguan"`
 
+### Requirement: 配置类端点不可达
+
+能读出配置项名、环境变量引用名或 bean 拓扑的端点(`env`/`configprops`/`beans`/`mappings`/`heapdump` 等)必须 (MUST NOT) 以 actuator 语义可达;响应状态必须为 403 或 404,且响应体必须 (MUST NOT) 含端点数据快照。
+
 #### Scenario: 配置类端点不暴露
 - **WHEN** `GET /actuator/env`、`/actuator/configprops` 或 `/actuator/beans`
 - **THEN** 403 或 404,响应体不含 `activeProfiles`/`propertySources` 等端点数据特征
 
-### Requirement: 业务计数器词汇表单源且低基数
+### Requirement: 指标端点与业务 API 同端口
 
-系统必须 (MUST) 在单一常量源登记业务指标名、标签键与标签值(枚举封闭),并必须 (MUST) 覆盖:`jinguan.ingest.rows{outcome}`、`jinguan.wallet.operations{kind,outcome}`、`jinguan.payment.orders{event}`、`jinguan.control.pull{pipe,outcome}`,以及既有 `jinguan.payment.expiry.converged`、`jinguan.payment.expiry.scan`、`jinguan.payment.expiry.backlog`(Gauge,取扫描器最近一轮的已过期未收敛存量)。同一资金事实必须 (MUST) 只由一个序列承载(禁止为已过期订单再造 `orders{event=expired}` 之类的重复读数);既有指标的名称必须 (MUST) 保持不重命名。指标标签必须 (MUST NOT) 含用户 ID、订单号、refId、厂商名等无界取值(时间序列基数失控为反模式);按用户/订单的读数必须 (MUST) 由账本历史与用量明细端点提供。
+指标端点必须 (MUST) 与业务 API 同端口提供,且 `/actuator/health` 的既有路径与 actuator 承载语义不得改变(镜像 HEALTHCHECK 依赖之)。
 
-#### Scenario: 一个事实一个序列
-- **WHEN** 一批过期订单被扫描收敛
-- **THEN** 只有 `jinguan_payment_expiry_converged_total` 增长,`jinguan_payment_orders_total` 不含 `expired` 标签值
+#### Scenario: 健康探针路径不变
+- **WHEN** 按镜像 HEALTHCHECK 口径请求 `/actuator/health`
+- **THEN** 路径与 actuator 承载语义与改造前一致(不因指标端点同端口而改变)
 
-#### Scenario: 无高基数标签
-- **WHEN** 同一钱包对多个不同用户反复发生入账
-- **THEN** `jinguan_wallet_operations_total` 仍只有 `kind`×`outcome` 有限组合的序列,不随用户数增长
+### Requirement: 暴露面须在真容器内回归
+
+暴露面判据必须 (MUST) 在真实 Servlet 容器(`RANDOM_PORT`)下回归:MockMvc 环境不含 actuator 端点映射,未注册的 actuator 路径会落到 SPA 资源回退并返回 200 + `index.html`,验证不出「端点是否注册」与「白名单是否收口」。
+
+#### Scenario: 暴露面判据不走 MockMvc
+- **WHEN** 复核暴露面回归用例的运行环境
+- **THEN** 用例以 `RANDOM_PORT` 起真实 Servlet 容器,不依赖 MockMvc 判定端点注册与白名单收口
+
+### Requirement: 业务计数器词汇表单源
+
+系统必须 (MUST) 在单一常量源登记业务指标名、标签键与标签值(枚举封闭),并必须 (MUST) 覆盖:`jinguan.ingest.rows{outcome}`、`jinguan.wallet.operations{kind,outcome}`、`jinguan.payment.orders{event}`、`jinguan.control.pull{pipe,outcome}`。既有指标的名称必须 (MUST) 保持不重命名。
 
 #### Scenario: 指标清单可反查
 - **WHEN** 新增一个业务计数器
 - **THEN** 名称与标签值必须先在常量源登记,并在指标设计文档成表;测试按常量断言,文档与代码分叉即红
 
+### Requirement: 过期存量与收敛指标保留
+
+既有 `jinguan.payment.expiry.converged`、`jinguan.payment.expiry.scan`、`jinguan.payment.expiry.backlog`(Gauge,取扫描器最近一轮的已过期未收敛存量)必须 (MUST) 继续存在且名称不被重命名。
+
+#### Scenario: 过期收敛指标可读
+- **WHEN** 扫描器完成一轮过期订单扫描
+- **THEN** `jinguan_payment_expiry_converged`、`jinguan_payment_expiry_scan` 与 `jinguan_payment_expiry_backlog` 可读,backlog 取该轮已过期未收敛存量,名称未被重命名
+
+### Requirement: 一个事实只由一个序列承载
+
+同一资金事实必须 (MUST) 只由一个序列承载,禁止为已过期订单再造 `orders{event=expired}` 之类的重复读数。
+
+#### Scenario: 一个事实一个序列
+- **WHEN** 一批过期订单被扫描收敛
+- **THEN** 只有 `jinguan_payment_expiry_converged_total` 增长,`jinguan_payment_orders_total` 不含 `expired` 标签值
+
+### Requirement: 指标标签禁止无界取值
+
+指标标签必须 (MUST NOT) 含用户 ID、订单号、refId、厂商名等无界取值(时间序列基数失控为反模式);按用户/订单的读数必须 (MUST) 由账本历史与用量明细端点提供。
+
+#### Scenario: 无高基数标签
+- **WHEN** 同一钱包对多个不同用户反复发生入账
+- **THEN** `jinguan_wallet_operations_total` 仍只有 `kind`×`outcome` 有限组合的序列,不随用户数增长
+
 ### Requirement: 资金链路计数落在账本服务内
 
-账本写入次数必须 (MUST) 由 `WalletService` 自身计数(唯一资金通道),分桶必须 (MUST) 区分:入账/扣账(`kind=credit|debit`)× 生效/幂等重放/余额不足拒绝/同键载荷冲突(`outcome=applied|replayed|rejected_insufficient|rejected_conflict`)。禁止 (MUST NOT) 以 HTTP 层「请求成功」替代「资金事实发生」。计量接收的分桶必须 (MUST) 与 `IngestResult` 六桶语义同源(accepted/replayed/skipped_unbound/skipped_free/skipped_insufficient 各计一次)。
+账本写入次数必须 (MUST) 由 `WalletService` 自身计数(唯一资金通道),禁止 (MUST NOT) 以 HTTP 层「请求成功」替代「资金事实发生」。
+
+#### Scenario: 分桶依据资金事实而非请求结果
+- **WHEN** HTTP 请求成功返回但账本未产生新的资金事实(如幂等重放或拒绝)
+- **THEN** 计数按账本实际分桶累加,不以「请求成功」计为生效
+
+### Requirement: 资金分桶区分方向与结局
+
+`jinguan.wallet.operations` 的分桶必须 (MUST) 区分:入账/扣账(`kind=credit|debit`)× 生效/幂等重放/余额不足拒绝/同键载荷冲突(`outcome=applied|replayed|rejected_insufficient|rejected_conflict`)。
 
 #### Scenario: 余额不足可见
 - **WHEN** 一行用量因余额不足被跳过(账本零痕迹)
@@ -47,17 +89,41 @@
 - **WHEN** 同一 refId 以不同用户或金额重放,抛幂等冲突
 - **THEN** `outcome="rejected_conflict"` 计数加一,且该笔不产生账本分录
 
+### Requirement: 计量接收分桶与 IngestResult 同源
+
+计量接收的分桶必须 (MUST) 与 `IngestResult` 六桶语义同源(accepted/replayed/skipped_unbound/skipped_free/skipped_insufficient 各计一次)。
+
+#### Scenario: 计量六桶逐桶各计一次
+- **WHEN** 一批用量行分别落为 accepted/replayed/skipped_unbound/skipped_free/skipped_insufficient
+- **THEN** `jinguan_ingest_rows_total{outcome}` 对应六个标签值各加一,不合并、不遗漏、不重复计数
+
 ### Requirement: 拉取型管子的活性可见
 
-三根拉取型下发端点(`GET /control/v1/pricing`、`GET /control/v1/key-revocations`、`GET /control/v1/topology`)每次**成功产出应答**必须 (MUST) 计入 `jinguan.control.pull{pipe,outcome}`,`outcome` 必须 (MUST) 区分整包下发(`full`)与条件请求命中(`not_modified`,仅 topology 具备 ETag 语义);计数点必须在端点层且后置到成包之后,管理页复用 service 的路径不得计入。读库或装配故障导致本轮没有发出任何价目/名单/拓扑时,禁止 (MUST NOT) 计 `full`——否则控制面持续 5xx 期间该序列仍在增长,「增速归零即链路断」的判据永不成立;故障形态的可读性由既有 `http_server_requests_*`(status 维度)承担,禁止 (MUST NOT) 为本指标新增失败桶。三管的计数时点必须 (MUST) 同口径,不得一处入口一处出口。
+三根拉取型下发端点(`GET /control/v1/pricing`、`GET /control/v1/key-revocations`、`GET /control/v1/topology`)每次**成功产出应答**必须 (MUST) 计入 `jinguan.control.pull{pipe,outcome}`。计数点必须在端点层且后置到成包之后,管理页复用 service 的路径不得计入。
 
 #### Scenario: 数据面停止拉取可被发现
 - **WHEN** muniu 侧停止拉取超过一个告警周期
 - **THEN** `jinguan_control_pull_total` 增速归零,与 `accepted` 仍增长(或同时归零)可组合成「下发链路断」的告警判据
 
+### Requirement: 拉取计数区分整包与条件命中
+
+`outcome` 必须 (MUST) 区分整包下发(`full`)与条件请求命中(`not_modified`,仅 topology 具备 ETag 语义)。
+
+#### Scenario: 条件请求命中单独计数
+- **WHEN** topology 请求携带匹配的 ETag 条件头并命中
+- **THEN** 计入 `outcome="not_modified"` 而非 `full`
+
+### Requirement: 故障轮次禁止计入拉取活性
+
+读库或装配故障导致本轮没有发出任何价目/名单/拓扑时,禁止 (MUST NOT) 计 `full`——否则控制面持续 5xx 期间该序列仍在增长,「增速归零即链路断」的判据永不成立;故障形态的可读性由既有 `http_server_requests_*`(status 维度)承担,禁止 (MUST NOT) 为本指标新增失败桶。
+
 #### Scenario: 控制面故障不得伪装成链路活跃
 - **WHEN** 拉取请求到达但读库失败,端点返回 5xx 且未发出任何下发内容
 - **THEN** `jinguan_control_pull_total` 不增长(既不计 `full` 也不计 `not_modified`),使 `increase(...)==0` 在故障期同样成立
+
+### Requirement: 三管计数时点同口径
+
+三管的计数时点必须 (MUST) 同口径,不得一处入口一处出口。
 
 #### Scenario: 三管计数时点同口径
 - **WHEN** 检查三根 `*IngressController` 的计数位置

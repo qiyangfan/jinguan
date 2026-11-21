@@ -28,8 +28,8 @@ public class RefreshTokenService {
 
   /** 记录一枚新签发的 refresh 票。 */
   @Transactional
-  public void record(String jti, long userId, Instant expiresAt) {
-    sessions.save(RefreshSession.create(jti, userId, expiresAt));
+  public void record(String jti, String subject, Instant expiresAt) {
+    sessions.save(RefreshSession.create(jti, subject, expiresAt));
   }
 
   /**
@@ -52,14 +52,15 @@ public class RefreshTokenService {
 
   /** 吊销该用户全部 refresh 会话(登出/改密)。 */
   @Transactional
-  public void revokeAll(long userId) {
-    sessions.revokeAllByUser(userId);
+  public void revokeAll(String subject) {
+    sessions.revokeAllByUser(subject);
   }
 
   private String rotateToSuccessor(JwtService.LoginUser presented, Instant now) {
     JwtService.RefreshTicket successor =
-        jwtService.issueRefreshTicket(presented.uid(), presented.username(), presented.role());
-    sessions.save(RefreshSession.create(successor.jti(), presented.uid(), successor.expiresAt()));
+        jwtService.issueRefreshTicket(presented.subject(), presented.username(), presented.role());
+    sessions.save(
+        RefreshSession.create(successor.jti(), presented.subject(), successor.expiresAt()));
     // 消费清空了持久化上下文,重载后写入墓碑链接(同一事务,与消费一并提交)。
     sessions.findById(presented.jti()).orElseThrow().markRotated(now, successor.jti());
     return successor.token();
@@ -71,7 +72,7 @@ public class RefreshTokenService {
         && !now.isAfter(session.getRotatedAt().plus(grace))) {
       return liveSuccessor(session.getReplacedJti(), presented, now);
     }
-    sessions.revokeAllByUser(presented.uid());
+    sessions.revokeAllByUser(presented.subject());
     return null;
   }
 
@@ -85,7 +86,7 @@ public class RefreshTokenService {
       }
       if (!row.isConsumed()) {
         return jwtService.reissueRefresh(
-            presented.uid(),
+            presented.subject(),
             presented.username(),
             presented.role(),
             row.getJti(),
@@ -96,7 +97,7 @@ public class RefreshTokenService {
       }
       current = row.getReplacedJti();
     }
-    sessions.revokeAllByUser(presented.uid());
+    sessions.revokeAllByUser(presented.subject());
     return null;
   }
 }

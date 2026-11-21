@@ -15,7 +15,7 @@ export interface UsageRecord {
   cachedTokens: number;
   costCredits: string;
   currency: string | null;
-  userId: string | null;
+  subject: string | null;
   finalOutcome: string; // accepted | replayed | pending(待结算) | skipped_unbound | skipped_free | skipped_insufficient
   attempts: number;
   lastAttemptAt: string;

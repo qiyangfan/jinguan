@@ -17,8 +17,8 @@ public class MockOrderEntity {
   @Column(name = "order_id", length = 64)
   private String orderId;
 
-  @Column(name = "user_id", nullable = false)
-  private long userId;
+  @Column(name = "subject", nullable = false)
+  private String subject;
 
   @Column(name = "amount_credits", nullable = false)
   private long amountCredits;
@@ -41,10 +41,10 @@ public class MockOrderEntity {
   protected MockOrderEntity() {} // JPA
 
   public static MockOrderEntity create(
-      String orderId, long userId, long amountCredits, String currency, Instant expiresAt) {
+      String orderId, String subject, long amountCredits, String currency, Instant expiresAt) {
     MockOrderEntity o = new MockOrderEntity();
     o.orderId = orderId;
-    o.userId = userId;
+    o.subject = subject;
     o.amountCredits = amountCredits;
     o.currency = currency;
     o.status = "CREATED";
@@ -67,8 +67,8 @@ public class MockOrderEntity {
   }
 
   @JsonSerialize(using = ToStringSerializer.class)
-  public long getUserId() {
-    return userId;
+  public String getSubject() {
+    return subject;
   }
 
   @JsonSerialize(using = ToStringSerializer.class)

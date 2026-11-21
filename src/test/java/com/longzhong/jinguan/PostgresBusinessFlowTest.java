@@ -11,8 +11,8 @@ import com.longzhong.jinguan.ingest.IngestService;
 import com.longzhong.jinguan.ingest.IngestUsageRow;
 import com.longzhong.jinguan.payment.PaymentProvider;
 import com.longzhong.jinguan.payment.PaymentService;
-import com.longzhong.jinguan.user.UserEntity;
-import com.longzhong.jinguan.user.UserRepository;
+import com.longzhong.jinguan.user.PrincipalEntity;
+import com.longzhong.jinguan.user.PrincipalRepository;
 import com.longzhong.jinguan.wallet.WalletService;
 import java.util.List;
 import java.util.concurrent.Callable;
@@ -52,7 +52,7 @@ class PostgresBusinessFlowTest {
   @Autowired PaymentService payments;
   @Autowired WalletService wallet;
   @Autowired ApiKeyBindingRepository bindings;
-  @Autowired UserRepository users;
+  @Autowired PrincipalRepository users;
   @Autowired JdbcTemplate jdbc;
 
   private record Outcome<T>(T value, Throwable error) {}
@@ -60,11 +60,11 @@ class PostgresBusinessFlowTest {
   @Test
   void ingestReplayAndConcurrentDuplicateDebitOnce() throws Exception {
     String suffix = suffix();
-    long userId = newUser("pg-ingest-" + suffix);
+    String subject = newUser("pg-ingest-" + suffix);
     String key = "pg-key-" + suffix;
-    bindings.save(new ApiKeyBindingEntity(key, userId));
+    bindings.save(new ApiKeyBindingEntity(key, subject));
     wallet.credit(
-        userId, SEED, WalletService.REASON_MANUAL_TOPUP, "pg-seed-ingest-" + suffix, null, null);
+        subject, SEED, WalletService.REASON_MANUAL_TOPUP, "pg-seed-ingest-" + suffix, null, null);
 
     IngestUsageRow replayRow = row("pg-usage-" + suffix, key, 100_000L);
     IngestService.IngestResult first = ingest.accept(List.of(replayRow));
@@ -82,7 +82,7 @@ class PostgresBusinessFlowTest {
         List.of(first.accepted(), first.replayed(), replay.accepted(), replay.replayed()),
         "顺次重投:首投 accepted,重投 replayed");
     assertEquals(List.of(1, 1), List.of(accepted, replayed), "并发重投:恰一次扣款、一次重放");
-    assertEquals(SEED - 250_000L, wallet.balance(userId), "余额只扣两笔用量");
+    assertEquals(SEED - 250_000L, wallet.balance(subject), "余额只扣两笔用量");
     assertEquals(
         List.of(1L, 1L),
         List.of(ledgerEntries("usage:" + replayRow.ID()), ledgerEntries("usage:" + raceRow.ID())),
@@ -92,7 +92,7 @@ class PostgresBusinessFlowTest {
   @Test
   void ledgerConcurrencyKeepsNonNegativeBalanceAndAdjudicatesSharedRef() throws Exception {
     String suffix = suffix();
-    long spentUser = newUser("pg-ledger-a-" + suffix);
+    String spentUser = newUser("pg-ledger-a-" + suffix);
     wallet.credit(
         spentUser, 100L, WalletService.REASON_MANUAL_TOPUP, "pg-seed-a-" + suffix, null, null);
     List<Outcome<WalletService.EntryResult>> debits =
@@ -114,8 +114,8 @@ class PostgresBusinessFlowTest {
             .filter(outcome -> outcome.error() instanceof InsufficientFundsException)
             .count();
 
-    long userB = newUser("pg-ledger-b-" + suffix);
-    long userC = newUser("pg-ledger-c-" + suffix);
+    String userB = newUser("pg-ledger-b-" + suffix);
+    String userC = newUser("pg-ledger-c-" + suffix);
     wallet.credit(
         userB, 100L, WalletService.REASON_MANUAL_TOPUP, "pg-seed-b-" + suffix, null, null);
     wallet.credit(
@@ -145,8 +145,8 @@ class PostgresBusinessFlowTest {
   @Test
   void duplicatePaymentCallbackCreditsOnce() throws Exception {
     String suffix = suffix();
-    long userId = newUser("pg-pay-" + suffix);
-    var order = payments.createOrder("mock", userId, 500L, "CNY");
+    String subject = newUser("pg-pay-" + suffix);
+    var order = payments.createOrder("mock", subject, 500L, "CNY");
     String orderId = String.valueOf(order.get("orderId"));
     PaymentProvider.CallbackPayload callback =
         new PaymentProvider.CallbackPayload(orderId, "mock-" + orderId, "PAID", "mock-signature");
@@ -162,12 +162,12 @@ class PostgresBusinessFlowTest {
             .toList();
 
     assertEquals(List.of(false, true), replayed, "并发回调恰一次置付、一次重放");
-    assertEquals(500L, wallet.balance(userId), "支付金额只入账一次");
+    assertEquals(500L, wallet.balance(subject), "支付金额只入账一次");
     assertEquals(1L, ledgerEntries("pay:" + orderId), "支付幂等键恰一分录");
   }
 
-  private long newUser(String username) {
-    return users.save(UserEntity.create(username, "hash", "USER")).getId();
+  private String newUser(String username) {
+    return users.save(PrincipalEntity.jit("sub-" + username, username)).getSubject();
   }
 
   private static String suffix() {

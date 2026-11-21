@@ -44,11 +44,30 @@ jinguan:
     refresh-grace-seconds: ${JINGUAN_REFRESH_GRACE_SECONDS:30}
     # 生产 HTTPS 环境应启用 Secure。
     refresh-cookie-secure: ${JINGUAN_REFRESH_COOKIE_SECURE:false}
+    # 过期 refresh 会话行清理间隔;过期票已不可用,默认每小时删一次。
+    refresh-cleanup-seconds: ${JINGUAN_REFRESH_CLEANUP_SECONDS:3600}
     # 按 IP 限流；仅 trusted-proxy=true 时采信 X-Forwarded-For。
     rate-limit:
-      login-per-minute: ${JINGUAN_RATE_LIMIT_LOGIN:10}
-      register-per-minute: ${JINGUAN_RATE_LIMIT_REGISTER:3}
+      # OIDC start/callback 与 break-glass 共用的每 IP 每分钟上限。
+      login-per-minute: ${JINGUAN_RATE_LIMIT_OIDC:20}
       trusted-proxy: ${JINGUAN_TRUSTED_PROXY:false}
+  oidc:
+    # 虎符单一身份；secret 只走 JINGUAN_OIDC_CLIENT_SECRET。
+    enabled: ${JINGUAN_OIDC_ENABLED:false}
+    issuer: ${JINGUAN_OIDC_ISSUER:}
+    client-id: ${JINGUAN_OIDC_CLIENT_ID:}
+    client-secret: ${JINGUAN_OIDC_CLIENT_SECRET:}
+    redirect-uri: ${JINGUAN_OIDC_REDIRECT_URI:}
+    post-logout-redirect-uri: ${JINGUAN_OIDC_POST_LOGOUT_REDIRECT_URI:}
+    frontend-success-url: ${JINGUAN_OIDC_FRONTEND_SUCCESS_URL:/}
+    scopes: [openid, profile, email]
+    # 过期登录 state 清理间隔；state TTL 10 分钟，过期即可删。
+    state-cleanup-seconds: ${JINGUAN_OIDC_STATE_CLEANUP_SECONDS:600}
+  break-glass:
+    # 默认关闭；开启后凭据只从环境变量读取，每次签发写审计。
+    enabled: ${JINGUAN_BREAKGLASS_ENABLED:false}
+    token: ${JINGUAN_BREAKGLASS_TOKEN:}
+    ttl-minutes: ${JINGUAN_BREAKGLASS_TTL_MINUTES:15}
   ingest:
     # muniu IngestSink 使用的 Bearer Token。
     token: ${JINGUAN_INGEST_TOKEN:dev-ingest-token}

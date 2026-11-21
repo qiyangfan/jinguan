@@ -1,7 +1,6 @@
 package com.longzhong.jinguan.topology;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.jayway.jsonpath.JsonPath;
@@ -16,7 +15,6 @@ import org.junit.jupiter.api.TestMethodOrder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.http.MediaType;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
@@ -36,7 +34,7 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
       "spring.datasource.password=",
       "jinguan.security.jwt-secret=test-secret-0123456789abcdef-0123456789abcdef",
     })
-class TopologyPresetsIntegrationTest {
+class TopologyPresetsIntegrationTest extends com.longzhong.jinguan.RefreshTestSupport {
 
   /** muniu 支持的适配器类型。 */
   private static final Set<String> MUNIU_SUPPORTED_ADAPTERS =
@@ -59,24 +57,15 @@ class TopologyPresetsIntegrationTest {
   String adminToken;
   String userToken;
 
-  private String register(String username) throws Exception {
-    MvcResult result =
-        mvc.perform(
-                post("/auth/register")
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .content(
-                        "{\"username\":\"%s\",\"password\":\"presets-pass-123\"}"
-                            .formatted(username)))
-            .andExpect(status().isCreated())
-            .andReturn();
-    return JsonPath.read(result.getResponse().getContentAsString(), "$.token");
+  private String loginAs(String username) {
+    return accessToken(username, username.contains("admin") ? "ADMIN" : "USER");
   }
 
   @Test
   @Order(1)
   void firstUserBecomesAdmin() throws Exception {
-    adminToken = register("presets-admin");
-    userToken = register("presets-user");
+    adminToken = loginAs("presets-admin");
+    userToken = loginAs("presets-user");
     Assertions.assertNotEquals(adminToken, userToken, "两名用户 token 不得相同");
   }
 

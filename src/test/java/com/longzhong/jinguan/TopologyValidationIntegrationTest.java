@@ -1,10 +1,7 @@
 package com.longzhong.jinguan;
 
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.jayway.jsonpath.JsonPath;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
@@ -34,7 +31,7 @@ import org.springframework.test.web.servlet.MvcResult;
       "spring.datasource.password=",
       "jinguan.security.jwt-secret=test-secret-0123456789abcdef-0123456789abcdef",
     })
-class TopologyValidationIntegrationTest {
+class TopologyValidationIntegrationTest extends RefreshTestSupport {
 
   private static final String AUTHORIZATION = "Authorization";
   private static final String BEARER = "Bearer ";
@@ -67,18 +64,9 @@ class TopologyValidationIntegrationTest {
 
   @Test
   @Order(1)
-  void registerAdmin() throws Exception {
-    MvcResult registered =
-        mvc.perform(
-                post("/auth/register")
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .content(
-                        "{\"username\":\"topo-validation-admin\","
-                            + "\"password\":\"topology-pass-123\"}"))
-            .andExpect(status().isCreated())
-            .andReturn();
-    adminToken = JsonPath.read(registered.getResponse().getContentAsString(), "$.token");
-    Assertions.assertNotNull(adminToken, "首用户注册必须成功并取得 token");
+  void registerAdmin() {
+    adminToken = accessToken("topo-validation-admin", "ADMIN");
+    Assertions.assertNotNull(adminToken, "管理员必须取得 token");
   }
 
   @Test

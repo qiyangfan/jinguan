@@ -1,19 +1,17 @@
-/* 认证态：access 存内存，refresh 使用 httpOnly cookie；api 层通过回调清除 store，避免循环依赖。 */
+/* 认证态：登录只走虎符 OIDC；access 存内存，refresh 使用 httpOnly cookie。 */
 
 import { create } from "zustand";
 
 import {
   clearAccessToken,
-  client,
   getAccessToken,
   onSessionCleared,
   refreshSession,
   setAccessToken,
-  unwrap,
 } from "./api";
 
 export interface LoginUser {
-  uid: number;
+  subject: string;
   username: string;
   role: string;
 }
@@ -22,8 +20,6 @@ interface AuthState {
   user: LoginUser | null;
   booted: boolean;
   bootstrap: () => Promise<void>;
-  login: (username: string, password: string) => Promise<void>;
-  register: (username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -35,9 +31,10 @@ function decode(token: string): LoginUser | null {
       string,
       unknown
     >;
+    if (typeof claims.sub !== "string") return null;
     return {
-      uid: Number(claims.uid),
-      username: String(claims.sub),
+      subject: claims.sub,
+      username: typeof claims.username === "string" ? claims.username : claims.sub,
       role: typeof claims.role === "string" ? claims.role : "USER",
     };
   } catch {
@@ -46,7 +43,6 @@ function decode(token: string): LoginUser | null {
 }
 
 export const useAuth = create<AuthState>((set) => {
-  // API 层清除 token 时同步清除用户态。
   onSessionCleared(() => set({ user: null }));
 
   return {
@@ -60,31 +56,23 @@ export const useAuth = create<AuthState>((set) => {
       set({ user: ok && token ? decode(token) : null, booted: true });
     },
 
-    async login(username, password) {
-      const out = await unwrap<{ token: string }>(
-        client.POST("/auth/login", { body: { username, password } }),
-      );
-      setAccessToken(out.token);
-      set({ user: decode(out.token) });
-    },
-
-    async register(username, password) {
-      const out = await unwrap<{ token: string }>(
-        client.POST("/auth/register", { body: { username, password } }),
-      );
-      setAccessToken(out.token);
-      set({ user: decode(out.token) });
-    },
-
     async logout() {
       try {
-        // 避免 logout 请求进入 401 续期流程。
         await fetch("/auth/logout", { method: "POST" });
       } catch {
         // 本地认证态仍需清除。
       }
       clearAccessToken();
       set({ user: null });
+      // 测试环境不执行整页导航；生产整页走 SSO 登出联动。
+      if (import.meta.env.MODE !== "test") {
+        window.location.assign("/auth/logout/sso");
+      }
     },
   };
 });
+
+/** 只设置新增 token 后调用；页面刷新由 bootstrap 经 refresh 恢复。 */
+export function acceptAccessToken(token: string): void {
+  setAccessToken(token);
+}

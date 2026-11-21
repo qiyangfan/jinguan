@@ -3,16 +3,14 @@ package com.longzhong.jinguan;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.jayway.jsonpath.JsonPath;
 import com.longzhong.jinguan.payment.MockOrderRepository;
 import com.longzhong.jinguan.payment.PaymentExpiryScheduler;
-import com.longzhong.jinguan.user.UserEntity;
-import com.longzhong.jinguan.user.UserRepository;
+import com.longzhong.jinguan.user.PrincipalEntity;
+import com.longzhong.jinguan.user.PrincipalRepository;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.MvcResult;
 
 /** 指标集成测试的共享夹具:注册管理员、造数与指标读取,避免测试类方法数超标。 */
 class OpsMetricsTestSupport {
@@ -23,7 +21,8 @@ class OpsMetricsTestSupport {
 
   @Autowired MockMvc mvc;
   @Autowired MeterRegistry registry;
-  @Autowired UserRepository users;
+  @Autowired PrincipalRepository users;
+  @Autowired com.longzhong.jinguan.security.JwtService jwt;
   @Autowired PaymentExpiryScheduler scheduler;
   @Autowired MockOrderRepository orders;
 
@@ -36,29 +35,26 @@ class OpsMetricsTestSupport {
   }
 
   /** 创建普通用户供账本测试使用。 */
-  long seedUser(String username) {
-    return users.save(UserEntity.create(username, "hash", "USER")).getId();
+  String seedUser(String username) {
+    return users.save(PrincipalEntity.jit("sub-" + username, username)).getSubject();
   }
 
-  String registerFirstAdmin() throws Exception {
-    MvcResult result =
-        mvc.perform(
-                post("/auth/register")
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"username\":\"ops-admin\",\"password\":\"password-123\"}"))
-            .andExpect(status().isCreated())
-            .andReturn();
-    return JsonPath.read(result.getResponse().getContentAsString(), "$.token");
+  String registerFirstAdmin() {
+    PrincipalEntity admin = users.save(PrincipalEntity.jit("sub-ops-admin", "ops-admin"));
+    admin.grantRole("ADMIN");
+    users.save(admin);
+    return jwt.issueAccess(admin.getSubject(), admin.getUsername(), admin.getRole());
   }
 
-  void credit(long userId, long amount, String refId) throws Exception {
+  void credit(String subject, long amount, String refId) throws Exception {
     mvc.perform(
             post("/wallet/admin/credit")
                 .header(AUTHORIZATION, BEARER + adminToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
-                    "{\"userId\":"
-                        + userId
+                    "{\"subject\":\""
+                        + subject
+                        + "\""
                         + ",\"amountCredits\":"
                         + amount
                         + ",\"refId\":\""

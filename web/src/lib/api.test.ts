@@ -58,7 +58,7 @@ describe("api 会话链路", () => {
       }
       if (path === "/wallet/balance") {
         return refreshed
-          ? jsonResponse(200, { userId: 1, balanceCredits: 5 })
+          ? jsonResponse(200, { subject: "sub-u1", balanceCredits: 5 })
           : jsonResponse(401, { detail: "token 过期" });
       }
       throw new Error("unexpected path: " + path);
@@ -97,14 +97,12 @@ describe("api 会话链路", () => {
         refreshCount++;
         return jsonResponse(200, { token: makeJwt({ uid: 1, sub: "u1", role: "USER" }) });
       }
-      if (path === "/auth/login") return jsonResponse(401, { detail: "用户名或密码错误" });
+      if (path === "/auth/break-glass") return jsonResponse(401, { detail: "denied" });
       throw new Error("unexpected path: " + path);
     });
 
     const { client, unwrap } = await loadApi();
-    await expect(
-      unwrap(client.POST("/auth/login", { body: { username: "a", password: "b" } })),
-    ).rejects.toMatchObject({ status: 401 });
+    await expect(unwrap(client.POST("/auth/break-glass"))).rejects.toMatchObject({ status: 401 });
     expect(refreshCount).toBe(0);
   });
 

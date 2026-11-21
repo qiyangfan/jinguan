@@ -15,7 +15,7 @@ vi.mock("@/lib/payment-api", () => ({
 
 const ORDER: PaymentOrderSummary = {
   orderId: "ord-1",
-  userId: 1,
+  subject: "sub-u1",
   amountCredits: "1000000000",
   currency: "CNY",
   status: "CREATED",

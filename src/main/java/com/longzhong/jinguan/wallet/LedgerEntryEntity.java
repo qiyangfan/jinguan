@@ -19,8 +19,8 @@ public class LedgerEntryEntity {
   @GeneratedValue(strategy = GenerationType.IDENTITY)
   private Long id;
 
-  @Column(name = "user_id", nullable = false)
-  private Long userId;
+  @Column(name = "subject", nullable = false)
+  private String subject;
 
   @Column(name = "amount_credits", nullable = false)
   private long amountCredits;
@@ -35,8 +35,8 @@ public class LedgerEntryEntity {
   private String note;
 
   /** 管理员资金操作的操作人；支付和计量入账为空。 */
-  @Column(name = "operator_user_id")
-  private Long operatorUserId;
+  @Column(name = "operator_subject")
+  private String operatorSubject;
 
   @Column(name = "created_at", nullable = false)
   private Instant createdAt = Instant.now();
@@ -46,9 +46,8 @@ public class LedgerEntryEntity {
     return id;
   }
 
-  @JsonSerialize(using = ToStringSerializer.class)
-  public Long getUserId() {
-    return userId;
+  public String getSubject() {
+    return subject;
   }
 
   @JsonSerialize(using = ToStringSerializer.class)
@@ -68,9 +67,8 @@ public class LedgerEntryEntity {
     return note;
   }
 
-  @JsonSerialize(using = ToStringSerializer.class)
-  public Long getOperatorUserId() {
-    return operatorUserId;
+  public String getOperatorSubject() {
+    return operatorSubject;
   }
 
   public Instant getCreatedAt() {
@@ -78,19 +76,19 @@ public class LedgerEntryEntity {
   }
 
   static LedgerEntryEntity of(
-      long userId,
+      String subject,
       long amountCredits,
       String reason,
       String refId,
       String note,
-      Long operatorUserId) {
+      String operatorSubject) {
     LedgerEntryEntity e = new LedgerEntryEntity();
-    e.userId = userId;
+    e.subject = subject;
     e.amountCredits = amountCredits;
     e.reason = reason;
     e.refId = refId;
     e.note = note;
-    e.operatorUserId = operatorUserId;
+    e.operatorSubject = operatorSubject;
     return e;
   }
 }

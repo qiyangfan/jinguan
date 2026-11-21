@@ -13,7 +13,7 @@ Spring Boot + **Spring Modulith**(模块依赖 CI 门禁 + 模块间领域事件
 
 | 模块 | 职责 | 要点 |
 |---|---|---|
-| `user` | 注册/登录(JWT,首用户 ADMIN) | 支撑域,建模从简、纪律一致 |
+| `user` | 本地授权主体(subject=虎符 sub)、角色与禁用;不含密码 | 支撑域,建模从简、纪律一致 |
 | `wallet` | ★ 钱包账本(核心域) | append-only、refId 幂等、余额非负不变量、per-user 条带锁内含完整事务 |
 | `payment` | 支付单状态机 + `PaymentProvider` 出站端口 | mock 渠道演示闭环;订单超时双保险(**懒过期守门保资金正确性 + 游标批量扫描收敛状态**,方案谱系见 [docs/design/payment-timeout.md](docs/design/payment-timeout.md));真实 PSP = 未来一个 adapter |
 | `pricing` | 渠道/价目运营 + 下发契约端点 | 对齐 muniu `admin.PricingView` 逐字段 |
@@ -53,10 +53,15 @@ ingest 余额不足自动置位、任何入账同事务自动清除——充值�
 ## 演示闭环(一条龙)
 
 ```bash
-# 注册(首用户自动 ADMIN) → 手工入账 → mock 支付 → 入账 → 计量扣账
-curl -s :8090/auth/register -d '{"username":"a","password":"password-123"}' | jq .token
+# 浏览器经虎符 OIDC 登录(首登 USER),refresh cookie 换 access token
+# GET /auth/oidc/start → 虎符授权 → /auth/oidc/callback 写 refresh cookie
+curl -s :8090/auth/refresh -b cookies.txt | jq -r .token > token.txt
+T=$(cat token.txt); SUBJECT=<虎符 sub>
+# 管理员授予 ADMIN → 入账 → mock 支付 → 计量扣账
+curl -s -X POST :8090/admin/users/$SUBJECT/role -H "Authorization: Bearer $T" \
+  -d '{"role":"ADMIN"}'
 curl -s :8090/wallet/admin/credit -H "Authorization: Bearer $T" \
-  -d '{"userId":1,"amountCredits":10000000000,"refId":"seed-1"}'
+  -d "{\"subject\":\"$SUBJECT\",\"amountCredits\":10000000000,\"refId\":\"seed-1\"}"
 curl -s :8090/payments/orders -H "Authorization: Bearer $T" \
   -d '{"provider":"mock","amountCredits":2000000000,"currency":"CNY"}'
 curl -s :8090/payments/mock/po-xxx/pay          # 模拟收银台支付 → 账本入账
@@ -89,7 +94,8 @@ React 19 + Vite 8(Rolldown)+ TypeScript 6 + Tailwind 4 + openapi-fetch(类型化
 
 ## 演进登记
 
-- 身份安全(2026-11-20,`unified-identity-oidc` 已归档):HS256→RS256 非对称签名 + JWKS 公钥发布;refresh 落库轮换、重用检测与 30 秒并发宽限;账号禁用(disabled)与欠费停服语义分离;首注册 ADMIN 以护栏行锁原子化。**签名密钥持久化**:挂载目录 `active.pem`(PKCS#8 私钥)+ `retired/*.pem`(退役公钥),kid 取公钥指纹(RFC 7638,跨重启稳定);轮换 = 旧 `active.pem` 移入 `retired/` 并重启,退役公钥至少保留至其签发 refresh 过期(默认 7 天)后移除,JWKS 全程同时发布新旧公钥;未挂载时退化为进程内临时密钥(启动告警,仅限开发)。IdP 另立独立项目(`hufu`),本仓暂不做 IdP、RP 对接待 IdP 立项后另登。
+- 身份安全(2026-11-20,`unified-identity-oidc` 已归档):HS256→RS256 非对称签名 + JWKS 公钥发布;refresh 落库轮换、重用检测与 30 秒并发宽限;账号禁用(disabled)与欠费停服语义分离;首注册 ADMIN 以护栏行锁原子化。**签名密钥持久化**:挂载目录 `active.pem`(PKCS#8 私钥)+ `retired/*.pem`(退役公钥),kid 取公钥指纹(RFC 7638,跨重启稳定);轮换 = 旧 `active.pem` 移入 `retired/` 并重启,退役公钥至少保留至其签发 refresh 过期(默认 7 天)后移除,JWKS 全程同时发布新旧公钥;未挂载时退化为进程内临时密钥(启动告警,仅限开发)。IdP 另立独立项目(`hufu`)。
+- **单一身份(2026-11-21)**:锦官删除本地注册/登录/改密与 `users` 密码列;主键改为虎符 `sub`(`principals.subject`),账本/订单/API key/refresh/用量外键全部按 subject。新增 OIDC RP(`/auth/oidc/start|callback|enabled`,PKCE S256 + state 单次 + JWKS 验签)与 `/auth/logout/sso`;首登仅建无权限 USER 资料。break-glass 默认关闭,凭据只走环境变量、短时 ADMIN、逐次审计。旧 access/refresh 在 TTL 后自然失效;回滚依赖旧库快照。
 - Event Publication Registry(事件持久化+重放):当前支付入账为同事务强一致;
   规模化后切换持久化事件实现最终一致。
 - 收款维持 Mock(2026-10-02 owner 终态裁决,无限期):真实 PSP 不排期、不评审;`PaymentProvider` 出站端口契约保留,重启条件 = owner 明确立项(出现真实收款需求),此前任何会话不得将其列为待办或开放项。本轮待结算恢复与 Key ID 绑定亦按此边界不接真实渠道。

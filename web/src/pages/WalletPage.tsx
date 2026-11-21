@@ -76,7 +76,7 @@ export default function WalletPage() {
   const credit = useMutation({
     mutationFn: () =>
       adminCredit({
-        userId: Number(balance.data?.userId ?? 0),
+        subject: balance.data?.subject ?? "",
         amountCredits: yuan2credits(amount),
         ...(refId ? { refId } : {}),
       }),
@@ -113,7 +113,7 @@ export default function WalletPage() {
       <Card>
         <CardHeader>
           <CardTitle>当前余额</CardTitle>
-          <CardDescription>用户 ID {balance.data?.userId ?? "…"}</CardDescription>
+          <CardDescription>主体 {balance.data?.subject ?? "…"}</CardDescription>
         </CardHeader>
         <CardContent>
           {balance.isError ? (

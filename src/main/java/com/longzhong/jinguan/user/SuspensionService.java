@@ -13,18 +13,18 @@ public class SuspensionService {
   /** key 吊销下发管道的水位名。 */
   public static final String WATERMARK_KEY_REVOCATIONS = "key-revocations";
 
-  private final UserRepository users;
+  private final PrincipalRepository users;
   private final SyncWatermarkRepository watermarks;
 
-  public SuspensionService(UserRepository users, SyncWatermarkRepository watermarks) {
+  public SuspensionService(PrincipalRepository users, SyncWatermarkRepository watermarks) {
     this.users = users;
     this.watermarks = watermarks;
   }
 
   /** 在独立事务中标记停服，避免调用方回滚时丢失欠费状态。 */
   @Transactional(propagation = Propagation.REQUIRES_NEW)
-  public boolean markSuspended(long userId) {
-    int updated = users.suspendIfClear(userId, Instant.now());
+  public boolean markSuspended(String subject) {
+    int updated = users.suspendIfClear(subject, Instant.now());
     if (updated > 0) {
       bumpKeyRevocationVersion();
       return true;
@@ -34,8 +34,8 @@ public class SuspensionService {
 
   /** 与入账同事务恢复停服。 */
   @Transactional
-  public boolean clearIfSuspended(long userId) {
-    int updated = users.resumeIfSuspended(userId);
+  public boolean clearIfSuspended(String subject) {
+    int updated = users.resumeIfSuspended(subject);
     if (updated > 0) {
       bumpKeyRevocationVersion();
       return true;
@@ -45,8 +45,8 @@ public class SuspensionService {
 
   /** 查询全部停服用户 ID。 */
   @Transactional(readOnly = true)
-  public List<Long> suspendedUserIds() {
-    return users.findSuspendedIds();
+  public List<String> suspendedSubjects() {
+    return users.findSuspendedSubjects();
   }
 
   /** 查询 key-revocations 下发版本。 */

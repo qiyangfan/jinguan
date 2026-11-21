@@ -14,14 +14,14 @@ import { bindKey } from "@/lib/keys-api";
 
 export default function KeysPage() {
   const [keyId, setKeyId] = useState("");
-  const [userId, setUserId] = useState("");
+  const [subject, setSubject] = useState("");
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
 
   const bind = useMutation({
-    mutationFn: () => bindKey({ keyId: keyId.trim(), userId: Number(userId) }),
+    mutationFn: () => bindKey({ keyId: keyId.trim(), subject: subject.trim() }),
     onSuccess: (out) => {
-      setSuccess(`密钥 ${out.keyId} 已绑定到用户(ID ${out.userId})`);
+      setSuccess(`密钥 ${out.keyId} 已绑定到主体 ${out.subject}`);
       setError("");
       setKeyId("");
     },
@@ -66,14 +66,11 @@ export default function KeysPage() {
                   required
                 />
               </FormRow>
-              <FormRow label="用户 ID" htmlFor="userId" className="md:w-32">
+              <FormRow label="主体 subject" htmlFor="subject" className="md:w-32">
                 <Input
-                  id="userId"
-                  type="number"
-                  inputMode="numeric"
-                  min="1"
-                  value={userId}
-                  onChange={(e) => setUserId(e.target.value)}
+                  id="subject"
+                  value={subject}
+                  onChange={(e) => setSubject(e.target.value)}
                   className="w-full"
                   required
                 />
@@ -81,7 +78,7 @@ export default function KeysPage() {
               <Button
                 type="submit"
                 className="h-11 w-full md:h-9 md:w-auto"
-                disabled={bind.isPending || !keyId.trim() || !userId}
+                disabled={bind.isPending || !keyId.trim() || !subject.trim()}
               >
                 {bind.isPending ? "绑定中…" : "绑定"}
               </Button>

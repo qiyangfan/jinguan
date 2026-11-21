@@ -70,8 +70,9 @@ class OpsMetricsIntegrationTest extends OpsMetricsTestSupport {
             MetricNames.TAG_OUTCOME,
             MetricNames.OUTCOME_REPLAYED);
 
-    credit(1, 1_000_000_000L, "ops-credit-1");
-    credit(1, 1_000_000_000L, "ops-credit-1"); // 同键同载荷:幂等重放,不加钱
+    String opsSubject = seedUser("ops-main");
+    credit(opsSubject, 1_000_000_000L, "ops-credit-1");
+    credit(opsSubject, 1_000_000_000L, "ops-credit-1"); // 同键同载荷:幂等重放,不加钱
 
     Assertions.assertEquals(
         1.0,
@@ -110,15 +111,15 @@ class OpsMetricsIntegrationTest extends OpsMetricsTestSupport {
             MetricNames.KIND_CREDIT,
             MetricNames.TAG_OUTCOME,
             MetricNames.OUTCOME_REJECTED_CONFLICT);
-    long poorUid = seedUser("ops-poor");
+    String poorSubject = seedUser("ops-poor");
     mvc.perform(
         post("/wallet/admin/debit")
             .header(AUTHORIZATION, BEARER + adminToken)
             .contentType(MediaType.APPLICATION_JSON)
             .content(
-                "{\"userId\":"
-                    + poorUid
-                    + ",\"amountCredits\":500000000,\"refId\":\"ops-debit-x\"}"));
+                "{\"subject\":\""
+                    + poorSubject
+                    + "\",\"amountCredits\":500000000,\"refId\":\"ops-debit-x\"}"));
     Assertions.assertEquals(
         1.0,
         counter(
@@ -134,7 +135,9 @@ class OpsMetricsIntegrationTest extends OpsMetricsTestSupport {
             post("/wallet/admin/credit")
                 .header(AUTHORIZATION, BEARER + adminToken)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"userId\":1,\"amountCredits\":999,\"refId\":\"ops-credit-1\"}"))
+                .content(
+                    "{\"subject\":\"sub-ops-main\",\"amountCredits\":999,"
+                        + "\"refId\":\"ops-credit-1\"}"))
         .andExpect(status().isConflict());
     Assertions.assertEquals(
         1.0,
@@ -156,7 +159,7 @@ class OpsMetricsIntegrationTest extends OpsMetricsTestSupport {
             post("/admin/key-bindings")
                 .header(AUTHORIZATION, BEARER + adminToken)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"keyId\":\"" + KEY_OPS + "\",\"userId\":1}"))
+                .content("{\"keyId\":\"" + KEY_OPS + "\",\"subject\":\"sub-ops-main\"}"))
         .andExpect(status().isCreated());
 
     final double acceptedBefore =
@@ -413,8 +416,8 @@ class OpsMetricsIntegrationTest extends OpsMetricsTestSupport {
   @Order(6)
   void lowCardinalityNoNewSeriesPerUser() throws Exception {
     int before = registry.find(MetricNames.WALLET_OPERATIONS).counters().size();
-    long second = seedUser("ops-second");
-    credit(1, 10_000_000L, "ops-multi-1");
+    String second = seedUser("ops-second");
+    credit("sub-ops-main", 10_000_000L, "ops-multi-1");
     credit(second, 10_000_000L, "ops-multi-2");
     int after = registry.find(MetricNames.WALLET_OPERATIONS).counters().size();
 
@@ -434,11 +437,12 @@ class OpsMetricsIntegrationTest extends OpsMetricsTestSupport {
     final var gauge = registry.find(MetricNames.PAYMENT_EXPIRY_BACKLOG).gauge();
     Assertions.assertNotNull(gauge, "backlog 必须注册为 Gauge");
 
-    long uid = seedUser("ops-exp-u");
+    String subject = seedUser("ops-exp-u");
     Instant past = Instant.now().minusSeconds(1);
     for (String orderId : List.of("po-ops-exp-1", "po-ops-exp-2")) {
       orders.save(
-          com.longzhong.jinguan.payment.MockOrderEntity.create(orderId, uid, 500_000, "CNY", past));
+          com.longzhong.jinguan.payment.MockOrderEntity.create(
+              orderId, subject, 500_000, "CNY", past));
     }
 
     Assertions.assertEquals(
@@ -454,11 +458,12 @@ class OpsMetricsIntegrationTest extends OpsMetricsTestSupport {
   @Transactional
   void expiredOrdersOnlyCountedByConverged() {
     final var gauge = registry.find(MetricNames.PAYMENT_EXPIRY_BACKLOG).gauge();
-    long uid = seedUser("ops-exp-u2");
+    String subject = seedUser("ops-exp-u2");
     Instant past = Instant.now().minusSeconds(1);
     for (String orderId : List.of("po-ops-run-1", "po-ops-run-2")) {
       orders.save(
-          com.longzhong.jinguan.payment.MockOrderEntity.create(orderId, uid, 500_000, "CNY", past));
+          com.longzhong.jinguan.payment.MockOrderEntity.create(
+              orderId, subject, 500_000, "CNY", past));
     }
     final double convergedBefore = counter(MetricNames.PAYMENT_EXPIRY_CONVERGED);
 

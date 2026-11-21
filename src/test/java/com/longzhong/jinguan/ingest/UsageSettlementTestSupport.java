@@ -4,8 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.longzhong.jinguan.common.MetricNames;
 import com.longzhong.jinguan.payment.PaymentService;
-import com.longzhong.jinguan.user.UserEntity;
-import com.longzhong.jinguan.user.UserRepository;
+import com.longzhong.jinguan.user.PrincipalEntity;
+import com.longzhong.jinguan.user.PrincipalRepository;
 import com.longzhong.jinguan.wallet.LedgerEntryRepository;
 import com.longzhong.jinguan.wallet.WalletService;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -23,14 +23,14 @@ class UsageSettlementTestSupport {
   @Autowired UsageRecordRepository usageRecords;
   @Autowired UsageRecordService usageService;
   @Autowired ApiKeyBindingRepository bindings;
-  @Autowired UserRepository users;
+  @Autowired PrincipalRepository users;
   @Autowired WalletService wallet;
   @Autowired LedgerEntryRepository ledger;
   @Autowired PaymentService payments;
   @Autowired MeterRegistry meters;
 
-  long newUser(String username) {
-    return users.save(UserEntity.create(username, "hash", "USER")).getId();
+  String newUser(String username) {
+    return users.save(PrincipalEntity.jit("sub-" + username, username)).getSubject();
   }
 
   IngestUsageRow row(String id, String keyId, long cost) {
@@ -58,14 +58,14 @@ class UsageSettlementTestSupport {
   }
 
   /** 创建一笔归属已固定的欠费候选。 */
-  void seedInsufficient(String keyId, long uid, String id, long cost) {
-    bindings.save(new ApiKeyBindingEntity(keyId, uid));
+  void seedInsufficient(String keyId, String subject, String id, long cost) {
+    bindings.save(new ApiKeyBindingEntity(keyId, subject));
     var result = ingest.accept(List.of(row(id, keyId, cost)));
     assertEquals(1, result.skippedInsufficient(), "种子行应为欠费留存");
   }
 
-  long remainingCandidates(long userId) {
-    return usageRecords.findCandidateRows(userId, 1000).size();
+  long remainingCandidates(String subject) {
+    return usageRecords.findCandidateRows(subject, 1000).size();
   }
 
   double ingestRowCount(String outcome) {
@@ -80,13 +80,13 @@ class UsageSettlementTestSupport {
       if (pending.isEmpty()) {
         return;
       }
-      for (Long uid : pending) {
-        if (wallet.balance(uid) < DRAIN_MIN_BALANCE) {
+      for (String subject : pending) {
+        if (wallet.balance(subject) < DRAIN_MIN_BALANCE) {
           wallet.credit(
-              uid,
+              subject,
               DRAIN_MIN_BALANCE,
               WalletService.REASON_MANUAL_TOPUP,
-              "drain-" + uid + "-" + i,
+              "drain-" + subject + "-" + i,
               null,
               null);
         }

@@ -4,8 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.longzhong.jinguan.user.UserEntity;
-import com.longzhong.jinguan.user.UserRepository;
+import com.longzhong.jinguan.user.PrincipalEntity;
+import com.longzhong.jinguan.user.PrincipalRepository;
 import com.longzhong.jinguan.wallet.LedgerEntryRepository;
 import com.longzhong.jinguan.wallet.WalletService;
 import java.io.IOException;
@@ -38,7 +38,7 @@ class PostgresMigrationTest {
 
   @Autowired JdbcTemplate jdbc;
   @Autowired WalletService wallet;
-  @Autowired UserRepository users;
+  @Autowired PrincipalRepository users;
   @Autowired LedgerEntryRepository ledger;
 
   @Test
@@ -63,19 +63,21 @@ class PostgresMigrationTest {
 
   @Test
   void ledgerAppendWorksOnRealPostgres() {
-    long userId = users.save(UserEntity.create("pg-migration-user", "hash", "USER")).getId();
+    String subject =
+        users.save(PrincipalEntity.jit("pg-migration-user", "pg-migration-user")).getSubject();
     long amount = 12_345L;
 
-    wallet.credit(userId, amount, TOPUP_REASON, "pg-migration-seed", "pg", null);
+    wallet.credit(subject, amount, TOPUP_REASON, "pg-migration-seed", "pg", null);
 
-    assertEquals(amount, wallet.balance(userId), "余额须等于唯一一笔入账");
+    assertEquals(amount, wallet.balance(subject), "余额须等于唯一一笔入账");
     assertTrue(ledger.findByRefId("pg-migration-seed").isPresent(), "分录须可回读");
   }
 
   @Test
   void ledgerRejectsUpdateAndDeleteAtDatabaseLevel() {
-    long userId = users.save(UserEntity.create("pg-append-user", "hash", "USER")).getId();
-    wallet.credit(userId, 10L, TOPUP_REASON, "pg-append-only", null, null);
+    String subject =
+        users.save(PrincipalEntity.jit("pg-append-user", "pg-append-user")).getSubject();
+    wallet.credit(subject, 10L, TOPUP_REASON, "pg-append-only", null, null);
     Long id =
         jdbc.queryForObject(
             "SELECT id FROM ledger_entries WHERE ref_id = ?", Long.class, "pg-append-only");

@@ -10,6 +10,9 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 public class JinguanApplication {
 
   public static void main(String[] args) {
+    if (args.length > 0 && "break-glass".equals(args[0])) {
+      System.exit(BreakGlassCli.run());
+    }
     SpringApplication.run(JinguanApplication.class, args);
   }
 }

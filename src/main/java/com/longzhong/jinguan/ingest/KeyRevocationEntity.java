@@ -23,23 +23,23 @@ public class KeyRevocationEntity {
   @Column(nullable = false)
   private String reason;
 
-  @Column(name = "operator_user_id")
-  private Long operatorUserId;
+  @Column(name = "operator_subject")
+  private String operatorSubject;
 
   @Column(name = "created_at", nullable = false)
   private Instant createdAt;
 
   protected KeyRevocationEntity() {} // JPA
 
-  private KeyRevocationEntity(String keyId, String reason, Long operatorUserId) {
+  private KeyRevocationEntity(String keyId, String reason, String operatorSubject) {
     this.keyId = keyId;
     this.reason = reason;
-    this.operatorUserId = operatorUserId;
+    this.operatorSubject = operatorSubject;
     this.createdAt = Instant.now();
   }
 
-  public static KeyRevocationEntity of(String keyId, String reason, Long operatorUserId) {
-    return new KeyRevocationEntity(keyId, reason, operatorUserId);
+  public static KeyRevocationEntity of(String keyId, String reason, String operatorSubject) {
+    return new KeyRevocationEntity(keyId, reason, operatorSubject);
   }
 
   public Long getId() {
@@ -54,8 +54,8 @@ public class KeyRevocationEntity {
     return reason;
   }
 
-  public Long getOperatorUserId() {
-    return operatorUserId;
+  public String getOperatorSubject() {
+    return operatorSubject;
   }
 
   public Instant getCreatedAt() {

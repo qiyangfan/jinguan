@@ -5,7 +5,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.jayway.jsonpath.JsonPath;
+import com.longzhong.jinguan.security.JwtService;
+import com.longzhong.jinguan.user.PrincipalEntity;
+import com.longzhong.jinguan.user.PrincipalRepository;
 import com.longzhong.jinguan.wallet.WalletService;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -27,36 +29,28 @@ import org.springframework.test.web.servlet.MvcResult;
       "spring.datasource.url=jdbc:h2:mem:jinguan-bind;MODE=PostgreSQL;DB_CLOSE_DELAY=-1",
       "spring.datasource.username=sa",
       "spring.datasource.password=",
-      "jinguan.security.jwt-secret=test-secret-0123456789abcdef-0123456789abcdef",
     })
 class ApiKeyBindingContractTest {
 
   @Autowired MockMvc mvc;
   @Autowired IngestService ingest;
   @Autowired WalletService wallet;
+  @Autowired PrincipalRepository principals;
+  @Autowired JwtService jwt;
 
-  String adminToken; // 类级共享:首位注册的管理员凭证
-
-  /** 注册首位管理员并取得凭证。 */
-  private String admin() throws Exception {
-    if (adminToken == null) {
-      MvcResult result =
-          mvc.perform(
-                  post("/auth/register")
-                      .contentType(MediaType.APPLICATION_JSON)
-                      .content("{\"username\":\"bind-admin\",\"password\":\"password-123\"}"))
-              .andExpect(status().isCreated())
-              .andReturn();
-      adminToken = JsonPath.read(result.getResponse().getContentAsString(), "$.token");
-    }
-    return adminToken;
+  private String admin() {
+    PrincipalEntity admin = principals.save(PrincipalEntity.jit("sub-bind-admin", "bind-admin"));
+    admin.grantRole("ADMIN");
+    principals.save(admin);
+    return jwt.issueAccess(admin.getSubject(), admin.getUsername(), admin.getRole());
   }
 
   @Test
-  void customIdentifierBoundAndMeteredByOriginalValue() {
-    // 自定义标识按原值参与计量归账。
-    bindingsOrMvcBind("k-1", 1);
-    wallet.credit(1L, 1_000, WalletService.REASON_MANUAL_TOPUP, "bind-seed", null, null);
+  void customIdentifierBoundAndMeteredByOriginalValue() throws Exception {
+    String subject = "sub-bind-custom";
+    principals.save(PrincipalEntity.jit(subject, "bind-custom"));
+    bindingsOrMvcBind("k-1", subject);
+    wallet.credit(subject, 1_000, WalletService.REASON_MANUAL_TOPUP, "bind-seed", null, null);
     var result =
         ingest.accept(
             List.of(
@@ -82,32 +76,28 @@ class ApiKeyBindingContractTest {
                     1L,
                     "2026-10-02T00:00:00Z")));
     assertEquals(1, result.accepted(), "k-1 计量命中绑定归账");
-    assertEquals(900, wallet.balance(1L), "自定义标识扣款 100 后余额 900");
+    assertEquals(900, wallet.balance(subject), "自定义标识扣款 100 后余额 900");
   }
 
-  private void bindingsOrMvcBind(String keyId, long userId) {
-    try {
-      mvc.perform(
-              post("/admin/key-bindings")
-                  .header("Authorization", "Bearer " + admin())
-                  .contentType(MediaType.APPLICATION_JSON)
-                  .content("{\"keyId\":\"" + keyId + "\",\"userId\":" + userId + "}"))
-          .andExpect(status().isCreated())
-          .andExpect(jsonPath("$.keyId").value(keyId));
-    } catch (Exception e) {
-      throw new IllegalStateException(e);
-    }
+  private void bindingsOrMvcBind(String keyId, String subject) throws Exception {
+    mvc.perform(
+            post("/admin/key-bindings")
+                .header("Authorization", "Bearer " + admin())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"keyId\":\"" + keyId + "\",\"subject\":\"" + subject + "\"}"))
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.keyId").value(keyId));
   }
 
   @Test
   void mkPrefixNotBlankWholeClassRejected() throws Exception {
-    // mk- 前缀标识仍然有效。
+    principals.save(PrincipalEntity.jit("sub-bind-mk", "bind-mk"));
     MvcResult created =
         mvc.perform(
                 post("/admin/key-bindings")
                     .header("Authorization", "Bearer " + admin())
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"keyId\":\"mk-test-1\",\"userId\":1}"))
+                    .content("{\"keyId\":\"mk-test-1\",\"subject\":\"sub-bind-mk\"}"))
             .andReturn();
     assertEquals(201, created.getResponse().getStatus(), "mk- 前缀标识应绑定成功");
   }
@@ -119,7 +109,7 @@ class ApiKeyBindingContractTest {
                 post("/admin/key-bindings")
                     .header("Authorization", "Bearer " + admin())
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"keyId\":\"   \",\"userId\":1}"))
+                    .content("{\"keyId\":\"   \",\"subject\":\"sub-bind-mk\"}"))
             .andReturn();
     assertEquals(400, rejected.getResponse().getStatus(), "空白标识必须 400");
   }

@@ -7,7 +7,7 @@ public interface PaymentProvider {
 
   String name();
 
-  CreatedOrder createOrder(String orderId, long userId, long amountCredits, String currency);
+  CreatedOrder createOrder(String orderId, String subject, long amountCredits, String currency);
 
   /** 校验渠道回调；返回 true 表示支付成功，无效载荷返回 false。 */
   boolean verifyCallback(String orderId, CallbackPayload payload);

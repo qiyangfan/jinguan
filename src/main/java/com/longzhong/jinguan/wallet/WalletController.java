@@ -1,7 +1,6 @@
 package com.longzhong.jinguan.wallet;
 
 import com.longzhong.jinguan.security.JwtService;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import java.util.List;
 import java.util.Map;
@@ -32,20 +31,26 @@ public class WalletController {
 
   /** 入账请求体；refId 幂等键由调用方提供。 */
   public record CreditRequest(
-      @NotNull Long userId, @Positive long amountCredits, String refId, String note) {}
+      @jakarta.validation.constraints.NotBlank String subject,
+      @Positive long amountCredits,
+      String refId,
+      String note) {}
 
   /** 扣账请求体；refId 幂等键由调用方提供。 */
   public record DebitRequest(
-      @NotNull Long userId, @Positive long amountCredits, String refId, String note) {}
+      @jakarta.validation.constraints.NotBlank String subject,
+      @Positive long amountCredits,
+      String refId,
+      String note) {}
 
   /** 当前用户余额，单位为 credit（1 credit = 本币 10⁻⁹）。 */
   @GetMapping("/balance")
   public Map<String, Object> balance(@AuthenticationPrincipal JwtService.LoginUser user) {
     return Map.of(
-        "userId",
-        String.valueOf(user.uid()),
+        "subject",
+        String.valueOf(user.subject()),
         "balanceCredits",
-        String.valueOf(wallet.balance(user.uid())));
+        String.valueOf(wallet.balance(user.subject())));
   }
 
   /** 查询当前用户账本流水。 */
@@ -54,7 +59,7 @@ public class WalletController {
       @AuthenticationPrincipal JwtService.LoginUser user,
       @RequestParam(defaultValue = "0") int page,
       @RequestParam(defaultValue = "20") int size) {
-    return wallet.history(user.uid(), page, size).getContent();
+    return wallet.history(user.subject(), page, size).getContent();
   }
 
   /** 管理员手工入账并记录操作人。 */
@@ -68,12 +73,12 @@ public class WalletController {
     LedgerEntryEntity entry =
         wallet
             .credit(
-                req.userId(),
+                req.subject(),
                 req.amountCredits(),
                 WalletService.REASON_MANUAL_TOPUP,
                 refId,
                 req.note(),
-                admin.uid())
+                admin.subject())
             .entry();
     return ResponseEntity.status(HttpStatus.CREATED)
         .body(
@@ -81,7 +86,7 @@ public class WalletController {
                 "refId",
                 entry.getRefId(),
                 "balanceCredits",
-                String.valueOf(wallet.balance(req.userId()))));
+                String.valueOf(wallet.balance(req.subject()))));
   }
 
   /** 管理员调账扣减，同样受余额与幂等约束，并记录操作人。 */
@@ -95,12 +100,12 @@ public class WalletController {
     LedgerEntryEntity entry =
         wallet
             .debit(
-                req.userId(),
+                req.subject(),
                 req.amountCredits(),
                 WalletService.REASON_MANUAL_ADJUST,
                 refId,
                 req.note(),
-                admin.uid())
+                admin.subject())
             .entry();
     return ResponseEntity.status(HttpStatus.CREATED)
         .body(
@@ -108,6 +113,6 @@ public class WalletController {
                 "refId",
                 entry.getRefId(),
                 "balanceCredits",
-                String.valueOf(wallet.balance(req.userId()))));
+                String.valueOf(wallet.balance(req.subject()))));
   }
 }

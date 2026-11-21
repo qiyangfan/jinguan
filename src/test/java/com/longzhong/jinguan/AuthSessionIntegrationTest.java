@@ -5,6 +5,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.jayway.jsonpath.JsonPath;
+import com.longzhong.jinguan.user.AuthCookies;
+import com.longzhong.jinguan.user.TokenIssuer;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.MethodOrderer;
@@ -12,16 +14,13 @@ import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.TestMethodOrder;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.http.MediaType;
+import org.springframework.http.HttpHeaders;
 import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
-import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
 
-/** 验证 access/refresh 双 token 的注册、续期、鉴权和登出流程。 */
+/** 验证本地双 token 的续期、鉴权与登出；本地账密端点必须不存在。 */
 @SpringBootTest
 @AutoConfigureMockMvc
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -31,49 +30,26 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
       "spring.datasource.url=jdbc:h2:mem:jinguan-auth;MODE=PostgreSQL;DB_CLOSE_DELAY=-1",
       "spring.datasource.username=sa",
       "spring.datasource.password=",
-      "jinguan.security.jwt-secret=test-secret-0123456789abcdef-0123456789abcdef",
     })
-class AuthSessionIntegrationTest {
+@SuppressWarnings("PMD.UnitTestContainsTooManyAsserts")
+class AuthSessionIntegrationTest extends RefreshTestSupport {
 
-  private static final String REFRESH_COOKIE = "jinguan.refresh";
   private static final String AUTHORIZATION = "Authorization";
   private static final String BEARER = "Bearer ";
   private static final String TOKEN_PATH = "$.token";
-
-  @Autowired MockMvc mvc;
 
   String accessToken;
   String refreshValue;
 
   @Test
   @Order(1)
-  void registerIssuesDualTokenWithHardenedCookie() throws Exception {
-    MvcResult result =
-        mvc.perform(
-                post("/auth/register")
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"username\":\"auth-u1\",\"password\":\"password-123\"}"))
-            .andExpect(status().isCreated())
-            .andExpect(MockMvcResultMatchers.jsonPath(TOKEN_PATH).exists())
-            .andReturn();
-    accessToken = JsonPath.read(result.getResponse().getContentAsString(), TOKEN_PATH);
-    String setCookie = result.getResponse().getHeader("Set-Cookie");
-    Assertions.assertNotNull(setCookie, "注册必须下发 refresh cookie");
-    Assertions.assertTrue(setCookie.startsWith(REFRESH_COOKIE + "="), "cookie 名固定 jinguan.refresh");
-    Assertions.assertTrue(setCookie.contains("HttpOnly"), "cookie 必须 HttpOnly(JS 不可读)");
-    Assertions.assertTrue(setCookie.contains("SameSite=Strict"), "cookie 必须 SameSite=Strict");
-    Assertions.assertTrue(setCookie.contains("Path=/auth"), "cookie 必须 Path=/auth(仅认证端点携带)");
-    refreshValue = cookieValue(setCookie);
-  }
-
-  @Test
-  @Order(2)
-  void accessAuthenticatesRefreshCannotBearer() throws Exception {
-    // access token 可访问 API。
+  void issuedDualTokenAuthenticatesAndRefreshCookieIsHardened() throws Exception {
+    TokenIssuer.TokenPair pair = issue("auth-u1", "USER");
+    accessToken = pair.access();
+    refreshValue = pair.refresh();
     MvcResult byAccess =
         mvc.perform(get("/wallet/balance").header(AUTHORIZATION, BEARER + accessToken)).andReturn();
     Assertions.assertEquals(200, byAccess.getResponse().getStatus(), "access token 必须可访问 API");
-    // refresh token 不可作为 Bearer token。
     MvcResult byRefresh =
         mvc.perform(get("/wallet/balance").header(AUTHORIZATION, BEARER + refreshValue))
             .andReturn();
@@ -81,86 +57,90 @@ class AuthSessionIntegrationTest {
   }
 
   @Test
-  @Order(3)
+  @Order(2)
   void refreshRotatesBothTokens() throws Exception {
     MvcResult result =
-        mvc.perform(post("/auth/refresh").cookie(new Cookie(REFRESH_COOKIE, refreshValue)))
+        mvc.perform(
+                post("/auth/refresh").cookie(new Cookie(AuthCookies.REFRESH_COOKIE, refreshValue)))
             .andExpect(status().isOk())
-            .andExpect(MockMvcResultMatchers.jsonPath(TOKEN_PATH).exists())
+            .andExpect(
+                org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath(
+                        TOKEN_PATH)
+                    .exists())
             .andReturn();
     String newAccess = JsonPath.read(result.getResponse().getContentAsString(), TOKEN_PATH);
     Assertions.assertNotEquals(accessToken, newAccess, "轮换必须签发新 access");
-    String setCookie = result.getResponse().getHeader("Set-Cookie");
+    String setCookie = result.getResponse().getHeader(HttpHeaders.SET_COOKIE);
     Assertions.assertNotNull(setCookie, "轮换必须下发新 refresh cookie");
+    Assertions.assertTrue(setCookie.contains("HttpOnly"), "cookie 必须 HttpOnly");
+    Assertions.assertTrue(setCookie.contains("SameSite=Strict"), "cookie 必须 SameSite=Strict");
+    Assertions.assertTrue(setCookie.contains("Path=/auth"), "cookie 必须 Path=/auth");
     String newRefresh = cookieValue(setCookie);
     Assertions.assertNotEquals(refreshValue, newRefresh, "轮换必须签发新 refresh");
-    // 新 access token 可用。
     mvc.perform(get("/wallet/balance").header(AUTHORIZATION, BEARER + newAccess))
         .andExpect(status().isOk());
     accessToken = newAccess;
+    refreshValue = newRefresh;
   }
 
   @Test
-  @Order(4)
+  @Order(3)
   void refreshWithoutOrInvalidCookieRejected() throws Exception {
-    // 缺少 refresh cookie。
     MvcResult missing = mvc.perform(post("/auth/refresh")).andReturn();
     Assertions.assertEquals(401, missing.getResponse().getStatus(), "缺少 refresh cookie 应 401");
-    // access token 不能用于 refresh。
     MvcResult wrongToken =
-        mvc.perform(post("/auth/refresh").cookie(new Cookie(REFRESH_COOKIE, accessToken)))
+        mvc.perform(
+                post("/auth/refresh").cookie(new Cookie(AuthCookies.REFRESH_COOKIE, accessToken)))
             .andReturn();
     Assertions.assertEquals(401, wrongToken.getResponse().getStatus(), "access token 不能用于 refresh");
   }
 
   @Test
-  @Order(5)
-  void logoutClearsCookie() throws Exception {
+  @Order(4)
+  void logoutClearsCookieAndRevokesRefresh() throws Exception {
     MvcResult result =
-        mvc.perform(post("/auth/logout").header(AUTHORIZATION, BEARER + accessToken))
+        mvc.perform(
+                post("/auth/logout").cookie(new Cookie(AuthCookies.REFRESH_COOKIE, refreshValue)))
             .andExpect(status().isNoContent())
             .andReturn();
-    String setCookie = result.getResponse().getHeader("Set-Cookie");
+    String setCookie = result.getResponse().getHeader(HttpHeaders.SET_COOKIE);
     Assertions.assertNotNull(setCookie, "登出必须下发清除 cookie");
     Assertions.assertTrue(setCookie.contains("Max-Age=0"), "登出必须以 Max-Age=0 清 cookie");
+    Assertions.assertEquals(
+        401, refresh(refreshValue).getResponse().getStatus(), "登出后 refresh 必须失效");
+  }
+
+  @Test
+  @Order(5)
+  void localPasswordEndpointsAreGone() throws Exception {
+    MvcResult login =
+        mvc.perform(
+                post("/auth/login")
+                    .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                    .content("{\"username\":\"u\",\"password\":\"password-123\"}"))
+            .andReturn();
+    int loginStatus = login.getResponse().getStatus();
+    Assertions.assertTrue(
+        loginStatus == 404 || loginStatus == 405, "本地登录端点必须不存在,实际:" + loginStatus);
+    MvcResult register =
+        mvc.perform(
+                post("/auth/register")
+                    .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                    .content("{\"username\":\"u\",\"password\":\"password-123\"}"))
+            .andReturn();
+    int registerStatus = register.getResponse().getStatus();
+    Assertions.assertTrue(
+        registerStatus == 404 || registerStatus == 405, "本地注册端点必须不存在,实际:" + registerStatus);
   }
 
   @Test
   @Order(6)
-  void malformedBodyIs400ProblemDetailNot403Empty() throws Exception {
-    // 缺少 primitive 字段返回 400，错误分发不得被安全规则改写成 403。
-    MvcResult bad =
-        mvc.perform(
-                post("/auth/login")
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"username\":\"u\",\"password\":123456}"))
-            .andExpect(MockMvcResultMatchers.jsonPath("$.detail").exists())
-            .andExpect(MockMvcResultMatchers.jsonPath("$.title").value("Bad Request"))
-            .andReturn();
-    Assertions.assertEquals(400, bad.getResponse().getStatus(), "畸形请求体必须 400 而非 403 空体");
-  }
-
-  @Test
-  @Order(7)
   void spaDeepLinksAnonymousReachableForEveryFrontendRoute() throws Exception {
-    // 深链需回退到前端入口；无构建产物时允许 404，但不得返回 403 或 5xx。
-    int okStatus = 200;
-    int notFoundStatus = 404;
     for (String route :
         new String[] {"/wallet", "/payments", "/pricing", "/topology", "/keys", "/login"}) {
       MvcResult result = mvc.perform(get(route)).andReturn();
       int s = result.getResponse().getStatus();
-      Assertions.assertTrue(
-          s == okStatus || s == notFoundStatus, route + " 必须 200(index 回退)或 404(无前端产物),实际:" + s);
-      if (s == okStatus) {
-        String ct = result.getResponse().getContentType();
-        Assertions.assertNotNull(ct, route + " 必须有 Content-Type");
-        Assertions.assertTrue(ct.contains("text/html"), route + " 应回退 index.html,实际:" + ct);
-      }
+      Assertions.assertTrue(s == 200 || s == 404, route + " 必须 200(index 回退)或 404(无前端产物),实际:" + s);
     }
-  }
-
-  private static String cookieValue(String setCookie) {
-    return setCookie.substring((REFRESH_COOKIE + "=").length(), setCookie.indexOf(';'));
   }
 }

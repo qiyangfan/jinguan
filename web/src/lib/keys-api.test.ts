@@ -31,15 +31,15 @@ describe("key 绑定请求形态", () => {
     "0198c7a2-3f6b-7a1e-9d4c-2b8e5f1a6d30", // UUID 形态标识
     "Mixed.Case_Prefix-42", // 大小写与符号混合标识
   ])("Key ID %s 按原值提交", async (rawId) => {
-    fetchMock.mockImplementation(() => jsonResponse(201, { keyId: rawId, userId: "1" }));
+    fetchMock.mockImplementation(() => jsonResponse(201, { keyId: rawId, subject: "sub-u1" }));
 
     const [, keysApi] = await loadModules();
-    await keysApi.bindKey({ keyId: rawId, userId: 1 });
+    await keysApi.bindKey({ keyId: rawId, subject: "sub-u1" });
 
     // openapi-fetch 将 Request 传给 fetch。
     const [req] = fetchMock.mock.calls[0] as [Request];
     expect(new URL(req.url).pathname).toBe("/admin/key-bindings");
     // API 层原样提交；空白校验由页面负责。
-    expect(await req.json()).toEqual({ keyId: rawId, userId: 1 });
+    expect(await req.json()).toEqual({ keyId: rawId, subject: "sub-u1" });
   });
 });

@@ -34,7 +34,7 @@ import org.springframework.test.web.servlet.MvcResult;
       "spring.jpa.hibernate.ddl-auto=validate",
       "jinguan.security.jwt-secret=test-secret-0123456789abcdef-0123456789abcdef",
     })
-class DemoAdminIntegrationTest {
+class DemoAdminIntegrationTest extends RefreshTestSupport {
 
   private static final String AUTHORIZATION = "Authorization";
   private static final String BEARER = "Bearer ";
@@ -46,29 +46,35 @@ class DemoAdminIntegrationTest {
   String adminToken;
   String secondaryUserToken;
 
-  private String register(String username) throws Exception {
-    MvcResult result =
-        mvc.perform(
-                post("/auth/register")
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"username\":\"" + username + "\",\"password\":\"password-123\"}"))
-            .andExpect(status().isCreated())
-            .andReturn();
-    return JsonPath.read(result.getResponse().getContentAsString(), "$.token");
+  private String loginAs(String username) {
+    String subject = "sub-" + username;
+    var principal =
+        principals
+            .findById(subject)
+            .orElseGet(
+                () ->
+                    principals.save(
+                        com.longzhong.jinguan.user.PrincipalEntity.jit(subject, username)));
+    if (username.contains("solvela")) {
+      principal.grantRole("ADMIN");
+      principal = principals.save(principal);
+    }
+    return tokenIssuer.issue(principal).access();
   }
 
   /** 复现管理端用例依赖的资金与用量前置:余额 11,700,000,000,用户 2 可用。 */
   @BeforeAll
   void seed() throws Exception {
-    adminToken = register("solvela");
-    secondaryUserToken = register("order-b");
+    adminToken = loginAs("solvela");
+    secondaryUserToken = loginAs("order-b");
     mvc.perform(
             post("/wallet/admin/credit")
                 .header(AUTHORIZATION, BEARER + adminToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     """
-                    {"userId":1,"amountCredits":10000000000,"refId":"seed-1","note":"种子资金"}"""))
+                    {"subject":"sub-solvela","amountCredits":10000000000,
+                     "refId":"seed-1","note":"种子资金"}"""))
         .andExpect(status().isCreated());
     MvcResult order =
         mvc.perform(
@@ -88,7 +94,7 @@ class DemoAdminIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     """
-                    {"keyId":"mk-test-1","userId":1}"""))
+                    {"keyId":"mk-test-1","subject":"sub-solvela"}"""))
         .andExpect(status().isCreated());
     mvc.perform(
             post("/ingest/usage")
@@ -155,7 +161,8 @@ class DemoAdminIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     """
-                    {"userId":1,"amountCredits":700000000,"refId":"adjust-1","note":"错充修正"}"""))
+                    {"subject":"sub-solvela","amountCredits":700000000,
+                     "refId":"adjust-1","note":"错充修正"}"""))
         .andExpect(status().isCreated())
         .andExpect(jsonPath("$.balanceCredits").value("11000000000"));
     // 同 refId 重放不重复扣款。
@@ -165,7 +172,7 @@ class DemoAdminIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     """
-                    {"userId":1,"amountCredits":700000000,"refId":"adjust-1"}"""))
+                    {"subject":"sub-solvela","amountCredits":700000000,"refId":"adjust-1"}"""))
         .andExpect(status().isCreated())
         .andExpect(jsonPath("$.balanceCredits").value("11000000000"));
     // 余额不足时拒绝调账且不留分录。
@@ -176,7 +183,8 @@ class DemoAdminIntegrationTest {
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(
                         """
-                        {"userId":1,"amountCredits":99999999999,"refId":"adjust-x"}"""))
+                        {"subject":"sub-solvela","amountCredits":99999999999,
+                         "refId":"adjust-x"}"""))
             .andExpect(status().isUnprocessableEntity())
             .andReturn();
     Assertions.assertEquals(422, insufficient.getResponse().getStatus(), "余额不足必须 422");
@@ -184,7 +192,7 @@ class DemoAdminIntegrationTest {
     mvc.perform(get("/wallet/entries").header(AUTHORIZATION, BEARER + adminToken))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$[0].reason").value("MANUAL_ADJUST"))
-        .andExpect(jsonPath("$[0].operatorUserId").value("1"))
+        .andExpect(jsonPath("$[0].operatorSubject").value("sub-solvela"))
         .andExpect(jsonPath("$[0].amountCredits").value("-700000000"));
     MvcResult forbidden =
         mvc.perform(
@@ -193,7 +201,7 @@ class DemoAdminIntegrationTest {
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(
                         """
-                        {"userId":1,"amountCredits":1}"""))
+                        {"subject":"sub-solvela","amountCredits":1}"""))
             .andExpect(status().isForbidden())
             .andReturn();
     Assertions.assertEquals(403, forbidden.getResponse().getStatus(), "普通用户调账应 403");
@@ -215,39 +223,24 @@ class DemoAdminIntegrationTest {
 
   @Test
   @Order(4)
-  void adminResetPasswordOldPasswordInvalidates() throws Exception {
-    // 仅管理员可重置密码。
+  void adminRoleGrantAndDisableWork() throws Exception {
     mvc.perform(
-            post("/admin/users/2/reset-password")
+            post("/admin/users/sub-order-b/role")
                 .header(AUTHORIZATION, BEARER + secondaryUserToken)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"newPassword\":\"new-password-123\"}"))
+                .content("{\"role\":\"ADMIN\"}"))
         .andExpect(status().isForbidden());
     mvc.perform(
-            post("/admin/users/2/reset-password")
+            post("/admin/users/sub-order-b/role")
                 .header(AUTHORIZATION, BEARER + adminToken)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"newPassword\":\"new-password-123\"}"))
+                .content("{\"role\":\"ADMIN\"}"))
         .andExpect(status().isNoContent());
-    // 旧密码登录失败。
-    MvcResult oldPassword =
-        mvc.perform(
-                post("/auth/login")
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"username\":\"order-b\",\"password\":\"password-123\"}"))
-            .andExpect(jsonPath("$.detail").value("用户名或密码错误"))
-            .andReturn();
-    Assertions.assertEquals(400, oldPassword.getResponse().getStatus(), "旧密码登录必须 400");
-    // 新密码可登录。
-    MvcResult newPassword =
-        mvc.perform(
-                post("/auth/login")
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"username\":\"order-b\",\"password\":\"new-password-123\"}"))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.token").exists())
-            .andReturn();
-    Assertions.assertEquals(200, newPassword.getResponse().getStatus(), "新密码登录应 200");
+    Assertions.assertEquals(
+        "ADMIN", principals.findById("sub-order-b").orElseThrow().getRole(), "管理员授予角色必须落库");
+    mvc.perform(post("/admin/users/sub-order-b/disable").header(AUTHORIZATION, BEARER + adminToken))
+        .andExpect(status().isNoContent());
+    Assertions.assertTrue(principals.findById("sub-order-b").orElseThrow().isDisabled(), "禁用必须落库");
   }
 
   @Test
@@ -265,7 +258,7 @@ class DemoAdminIntegrationTest {
             .andReturn();
     Assertions.assertEquals(200, usage.getResponse().getStatus(), "用量明细查询应 200");
     // 无用量用户的管理查询返回空列表。
-    mvc.perform(get("/admin/usage?userId=2").header(AUTHORIZATION, BEARER + adminToken))
+    mvc.perform(get("/admin/usage?subject=sub-order-b").header(AUTHORIZATION, BEARER + adminToken))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.length()").value(0));
   }

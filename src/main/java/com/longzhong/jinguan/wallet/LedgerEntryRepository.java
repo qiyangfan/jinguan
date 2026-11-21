@@ -19,9 +19,10 @@ public interface LedgerEntryRepository extends Repository<LedgerEntryEntity, Lon
 
   Optional<LedgerEntryEntity> findByRefId(String refId);
 
-  Page<LedgerEntryEntity> findByUserIdOrderByIdDesc(Long userId, Pageable pageable);
+  Page<LedgerEntryEntity> findBySubjectOrderByIdDesc(String subject, Pageable pageable);
 
   @Query(
-      "SELECT COALESCE(SUM(e.amountCredits), 0) FROM LedgerEntryEntity e WHERE e.userId = :userId")
-  long sumByUserId(@Param("userId") Long userId);
+      "SELECT COALESCE(SUM(e.amountCredits), 0) FROM LedgerEntryEntity e"
+          + " WHERE e.subject = :subject")
+  long sumBySubject(@Param("subject") String subject);
 }

@@ -30,9 +30,9 @@ class UsageSettlementConcurrencyTest extends UsageSettlementTestSupport {
 
   @Test
   void onlineIngestVsRecoveryConcurrentSameRefIdConverges() throws Exception {
-    long uid = newUser("rec-u7");
-    seedInsufficient("mk-r7", uid, "rec-7", 100); // 候选已落库
-    wallet.credit(uid, 1_000, WalletService.REASON_MANUAL_TOPUP, "rec-seed-7", null, null);
+    String subject = newUser("rec-u7");
+    seedInsufficient("mk-r7", subject, "rec-7", 100); // 候选已落库
+    wallet.credit(subject, 1_000, WalletService.REASON_MANUAL_TOPUP, "rec-seed-7", null, null);
 
     var start = new CountDownLatch(1);
     CompletableFuture<Void> online =
@@ -64,17 +64,18 @@ class UsageSettlementConcurrencyTest extends UsageSettlementTestSupport {
         UsageRecordService.OUTCOME_ACCEPTED.equals(stored.getFinalOutcome())
             || UsageRecordService.OUTCOME_REPLAYED.equals(stored.getFinalOutcome()),
         "投影终态收敛,当前: " + stored.getFinalOutcome());
-    assertEquals(900, wallet.balance(uid), "恰一笔扣款");
+    assertEquals(900, wallet.balance(subject), "恰一笔扣款");
     Assertions.assertTrue(ledger.findByRefId("usage:rec-7").isPresent(), "refId 恰一分录");
   }
 
   @Test
   void recoveryDoesNotFakeIngestCounts() {
-    long uid = newUser("rec-u6");
+    String subject = newUser("rec-u6");
     usageRecords.save(
-        UsageRecordEntity.of(row("rec-6", "mk-r6", 100), uid, UsageRecordService.OUTCOME_PENDING));
-    bindings.save(new ApiKeyBindingEntity("mk-r6", uid));
-    wallet.credit(uid, 1_000, WalletService.REASON_MANUAL_TOPUP, "rec-seed-6", null, null);
+        UsageRecordEntity.of(
+            row("rec-6", "mk-r6", 100), subject, UsageRecordService.OUTCOME_PENDING));
+    bindings.save(new ApiKeyBindingEntity("mk-r6", subject));
+    wallet.credit(subject, 1_000, WalletService.REASON_MANUAL_TOPUP, "rec-seed-6", null, null);
 
     final double acceptedBefore = ingestRowCount(MetricNames.OUTCOME_ACCEPTED);
     final double replayedBefore = ingestRowCount(MetricNames.OUTCOME_REPLAYED);

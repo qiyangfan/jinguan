@@ -1,3 +1,7 @@
 # 迁移守卫基线(格式:<文件名> <规则名>)。仅登记已评审的历史迁移,新增条目须附理由。
 # V6 把计量单位从 micros 重命名为 credits,与 muniu 契约同步的一次性改名(双方 change 已对齐)。
 V6__credit_base.sql rename
+# V14 单一身份(owner 2026-11-21 明确授权):删除 users/identity_bootstrap 与旧 user_id 列,
+# 外键改虎符 subject;零存量重建,迁移内有存量行即拒绝。回滚依赖旧库快照。
+V14__Single_identity.java drop_table
+V14__Single_identity.java drop_column

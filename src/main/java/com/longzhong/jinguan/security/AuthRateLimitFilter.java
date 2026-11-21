@@ -15,25 +15,22 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 import tools.jackson.databind.ObjectMapper;
 
-/** 登录和注册分别按 IP 做固定窗口限流；仅在配置可信代理时读取 X-Forwarded-For。 */
+/** OIDC 登录入口按 IP 做固定窗口限流；仅在配置可信代理时读取 X-Forwarded-For。 */
 @Component
 public class AuthRateLimitFilter extends OncePerRequestFilter {
 
   private final com.github.benmanes.caffeine.cache.Cache<String, AtomicLong> counters;
   private final ObjectMapper mapper;
-  private final int loginPerMinute;
-  private final int registerPerMinute;
+  private final int oidcPerMinute;
   private final boolean trustedProxy;
 
   public AuthRateLimitFilter(
       ObjectMapper mapper,
-      @Value("${jinguan.security.rate-limit.login-per-minute}") int loginPerMinute,
-      @Value("${jinguan.security.rate-limit.register-per-minute}") int registerPerMinute,
+      @Value("${jinguan.security.rate-limit.login-per-minute}") int oidcPerMinute,
       @Value("${jinguan.security.rate-limit.trusted-proxy}") boolean trustedProxy) {
     super();
     this.mapper = mapper;
-    this.loginPerMinute = loginPerMinute;
-    this.registerPerMinute = registerPerMinute;
+    this.oidcPerMinute = oidcPerMinute;
     this.trustedProxy = trustedProxy;
     // 窗口从首次请求起算，固定容量限制内存占用。
     this.counters =
@@ -66,12 +63,8 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
   }
 
   private int limitFor(HttpServletRequest request) {
-    if (!"POST".equals(request.getMethod())) {
-      return -1;
-    }
     return switch (request.getRequestURI()) {
-      case "/auth/login" -> loginPerMinute;
-      case "/auth/register" -> registerPerMinute;
+      case "/auth/oidc/start", "/auth/oidc/callback", "/auth/break-glass" -> oidcPerMinute;
       default -> -1;
     };
   }

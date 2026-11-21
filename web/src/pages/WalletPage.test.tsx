@@ -9,7 +9,7 @@ import { renderWithQuery } from "@/test/render";
 import WalletPage from "./WalletPage";
 
 vi.mock("@/lib/auth-store", () => ({
-  useAuth: () => ({ user: { uid: 1, username: "admin", role: "ADMIN" } }),
+  useAuth: () => ({ user: { subject: "sub-admin", username: "admin", role: "ADMIN" } }),
 }));
 vi.mock("@/lib/wallet-api", () => ({
   adminCredit: vi.fn(),
@@ -21,7 +21,7 @@ vi.mock("@/lib/usage-api", () => ({ fetchUsage: vi.fn() }));
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(fetchBalance).mockResolvedValue({ userId: "1", balanceCredits: "5000000000" });
+  vi.mocked(fetchBalance).mockResolvedValue({ subject: "sub-u1", balanceCredits: "5000000000" });
   vi.mocked(fetchEntries).mockResolvedValue([]);
   vi.mocked(fetchUsage).mockResolvedValue([]);
   vi.mocked(adminCredit).mockResolvedValue({ refId: "r-1", balanceCredits: 6500000000 });
@@ -46,7 +46,7 @@ describe("WalletPage", () => {
 
     await waitFor(() =>
       expect(adminCredit).toHaveBeenCalledWith({
-        userId: 1,
+        subject: "sub-u1",
         amountCredits: 1_500_000_000,
         refId: undefined,
       }),

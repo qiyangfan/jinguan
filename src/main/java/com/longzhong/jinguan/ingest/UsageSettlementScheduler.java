@@ -52,12 +52,12 @@ public class UsageSettlementScheduler {
 
   /** 执行一轮恢复并汇总结果。 */
   public RecoveryReport recoverOnce() {
-    List<Long> candidateUsers = records.findCandidateUsers(maxUsers);
+    List<String> candidateUsers = records.findCandidateUsers(maxUsers);
     int settled = 0;
     int stillInsufficient = 0;
     int failed = 0;
-    for (Long userId : candidateUsers) {
-      List<UsageRecordEntity> rows = records.findCandidateRows(userId, maxRows);
+    for (String subject : candidateUsers) {
+      List<UsageRecordEntity> rows = records.findCandidateRows(subject, maxRows);
       for (UsageRecordEntity row : rows) {
         RowOutcome outcome = settleRow(row);
         if (outcome == RowOutcome.SETTLED) {
@@ -80,7 +80,7 @@ public class UsageSettlementScheduler {
     try {
       var result =
           wallet.debit(
-              row.getUserId(),
+              row.getSubject(),
               row.getCostCredits(),
               WalletService.REASON_USAGE,
               IngestService.usageRefId(row.getUsageId()),
@@ -100,18 +100,18 @@ public class UsageSettlementScheduler {
       // 保留冲突行供后续处理。
       usageService.touchSettlementAttempt(row.getUsageId());
       log.error(
-          "待结算行幂等冲突: usageId={} userId={} refId={}",
+          "待结算行幂等冲突: usageId={} subject={} refId={}",
           row.getUsageId(),
-          row.getUserId(),
+          row.getSubject(),
           IngestService.usageRefId(row.getUsageId()),
           e);
       return RowOutcome.FAILED;
     } catch (RuntimeException e) {
       // 单行异常不应中断整轮。
       log.error(
-          "待结算行处理异常: usageId={} userId={} cost={}",
+          "待结算行处理异常: usageId={} subject={} cost={}",
           row.getUsageId(),
-          row.getUserId(),
+          row.getSubject(),
           row.getCostCredits(),
           e);
       return RowOutcome.FAILED;

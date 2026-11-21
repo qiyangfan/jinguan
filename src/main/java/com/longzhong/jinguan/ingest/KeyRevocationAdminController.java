@@ -36,7 +36,7 @@ public class KeyRevocationAdminController {
       @PathVariable @NotBlank @Size(max = 64) String keyId,
       @RequestBody @Validated RevokeRequest req,
       @AuthenticationPrincipal JwtService.LoginUser admin) {
-    boolean replayed = revocations.revoke(keyId, req.reason(), admin.uid());
+    boolean replayed = revocations.revoke(keyId, req.reason(), admin.subject());
     if (replayed) {
       return ResponseEntity.ok(Map.of("keyId", keyId, "replayed", true));
     }

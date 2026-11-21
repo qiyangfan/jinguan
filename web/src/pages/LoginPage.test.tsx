@@ -1,57 +1,41 @@
 import { render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import LoginPage from "./LoginPage";
 
-const { navigate, login, register } = vi.hoisted(() => ({
-  navigate: vi.fn(),
-  login: vi.fn<(username: string, password: string) => Promise<void>>(),
-  register: vi.fn<(username: string, password: string) => Promise<void>>(),
-}));
-
-vi.mock("react-router", () => ({ useNavigate: () => navigate }));
-vi.mock("@/lib/auth-store", () => ({ useAuth: () => ({ login, register }) }));
+let fetchMock: ReturnType<typeof vi.fn<typeof fetch>>;
 
 beforeEach(() => {
-  vi.clearAllMocks();
-  login.mockResolvedValue(undefined);
-  register.mockResolvedValue(undefined);
+  fetchMock = vi.fn<typeof fetch>();
+  vi.stubGlobal("fetch", fetchMock);
 });
+afterEach(() => vi.unstubAllGlobals());
 
 describe("LoginPage", () => {
-  it("登录成功后跳转钱包页", async () => {
+  it("统一身份已配置时只展示虎符入口", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ enabled: true }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
     render(<LoginPage />);
 
-    await userEvent.type(screen.getByLabelText("用户名"), "alice");
-    await userEvent.type(screen.getByLabelText("密码"), "password-123");
-    await userEvent.click(screen.getByRole("button", { name: "登录" }));
-
-    await waitFor(() => expect(login).toHaveBeenCalledWith("alice", "password-123"));
-    expect(navigate).toHaveBeenCalledWith("/wallet");
+    const link = await screen.findByRole("link", { name: "使用统一身份登录" });
+    expect(link).toHaveAttribute("href", "/auth/oidc/start");
+    expect(screen.queryByLabelText("密码")).not.toBeInTheDocument();
   });
 
-  it("登录失败时显示错误信息且不跳转", async () => {
-    login.mockRejectedValue(new Error("密码错误"));
+  it("未配置时提示联系运维且不出现本地账密", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ enabled: false }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
     render(<LoginPage />);
 
-    await userEvent.type(screen.getByLabelText("用户名"), "alice");
-    await userEvent.type(screen.getByLabelText("密码"), "password-123");
-    await userEvent.click(screen.getByRole("button", { name: "登录" }));
-
-    expect(await screen.findByText("密码错误")).toBeInTheDocument();
-    expect(navigate).not.toHaveBeenCalled();
-  });
-
-  it("切换到注册模式后调用 register", async () => {
-    render(<LoginPage />);
-
-    await userEvent.click(screen.getByRole("button", { name: "没有账号?去注册" }));
-    await userEvent.type(screen.getByLabelText("用户名"), "bob");
-    await userEvent.type(screen.getByLabelText("密码"), "password-123");
-    await userEvent.click(screen.getByRole("button", { name: "注册并登录" }));
-
-    await waitFor(() => expect(register).toHaveBeenCalledWith("bob", "password-123"));
-    expect(navigate).toHaveBeenCalledWith("/wallet");
+    await waitFor(() => expect(screen.getByText(/统一身份未配置/)).toBeInTheDocument());
+    expect(screen.queryByRole("link", { name: "使用统一身份登录" })).not.toBeInTheDocument();
   });
 });

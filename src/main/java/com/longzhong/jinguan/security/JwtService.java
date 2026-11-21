@@ -45,27 +45,35 @@ public final class JwtService {
     this.refreshTtl = Duration.ofDays(refreshTtlDays);
   }
 
-  public String issueAccess(long uid, String username, String role) {
-    return issue(uid, username, role, TYP_ACCESS, accessTtl);
+  public String issueAccess(String subject, String username, String role) {
+    return issue(subject, username, role, TYP_ACCESS, accessTtl);
   }
 
-  public String issueRefresh(long uid, String username, String role) {
-    return issueRefreshTicket(uid, username, role).token();
+  /** 指定有效期的 access token；break-glass 用短时窗口。 */
+  public String issueAccess(
+      String subject, String username, String role, Instant issuedAt, Instant expiresAt) {
+    return issue(
+        subject, username, role, TYP_ACCESS, UUID.randomUUID().toString(), issuedAt, expiresAt);
+  }
+
+  public String issueRefresh(String subject, String username, String role) {
+    return issueRefreshTicket(subject, username, role).token();
   }
 
   /** 签发一枚 refresh 票,并返回 jti 与到期时刻供会话落库。 */
-  public RefreshTicket issueRefreshTicket(long uid, String username, String role) {
+  public RefreshTicket issueRefreshTicket(String subject, String username, String role) {
     Instant now = Instant.now();
     Instant expiresAt = now.plus(refreshTtl);
     String jti = UUID.randomUUID().toString();
     return new RefreshTicket(
-        issue(uid, username, role, TYP_REFRESH, jti, now, expiresAt), jti, expiresAt);
+        issue(subject, username, role, TYP_REFRESH, jti, now, expiresAt), jti, expiresAt);
   }
 
   /** 以原 jti 与到期时刻重签后继票:宽限窗口内重复提交返回同一后继会话。 */
+  @SuppressWarnings("PMD.UseObjectForClearerAPI") // 参数均为必需 claims,容器对象无额外语义
   public String reissueRefresh(
-      long uid, String username, String role, String jti, Instant expiresAt) {
-    return issue(uid, username, role, TYP_REFRESH, jti, Instant.now(), expiresAt);
+      String subject, String username, String role, String jti, Instant expiresAt) {
+    return issue(subject, username, role, TYP_REFRESH, jti, Instant.now(), expiresAt);
   }
 
   /** 验证 access token;无效时返回 null。 */
@@ -78,13 +86,13 @@ public final class JwtService {
     return verify(jwt, TYP_REFRESH);
   }
 
-  private String issue(long uid, String username, String role, String typ, Duration ttl) {
+  private String issue(String subject, String username, String role, String typ, Duration ttl) {
     Instant now = Instant.now();
-    return issue(uid, username, role, typ, UUID.randomUUID().toString(), now, now.plus(ttl));
+    return issue(subject, username, role, typ, UUID.randomUUID().toString(), now, now.plus(ttl));
   }
 
   private String issue(
-      long uid,
+      String subject,
       String username,
       String role,
       String typ,
@@ -99,7 +107,8 @@ public final class JwtService {
             .subject(username)
             .issuedAt(issuedAt)
             .expiresAt(expiresAt)
-            .claim("uid", uid)
+            .subject(subject)
+            .claim("username", username)
             .claim("role", role)
             .claim("typ", typ)
             .build();
@@ -113,13 +122,13 @@ public final class JwtService {
       if (!expectedTyp.equals(token.getClaimAsString("typ"))) {
         return null;
       }
-      Number uid = token.getClaim("uid");
-      if (uid == null) {
+      String subject = token.getSubject();
+      if (subject == null || subject.isBlank()) {
         return null;
       }
       return new LoginUser(
-          uid.longValue(),
-          token.getSubject(),
+          subject,
+          token.getClaimAsString("username"),
           token.getClaimAsString("role"),
           token.getId(),
           token.getExpiresAt());
@@ -132,7 +141,8 @@ public final class JwtService {
   public record RefreshTicket(String token, String jti, Instant expiresAt) {}
 
   /** JWT 认证主体。 */
-  public record LoginUser(long uid, String username, String role, String jti, Instant expiresAt)
+  public record LoginUser(
+      String subject, String username, String role, String jti, Instant expiresAt)
       implements Principal {
 
     @Override

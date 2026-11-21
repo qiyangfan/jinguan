@@ -27,11 +27,11 @@ public class KeyRevocationQueryService {
 
   /** 绑定 key 与用户；终态吊销的 key 拒绝重新绑定。 */
   @Transactional
-  public void bind(String keyId, long userId) {
+  public void bind(String keyId, String subject) {
     if (revocations.existsByKeyId(keyId)) {
       throw new KeyRevokedException(keyId);
     }
-    bindings.save(new ApiKeyBindingEntity(keyId, userId));
+    bindings.save(new ApiKeyBindingEntity(keyId, subject));
   }
 
   /** 汇总当前下发版本与吊销名单，包含终态吊销和停服用户的绑定 key。 */
@@ -40,9 +40,9 @@ public class KeyRevocationQueryService {
     // 先读版本再读名单，避免返回新版本却携带旧名单。
     long version = suspension.keyRevocationVersion();
     var revoked = new TreeSet<>(revocations.findAllKeyIds());
-    List<Long> suspended = suspension.suspendedUserIds();
+    List<String> suspended = suspension.suspendedSubjects();
     if (!suspended.isEmpty()) {
-      bindings.findByUserIdIn(suspended).forEach(b -> revoked.add(b.getKeyId()));
+      bindings.findBySubjectIn(suspended).forEach(b -> revoked.add(b.getKeyId()));
     }
     return new Snapshot(version, List.copyOf(revoked));
   }

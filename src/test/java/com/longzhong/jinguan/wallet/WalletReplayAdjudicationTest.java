@@ -6,8 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.longzhong.jinguan.common.IdempotencyConflictException;
 import com.longzhong.jinguan.common.InsufficientFundsException;
-import com.longzhong.jinguan.user.UserEntity;
-import com.longzhong.jinguan.user.UserRepository;
+import com.longzhong.jinguan.user.PrincipalEntity;
+import com.longzhong.jinguan.user.PrincipalRepository;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -30,46 +30,48 @@ import org.springframework.test.context.TestPropertySource;
 class WalletReplayAdjudicationTest {
 
   @Autowired WalletService wallet;
-  @Autowired UserRepository users;
+  @Autowired PrincipalRepository users;
   @Autowired LedgerEntryRepository ledger;
 
-  private long newUser(String username) {
-    return users.save(UserEntity.create(username, "hash", "USER")).getId();
+  private String newUser(String username) {
+    return users.save(PrincipalEntity.jit("sub-" + username, username)).getSubject();
   }
 
   @Test
   void lowBalanceSameRefIdReplaysWithoutSuspension() {
-    long uid = newUser("replay-u1");
-    wallet.credit(uid, 100, WalletService.REASON_MANUAL_TOPUP, "replay-seed-1", null, null);
-    wallet.debit(uid, 60, WalletService.REASON_USAGE, "usage:replay-r1", null, null); // 余额 100→40
+    String subject = newUser("replay-u1");
+    wallet.credit(subject, 100, WalletService.REASON_MANUAL_TOPUP, "replay-seed-1", null, null);
+    wallet.debit(
+        subject, 60, WalletService.REASON_USAGE, "usage:replay-r1", null, null); // 余额 100→40
 
     // 余额不足时，同键同载荷仍应判为重放。
-    var result = wallet.debit(uid, 60, WalletService.REASON_USAGE, "usage:replay-r1", null, null);
+    var result =
+        wallet.debit(subject, 60, WalletService.REASON_USAGE, "usage:replay-r1", null, null);
 
     assertTrue(result.replayed(), "低余额下已扣分录重投应返回重放");
-    assertEquals(40, wallet.balance(uid), "重放不改变余额");
+    assertEquals(40, wallet.balance(subject), "重放不改变余额");
     assertTrue(ledger.findByRefId("usage:replay-r1").isPresent(), "同 refId 分录存在");
-    Assertions.assertFalse(users.findSuspendedIds().contains(uid), "合法重放不得置位业务停服");
+    Assertions.assertFalse(users.findSuspendedSubjects().contains(subject), "合法重放不得置位业务停服");
   }
 
   @Test
   void lowBalanceConflictingPayloadRemainsConflict() {
-    long uid = newUser("replay-u2");
-    wallet.credit(uid, 100, WalletService.REASON_MANUAL_TOPUP, "replay-seed-2", null, null);
-    wallet.debit(uid, 60, WalletService.REASON_USAGE, "usage:replay-r2", null, null); // 余额 40
+    String subject = newUser("replay-u2");
+    wallet.credit(subject, 100, WalletService.REASON_MANUAL_TOPUP, "replay-seed-2", null, null);
+    wallet.debit(subject, 60, WalletService.REASON_USAGE, "usage:replay-r2", null, null); // 余额 40
 
     // 同键载荷不同应报幂等冲突。
     assertThrows(
         IdempotencyConflictException.class,
-        () -> wallet.debit(uid, 50, WalletService.REASON_USAGE, "usage:replay-r2", null, null));
-    assertEquals(40, wallet.balance(uid), "冲突不新增分录");
-    Assertions.assertFalse(users.findSuspendedIds().contains(uid), "冲突不置位停服");
+        () -> wallet.debit(subject, 50, WalletService.REASON_USAGE, "usage:replay-r2", null, null));
+    assertEquals(40, wallet.balance(subject), "冲突不新增分录");
+    Assertions.assertFalse(users.findSuspendedSubjects().contains(subject), "冲突不置位停服");
   }
 
   @Test
   void concurrentSameKeyConvergesReplaySemantics() throws Exception {
-    long uid = newUser("replay-u3");
-    wallet.credit(uid, 60, WalletService.REASON_MANUAL_TOPUP, "replay-seed-3", null, null);
+    String subject = newUser("replay-u3");
+    wallet.credit(subject, 60, WalletService.REASON_MANUAL_TOPUP, "replay-seed-3", null, null);
     // 并发同键下，败方应得到重放而非异常或欠费。
     int threads = 12;
     CountDownLatch latch = new CountDownLatch(1);
@@ -90,7 +92,7 @@ class WalletReplayAdjudicationTest {
                 try {
                   var r =
                       wallet.debit(
-                          uid, 60, WalletService.REASON_USAGE, "usage:replay-r3", null, null);
+                          subject, 60, WalletService.REASON_USAGE, "usage:replay-r3", null, null);
                   if (r.replayed()) {
                     replayed.incrementAndGet();
                   }
@@ -107,7 +109,7 @@ class WalletReplayAdjudicationTest {
     assertEquals(threads - 1, replayed.get(), "除首笔外全部收敛为重放");
     assertEquals(0, rejected.get(), "并发同键同载荷不得误报欠费");
     assertEquals(0, conflicts.get(), "同载荷不得误报冲突");
-    assertEquals(0, wallet.balance(uid), "终态余额 = 60 - 60");
+    assertEquals(0, wallet.balance(subject), "终态余额 = 60 - 60");
     assertTrue(ledger.findByRefId("usage:replay-r3").isPresent(), "同 refId 分录存在");
   }
 }

@@ -61,8 +61,8 @@ public class UsageRecordEntity {
   @Column(name = "source_created_at", length = 64)
   private String sourceCreatedAt;
 
-  @Column(name = "user_id")
-  private Long userId;
+  @Column(name = "subject")
+  private String subject;
 
   @Column(name = "final_outcome", nullable = false, length = 32)
   private String finalOutcome;
@@ -78,7 +78,7 @@ public class UsageRecordEntity {
 
   protected UsageRecordEntity() {} // JPA
 
-  private UsageRecordEntity(IngestUsageRow row, Long userId, String outcome) {
+  private UsageRecordEntity(IngestUsageRow row, String subject, String outcome) {
     this.usageId = row.ID();
     this.keyId = row.APIKeyID();
     this.tenantId = row.TenantID();
@@ -93,12 +93,12 @@ public class UsageRecordEntity {
     this.costCredits = row.CostCredits();
     this.currency = row.Currency();
     this.sourceCreatedAt = row.CreatedAt();
-    this.userId = userId;
+    this.subject = subject;
     this.finalOutcome = outcome;
   }
 
-  public static UsageRecordEntity of(IngestUsageRow row, Long userId, String outcome) {
-    return new UsageRecordEntity(row, userId, outcome);
+  public static UsageRecordEntity of(IngestUsageRow row, String subject, String outcome) {
+    return new UsageRecordEntity(row, subject, outcome);
   }
 
   /** 比对重投行的不可变计费字段；不一致时由调用方按幂等冲突拒绝。 */
@@ -181,8 +181,8 @@ public class UsageRecordEntity {
   }
 
   @JsonSerialize(using = ToStringSerializer.class)
-  public Long getUserId() {
-    return userId;
+  public String getSubject() {
+    return subject;
   }
 
   public String getFinalOutcome() {

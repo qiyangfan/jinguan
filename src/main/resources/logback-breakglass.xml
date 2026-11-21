@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- break-glass CLI 专用:stdout 只输出 token,不输出启动日志。 -->
+<configuration>
+  <root level="OFF"/>
+</configuration>

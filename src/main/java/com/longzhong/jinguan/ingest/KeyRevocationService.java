@@ -23,7 +23,7 @@ public class KeyRevocationService {
   }
 
   /** 记录终态吊销并推进下发水位；返回 true 表示该 key 已吊销，按幂等重放处理。 */
-  public boolean revoke(final String keyId, final String reason, final Long operatorUserId) {
+  public boolean revoke(final String keyId, final String reason, final String operatorSubject) {
     try {
       return Boolean.TRUE.equals(
           tx.execute(
@@ -31,7 +31,7 @@ public class KeyRevocationService {
                 if (revocations.existsByKeyId(keyId)) {
                   return true;
                 }
-                revocations.save(KeyRevocationEntity.of(keyId, reason, operatorUserId));
+                revocations.save(KeyRevocationEntity.of(keyId, reason, operatorSubject));
                 suspension.bumpKeyRevocationVersion();
                 return false;
               }));

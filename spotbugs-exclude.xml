@@ -69,6 +69,16 @@
     <Class name="com.longzhong.jinguan.topology.TopologyService$TopologyPayload"/>
   </Match>
 
+  <!-- Spring @Transactional 需要 CGLIB 子类,构造校验失败(缺配置)属于启动即失败;
+       这些服务无 finalizer,构造抛出不会留下可被攻击的半初始化对象。 -->
+  <Match>
+    <Bug pattern="CT_CONSTRUCTOR_THROW"/>
+    <Or>
+      <Class name="com.longzhong.jinguan.oidc.OidcLoginService"/>
+      <Class name="com.longzhong.jinguan.security.BreakGlassService"/>
+    </Or>
+  </Match>
+
   <!-- 测试里的 .formatted 目标是 JSON 请求体:换行只是合法空白,%n 会引入平台相关字符,
        与规则面向的控制台输出场景无关。仅豁免这两个构造器。 -->
   <Match>

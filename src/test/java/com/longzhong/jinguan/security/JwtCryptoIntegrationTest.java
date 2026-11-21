@@ -33,7 +33,7 @@ class JwtCryptoIntegrationTest {
 
     assertEquals("http://localhost:8090", decoded.getClaim("iss"), "iss 必须往返一致");
     assertEquals("42", decoded.getSubject(), "sub 必须往返一致");
-    assertEquals(42L, ((Number) decoded.getClaim("uid")).longValue(), "uid 必须往返一致");
+    assertEquals(42L, ((Number) decoded.getClaim("subject")).longValue(), "subject 必须往返一致");
     assertEquals("ADMIN", decoded.getClaim("role"), "role 必须往返一致");
   }
 
@@ -58,7 +58,7 @@ class JwtCryptoIntegrationTest {
         .issuer("http://localhost:8090")
         .audience(List.of("jinguan"))
         .subject("42")
-        .claim("uid", 42L)
+        .claim("subject", 42L)
         .claim("role", "ADMIN")
         .claim("typ", "access")
         .build();

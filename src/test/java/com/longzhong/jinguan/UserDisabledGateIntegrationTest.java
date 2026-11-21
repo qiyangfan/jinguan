@@ -1,25 +1,22 @@
 package com.longzhong.jinguan;
 
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
-import com.longzhong.jinguan.user.UserEntity;
-import com.longzhong.jinguan.user.UserRepository;
+import com.longzhong.jinguan.user.TokenIssuer;
 import jakarta.servlet.http.Cookie;
 import java.time.Instant;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
 
-/** 账号禁用闸门:禁用拒绝登录与续期;欠费停服仍可登录(语义分离)。 */
+/** 账号禁用闸门:禁用拒绝续期;欠费停服不阻断既有 token。 */
 @SpringBootTest
 @AutoConfigureMockMvc
 @Transactional
@@ -29,66 +26,36 @@ import org.springframework.transaction.annotation.Transactional;
       "spring.datasource.username=sa",
       "spring.datasource.password=",
     })
-class UserDisabledGateIntegrationTest {
-
-  private static final String REFRESH_COOKIE = "jinguan.refresh";
-
-  @Autowired MockMvc mvc;
-  @Autowired UserRepository users;
+class UserDisabledGateIntegrationTest extends RefreshTestSupport {
 
   @Test
-  void disabledUserRejectedOnLoginAndRefresh() throws Exception {
-    MvcResult reg =
-        mvc.perform(
-                post("/auth/register")
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"username\":\"dis-u1\",\"password\":\"password-123\"}"))
-            .andReturn();
-    Assertions.assertEquals(HttpStatus.CREATED.value(), reg.getResponse().getStatus(), "注册必须成功");
-    final String refresh = cookieValue(reg.getResponse().getHeader(HttpHeaders.SET_COOKIE));
-
-    UserEntity user = users.findByUsername("dis-u1").orElseThrow();
-    user.disable();
-    users.save(user);
-
-    MvcResult login =
-        mvc.perform(
-                post("/auth/login")
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"username\":\"dis-u1\",\"password\":\"password-123\"}"))
-            .andReturn();
-    Assertions.assertEquals(
-        HttpStatus.FORBIDDEN.value(), login.getResponse().getStatus(), "禁用账号登录必须 403");
+  void disabledPrincipalRejectedOnRefresh() throws Exception {
+    TokenIssuer.TokenPair pair = issue("dis-u1", "USER");
+    var principal =
+        principals.findById(jwtService.verifyAccess(pair.access()).subject()).orElseThrow();
+    principal.disable();
+    principals.save(principal);
 
     MvcResult renewed =
-        mvc.perform(post("/auth/refresh").cookie(new Cookie(REFRESH_COOKIE, refresh))).andReturn();
+        mvc.perform(post("/auth/refresh").cookie(new Cookie(REFRESH_COOKIE, pair.refresh())))
+            .andReturn();
     Assertions.assertEquals(
         HttpStatus.FORBIDDEN.value(), renewed.getResponse().getStatus(), "禁用账号续期必须 403");
   }
 
   @Test
-  void suspendedUserStillCanLogin() throws Exception {
-    MvcResult reg =
-        mvc.perform(
-                post("/auth/register")
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"username\":\"sus-u1\",\"password\":\"password-123\"}"))
-            .andReturn();
-    Assertions.assertEquals(HttpStatus.CREATED.value(), reg.getResponse().getStatus(), "注册必须成功");
-    UserEntity user = users.findByUsername("sus-u1").orElseThrow();
-    users.suspendIfClear(user.getId(), Instant.now());
+  void suspendedPrincipalStillHasValidAccessToken() throws Exception {
+    TokenIssuer.TokenPair pair = issue("sus-u1", "USER");
+    String subject = jwtService.verifyAccess(pair.access()).subject();
+    principals.suspendIfClear(subject, Instant.now());
 
-    MvcResult login =
+    MvcResult balance =
         mvc.perform(
-                post("/auth/login")
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"username\":\"sus-u1\",\"password\":\"password-123\"}"))
+                get("/wallet/balance").header(HttpHeaders.AUTHORIZATION, "Bearer " + pair.access()))
             .andReturn();
-    Assertions.assertEquals(HttpStatus.OK.value(), login.getResponse().getStatus(), "欠费停服不得阻断登录");
-  }
-
-  private static String cookieValue(String setCookie) {
-    Assertions.assertNotNull(setCookie, "必须下发 refresh cookie");
-    return setCookie.substring((REFRESH_COOKIE + "=").length(), setCookie.indexOf(';'));
+    Assertions.assertEquals(
+        HttpStatus.OK.value(), balance.getResponse().getStatus(), "欠费停服不得阻断既有 token");
+    Assertions.assertEquals(
+        HttpStatus.OK.value(), refresh(pair.refresh()).getResponse().getStatus(), "欠费停服不得阻断续期");
   }
 }

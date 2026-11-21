@@ -50,13 +50,13 @@ public class PaymentService {
   /** 创建支付单并由服务端生成订单号。 */
   @Transactional
   public Map<String, Object> createOrder(
-      String providerName, long userId, long amountCredits, String currency) {
+      String providerName, String subject, long amountCredits, String currency) {
     if (amountCredits <= 0) {
       throw new IllegalArgumentException("金额必须为正(credits)");
     }
     String orderId = "po-" + uuidV7Safe();
     PaymentProvider.CreatedOrder created =
-        provider(providerName).createOrder(orderId, userId, amountCredits, currency);
+        provider(providerName).createOrder(orderId, subject, amountCredits, currency);
     // 过期订单由扫描器单独计入 expiry.converged。
     metrics.countOnCommit(
         MetricNames.PAYMENT_ORDERS, MetricNames.TAG_EVENT, MetricNames.EVENT_CREATED);
@@ -104,14 +104,14 @@ public class PaymentService {
         MetricNames.PAYMENT_ORDERS, MetricNames.TAG_EVENT, MetricNames.EVENT_PAID);
     events.publishEvent(
         new PaymentPaidEvent(
-            orderId, order.getUserId(), order.getAmountCredits(), order.getCurrency(), paidAt));
+            orderId, order.getSubject(), order.getAmountCredits(), order.getCurrency(), paidAt));
     return Map.of(KEY_ORDER_ID, orderId, "status", "PAID", "replayed", false);
   }
 
   /** 查询本人订单；非本人订单返回 404。 */
   @Transactional(readOnly = true)
-  public Map<String, Object> query(String providerName, String orderId, long requesterUid) {
-    MockOrderEntity order = ownedOrder(orderId, requesterUid);
+  public Map<String, Object> query(String providerName, String orderId, String requesterSubject) {
+    MockOrderEntity order = ownedOrder(orderId, requesterSubject);
     return Map.of(
         KEY_ORDER_ID,
         orderId,
@@ -126,17 +126,17 @@ public class PaymentService {
   /** 查询本人订单，新单在前。 */
   @Transactional(readOnly = true)
   public org.springframework.data.domain.Page<MockOrderEntity> list(
-      long userId, int page, int size) {
-    return mockOrders.findByUserIdOrderByOrderIdDesc(
-        userId, org.springframework.data.domain.PageRequest.of(page, Math.min(size, 200)));
+      String subject, int page, int size) {
+    return mockOrders.findBySubjectOrderByOrderIdDesc(
+        subject, org.springframework.data.domain.PageRequest.of(page, Math.min(size, 200)));
   }
 
-  private MockOrderEntity ownedOrder(String orderId, long requesterUid) {
+  private MockOrderEntity ownedOrder(String orderId, String requesterSubject) {
     MockOrderEntity order =
         mockOrders
             .findById(orderId)
             .orElseThrow(() -> new NotFoundException(ORDER_NOT_FOUND + orderId));
-    if (order.getUserId() != requesterUid) {
+    if (!order.getSubject().equals(requesterSubject)) {
       // 越权访问他人订单时按不存在处理，避免泄露订单归属。
       throw new NotFoundException(ORDER_NOT_FOUND + orderId);
     }

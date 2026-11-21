@@ -8,18 +8,18 @@ export type CreditRequest = Schemas["CreditRequest"];
 export type DebitRequest = Schemas["DebitRequest"];
 
 export interface WalletBalanceOut {
-  userId: string;
+  subject: string;
   balanceCredits: string;
 }
 
 export interface LedgerEntryOut {
   id: string;
-  userId: string;
+  subject: string;
   amountCredits: string;
   reason: string; // MANUAL_TOPUP | PAYMENT_TOPUP | MANUAL_ADJUST | USAGE
   refId: string;
   note: string | null;
-  operatorUserId: string | null; // 管理员资金操作的操作人
+  operatorSubject: string | null; // 管理员资金操作的操作人
   createdAt: string;
 }
 

@@ -28,9 +28,9 @@ public class MockPaymentProvider implements PaymentProvider {
 
   @Override
   public CreatedOrder createOrder(
-      String orderId, long userId, long amountCredits, String currency) {
+      String orderId, String subject, long amountCredits, String currency) {
     Instant expiresAt = Instant.now().plus(orderTtl);
-    orders.save(MockOrderEntity.create(orderId, userId, amountCredits, currency, expiresAt));
+    orders.save(MockOrderEntity.create(orderId, subject, amountCredits, currency, expiresAt));
     return new CreatedOrder(
         "mock-" + UUID.randomUUID().toString().substring(0, 8),
         "/payments/mock/%s/pay".formatted(orderId),

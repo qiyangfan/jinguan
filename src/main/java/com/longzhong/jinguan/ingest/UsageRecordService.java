@@ -32,7 +32,7 @@ public class UsageRecordService {
   }
 
   /** 保存或校验用量行；不得在外部事务内调用，唯一键冲突后在新事务中重读。 */
-  public Long reserve(IngestUsageRow row, Long boundUser, boolean billable) {
+  public String reserve(IngestUsageRow row, String boundUser, boolean billable) {
     if (TransactionSynchronizationManager.isActualTransactionActive()) {
       throw new IllegalStateException("UsageRecordService.reserve 不得在外部事务内调用");
     }
@@ -62,7 +62,7 @@ public class UsageRecordService {
     tx.executeWithoutResult(s -> records.touchSettlementAttempt(usageId, now));
   }
 
-  private Long reserveRow(IngestUsageRow row, Long boundUser, boolean billable) {
+  private String reserveRow(IngestUsageRow row, String boundUser, boolean billable) {
     var existing = records.findByUsageId(row.ID()).orElse(null);
     if (existing == null) {
       String outcome = initialOutcome(boundUser, billable);
@@ -73,13 +73,13 @@ public class UsageRecordService {
       // 相同 ID 的计费事实不一致时拒绝写账，不覆盖原记录。
       throw new IdempotencyConflictException("usage:" + row.ID());
     }
-    Long pinned = existing.getUserId() != null ? existing.getUserId() : boundUser;
+    String pinned = existing.getSubject() != null ? existing.getSubject() : boundUser;
     records.bumpAttemptAndTransition(
         row.ID(), initialOutcome(pinned, billable), pinned, Instant.now());
     return pinned;
   }
 
-  private String initialOutcome(Long user, boolean billable) {
+  private String initialOutcome(String user, boolean billable) {
     if (!billable) {
       return OUTCOME_SKIPPED_FREE;
     }
@@ -88,7 +88,7 @@ public class UsageRecordService {
 
   /** 查询用户用量明细，按新到旧分页。 */
   @Transactional(readOnly = true)
-  public Page<UsageRecordEntity> byUser(long userId, int page, int size) {
-    return records.findByUserIdOrderByIdDesc(userId, PageRequest.of(page, Math.min(size, 200)));
+  public Page<UsageRecordEntity> byUser(String subject, int page, int size) {
+    return records.findBySubjectOrderByIdDesc(subject, PageRequest.of(page, Math.min(size, 200)));
   }
 }

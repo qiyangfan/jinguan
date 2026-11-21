@@ -49,41 +49,44 @@ public class WalletService {
   public record EntryResult(LedgerEntryEntity entry, boolean replayed) {}
 
   /** 入账；amount 必须为正数，管理员操作时记录操作人。 */
+  @SuppressWarnings("PMD.UseObjectForClearerAPI") // 资金操作参数固定且短小,容器对象无收益
   public EntryResult credit(
-      long userId,
+      String subject,
       long amountCredits,
       String reason,
       String refId,
       String note,
-      Long operatorUserId) {
+      String operatorSubject) {
     long amount = requirePositive(amountCredits);
     return counted(
-        MetricNames.KIND_CREDIT, () -> apply(userId, amount, reason, refId, note, operatorUserId));
+        MetricNames.KIND_CREDIT,
+        () -> apply(subject, amount, reason, refId, note, operatorSubject));
   }
 
   /** 扣账；先按 refId 裁决重放或冲突，再检查余额。余额不足时不写账，并在锁内标记停服。 */
+  @SuppressWarnings("PMD.UseObjectForClearerAPI")
   public EntryResult debit(
-      long userId,
+      String subject,
       long amountCredits,
       String reason,
       String refId,
       String note,
-      Long operatorUserId) {
+      String operatorSubject) {
     return counted(
         MetricNames.KIND_DEBIT,
         () ->
             locks.run(
-                userId,
-                () -> debitLocked(userId, amountCredits, reason, refId, note, operatorUserId)));
+                subject,
+                () -> debitLocked(subject, amountCredits, reason, refId, note, operatorSubject)));
   }
 
   private EntryResult debitLocked(
-      long userId,
+      String subject,
       long amountCredits,
       String reason,
       String refId,
       String note,
-      Long operatorUserId) {
+      String operatorSubject) {
     long signed = -requirePositive(amountCredits);
     boolean outerTxActive = TransactionSynchronizationManager.isActualTransactionActive();
     try {
@@ -91,13 +94,13 @@ public class WalletService {
           status -> {
             var existing = ledger.findByRefId(refId);
             if (existing.isPresent()) {
-              return writer.adjudicate(existing.get(), userId, signed, reason);
+              return writer.adjudicate(existing.get(), subject, signed, reason);
             }
             return insertIfAffordable(
-                userId, signed, amountCredits, reason, refId, note, operatorUserId);
+                subject, signed, amountCredits, reason, refId, note, operatorSubject);
           });
     } catch (InsufficientFundsException e) {
-      suspension.markSuspended(userId); // 扣账回滚后，在同一用户锁内单独标记停服。
+      suspension.markSuspended(subject); // 扣账回滚后，在同一用户锁内单独标记停服。
       throw e;
     } catch (DataIntegrityViolationException e) {
       if (outerTxActive) {
@@ -110,52 +113,57 @@ public class WalletService {
             if (existing.isEmpty()) {
               throw e; // 重读无分录，说明完整性错误并非唯一键竞争。
             }
-            return writer.adjudicate(existing.get(), userId, signed, reason);
+            return writer.adjudicate(existing.get(), subject, signed, reason);
           });
     }
   }
 
   /** 余额不足以覆盖扣账时抛出停服异常；throw 置于独立方法，供调用方统一标记停服。 */
   private EntryResult insertIfAffordable(
-      long userId,
+      String subject,
       long signed,
       long requested,
       String reason,
       String refId,
       String note,
-      Long operatorUserId) {
-    long current = balance(userId);
+      String operatorSubject) {
+    long current = balance(subject);
     if (current + signed < 0) {
-      throw new InsufficientFundsException(userId, requested, current);
+      throw new InsufficientFundsException(subject, requested, current);
     }
     return new EntryResult(
-        ledger.save(LedgerEntryEntity.of(userId, signed, reason, refId, note, operatorUserId)),
+        ledger.save(LedgerEntryEntity.of(subject, signed, reason, refId, note, operatorSubject)),
         false);
   }
 
   @Transactional(readOnly = true)
-  public long balance(long userId) {
-    return ledger.sumByUserId(userId);
+  public long balance(String subject) {
+    return ledger.sumBySubject(subject);
   }
 
   @Transactional(readOnly = true)
-  public Page<LedgerEntryEntity> history(long userId, int page, int size) {
-    return ledger.findByUserIdOrderByIdDesc(userId, PageRequest.of(page, Math.min(size, 200)));
+  public Page<LedgerEntryEntity> history(String subject, int page, int size) {
+    return ledger.findBySubjectOrderByIdDesc(subject, PageRequest.of(page, Math.min(size, 200)));
   }
 
   private EntryResult apply(
-      long userId, long amount, String reason, String refId, String note, Long operatorUserId) {
+      String subject,
+      long amount,
+      String reason,
+      String refId,
+      String note,
+      String operatorSubject) {
     return locks.run(
-        userId,
+        subject,
         () -> {
           boolean outerTxActive = TransactionSynchronizationManager.isActualTransactionActive();
           try {
             return tx.execute(
                 status -> {
                   EntryResult result =
-                      writer.insertOrReplay(userId, amount, reason, refId, note, operatorUserId);
+                      writer.insertOrReplay(subject, amount, reason, refId, note, operatorSubject);
                   // 与入账同事务清除停服，避免充值成功后账号仍被停用。
-                  suspension.clearIfSuspended(userId);
+                  suspension.clearIfSuspended(subject);
                   return result;
                 });
           } catch (DataIntegrityViolationException e) {
@@ -165,7 +173,7 @@ public class WalletService {
             // 重读唯一约束胜方；重放不再清除停服状态。
             return tx.execute(
                 status ->
-                    writer.insertOrReplay(userId, amount, reason, refId, note, operatorUserId));
+                    writer.insertOrReplay(subject, amount, reason, refId, note, operatorSubject));
           }
         });
   }

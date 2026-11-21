@@ -1,11 +1,9 @@
 package com.longzhong.jinguan;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.jayway.jsonpath.JsonPath;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
@@ -36,7 +34,7 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
       "spring.datasource.password=",
       "jinguan.security.jwt-secret=test-secret-0123456789abcdef-0123456789abcdef",
     })
-class TopologyIngressIntegrationTest {
+class TopologyIngressIntegrationTest extends RefreshTestSupport {
 
   static final String AUTHORIZATION = "Authorization";
   static final String BEARER = "Bearer ";
@@ -94,17 +92,8 @@ class TopologyIngressIntegrationTest {
   String etagAfterPut;
   String etagOfGrown;
 
-  private String register(String username) throws Exception {
-    MvcResult result =
-        mvc.perform(
-                post("/auth/register")
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .content(
-                        "{\"username\":\"%s\",\"password\":\"topology-pass-123\"}"
-                            .formatted(username)))
-            .andExpect(status().isCreated())
-            .andReturn();
-    return JsonPath.read(result.getResponse().getContentAsString(), "$.token");
+  private String loginAs(String username) {
+    return accessToken(username, username.contains("admin") ? "ADMIN" : "USER");
   }
 
   private MvcResult putTopology(String token, String payload) throws Exception {
@@ -119,8 +108,8 @@ class TopologyIngressIntegrationTest {
   @Test
   @Order(1)
   void firstUserBecomesAdmin() throws Exception {
-    adminToken = register("topo-admin");
-    userToken = register("topo-user");
+    adminToken = loginAs("topo-admin");
+    userToken = loginAs("topo-user");
     Assertions.assertNotEquals(adminToken, userToken, "两名用户 token 不得相同");
   }
 

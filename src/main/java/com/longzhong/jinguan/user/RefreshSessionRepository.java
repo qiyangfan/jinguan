@@ -18,6 +18,11 @@ public interface RefreshSessionRepository extends JpaRepository<RefreshSession, 
 
   /** 吊销某用户全部 refresh 会话(置 consumed);用于重放、登出与改密。 */
   @Modifying(clearAutomatically = true, flushAutomatically = true)
-  @Query("UPDATE RefreshSession r SET r.consumed = true WHERE r.userId = :uid")
-  int revokeAllByUser(@Param("uid") long uid);
+  @Query("UPDATE RefreshSession r SET r.consumed = true WHERE r.subject = :subject")
+  int revokeAllByUser(@Param("subject") String subject);
+
+  /** 删除已过期的 refresh 会话行;过期票本就不可用,删除不影响任何校验。 */
+  @Modifying
+  @Query("DELETE FROM RefreshSession r WHERE r.expiresAt <= :now")
+  int deleteExpired(@Param("now") Instant now);
 }
