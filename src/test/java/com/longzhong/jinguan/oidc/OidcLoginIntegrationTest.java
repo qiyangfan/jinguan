@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 
 import com.longzhong.jinguan.user.PrincipalRepository;
 import com.longzhong.jinguan.user.TokenIssuer;
@@ -18,6 +19,7 @@ import com.nimbusds.jose.jwk.gen.RSAKeyGenerator;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import com.sun.net.httpserver.HttpServer;
+import jakarta.servlet.http.Cookie;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
@@ -34,11 +36,15 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 
 /** Keycloak OIDC RP:PKCE、state 单次、nonce/aud/iss 与 JWKS 验签的端到端测试。 */
 @SpringBootTest
+@AutoConfigureMockMvc
 @SuppressWarnings({
   "PMD.ExcessiveImports",
   "PMD.TooManyMethods",
@@ -49,6 +55,8 @@ import org.springframework.test.context.DynamicPropertySource;
 class OidcLoginIntegrationTest {
 
   private static final String NONCE_CLAIM = "nonce";
+  private static final String STATE_PARAM = "state";
+  private static final String STATE_COOKIE = "jinguan.oidc.state";
   private static final String CLIENT_ID = "jinguan-rp";
   private static final String ADMIN_CLIENT_ROLE = "jinguan-admin";
   private static final String USER_CLIENT_ROLE = "jinguan-user";
@@ -120,6 +128,7 @@ class OidcLoginIntegrationTest {
   @Autowired TokenIssuer tokens;
   @Autowired OidcLoginStateRepository states;
   @Autowired OidcStateCleanupScheduler cleanup;
+  @Autowired MockMvc mvc;
 
   @BeforeAll
   static void reset() {
@@ -153,6 +162,52 @@ class OidcLoginIntegrationTest {
     assertNotNull(pair.refresh(), "必须签发 refresh");
     assertTrue(principals.findById(SUBJECT.get()).isPresent(), "首登必须建 principal");
     assertEquals(ROLE_USER, currentRole(), "无角色 claim 的首登按 USER");
+  }
+
+  @Test
+  @SuppressWarnings("PMD.UnitTestContainsTooManyAsserts")
+  void concurrentTabsCompleteBothCallbacks() throws Exception {
+    MvcResult first = mvc.perform(get("/auth/oidc/start")).andReturn();
+    assertEquals(302, first.getResponse().getStatus(), "首次 start 应 302");
+    Cookie firstCookie = first.getResponse().getCookie(STATE_COOKIE);
+    assertNotNull(firstCookie, "首次 start 必须下发 state cookie");
+    String firstQuery = URI.create(first.getResponse().getHeader("Location")).getRawQuery();
+    String firstState = queryValue(firstQuery, STATE_PARAM);
+    final String firstNonce = queryValue(firstQuery, NONCE_CLAIM);
+
+    MvcResult second = mvc.perform(get("/auth/oidc/start").cookie(firstCookie)).andReturn();
+    assertEquals(302, second.getResponse().getStatus(), "第二次 start 应 302");
+    Cookie both = second.getResponse().getCookie(STATE_COOKIE);
+    assertNotNull(both, "第二次 start 必须更新 state cookie");
+    String secondQuery = URI.create(second.getResponse().getHeader("Location")).getRawQuery();
+    String secondState = queryValue(secondQuery, STATE_PARAM);
+    final String secondNonce = queryValue(secondQuery, NONCE_CLAIM);
+    assertEquals(firstState + "." + secondState, both.getValue(), "两个 tab 的 state 应共存");
+
+    NONCE.set(firstNonce);
+    MvcResult callback1 =
+        mvc.perform(
+                get("/auth/oidc/callback")
+                    .param(STATE_PARAM, firstState)
+                    .param("code", "c1")
+                    .cookie(both))
+            .andReturn();
+    assertEquals(302, callback1.getResponse().getStatus(), "第一个 tab 回调应成功");
+    Cookie remaining = callback1.getResponse().getCookie(STATE_COOKIE);
+    assertNotNull(remaining, "消费第一个 state 后必须保留第二个");
+    assertEquals(secondState, remaining.getValue(), "剩余 cookie 应只含第二个 state");
+
+    NONCE.set(secondNonce);
+    MvcResult callback2 =
+        mvc.perform(
+                get("/auth/oidc/callback")
+                    .param(STATE_PARAM, secondState)
+                    .param("code", "c2")
+                    .cookie(remaining))
+            .andReturn();
+    assertEquals(302, callback2.getResponse().getStatus(), "第二个 tab 回调应成功");
+    Cookie cleared = callback2.getResponse().getCookie(STATE_COOKIE);
+    assertTrue(cleared == null || cleared.getValue().isEmpty(), "最后一个 state 消费后应清空 cookie");
   }
 
   @Test

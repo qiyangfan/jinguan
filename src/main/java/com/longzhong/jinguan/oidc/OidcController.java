@@ -3,8 +3,10 @@ package com.longzhong.jinguan.oidc;
 import com.longzhong.jinguan.user.AuthController;
 import com.longzhong.jinguan.user.AuthCookies;
 import com.longzhong.jinguan.user.TokenIssuer;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.net.URI;
+import java.util.List;
 import java.util.Map;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.server.Cookie;
@@ -15,6 +17,7 @@ import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.util.WebUtils;
 
 /** Keycloak OIDC RP 入口、回调与单点登出。 */
 @RestController
@@ -44,14 +47,18 @@ public class OidcController {
   }
 
   @GetMapping("/auth/oidc/start")
-  public ResponseEntity<Void> start(@RequestParam(required = false) String returnTo) {
+  public ResponseEntity<Void> start(
+      @RequestParam(required = false) String returnTo, HttpServletRequest request) {
     if (!login.enabled()) {
       return ResponseEntity.notFound().build();
     }
     OidcLoginService.Start start = login.start(returnTo);
+    var existing = WebUtils.getCookie(request, STATE_COOKIE);
+    List<String> states = OidcStateCookie.parse(existing == null ? null : existing.getValue());
+    states.add(start.state());
     return ResponseEntity.status(HttpStatus.FOUND)
         .location(URI.create(start.location()))
-        .header(HttpHeaders.SET_COOKIE, stateCookie(start.state()).toString())
+        .header(HttpHeaders.SET_COOKIE, stateCookie(OidcStateCookie.encode(states)).toString())
         .build();
   }
 
@@ -64,7 +71,8 @@ public class OidcController {
     if (!login.enabled()) {
       return ResponseEntity.notFound().build();
     }
-    if (state == null || stateCookie == null || !constantTimeEquals(state, stateCookie)) {
+    List<String> states = OidcStateCookie.parse(stateCookie);
+    if (state == null || !OidcStateCookie.contains(states, state)) {
       return ResponseEntity.badRequest().build();
     }
     TokenIssuer.TokenPair pair;
@@ -74,7 +82,9 @@ public class OidcController {
       return ResponseEntity.badRequest().build();
     }
     response.addHeader(HttpHeaders.SET_COOKIE, cookies.refresh(pair.refresh()).toString());
-    response.addHeader(HttpHeaders.SET_COOKIE, stateCookie("").toString());
+    response.addHeader(
+        HttpHeaders.SET_COOKIE,
+        stateCookie(OidcStateCookie.encode(OidcStateCookie.remove(states, state))).toString());
     String returnTo = login.returnTo(state);
     String target = returnTo == null || returnTo.isBlank() ? login.frontendSuccessUrl() : returnTo;
     return ResponseEntity.status(HttpStatus.FOUND).location(URI.create(target)).build();
@@ -102,11 +112,5 @@ public class OidcController {
         .path("/auth/oidc")
         .maxAge(value.isEmpty() ? 0 : 600)
         .build();
-  }
-
-  private static boolean constantTimeEquals(String left, String right) {
-    return java.security.MessageDigest.isEqual(
-        left.getBytes(java.nio.charset.StandardCharsets.UTF_8),
-        right.getBytes(java.nio.charset.StandardCharsets.UTF_8));
   }
 }
