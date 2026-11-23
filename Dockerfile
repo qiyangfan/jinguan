@@ -24,7 +24,7 @@ COPY --from=web /web/dist/ src/main/resources/static/
 RUN mvn -B -q package -DskipTests
 
 # 阶段三：以非 root 用户运行应用。
-FROM docker.io/library/eclipse-temurin:25-jre@sha256:945247f9d092703e0c6be92243ef3c51640229e23ab34d353c8dcdc73e6cd4e6
+FROM docker.io/library/eclipse-temurin:25-jre@sha256:4ed132f6832e9804b123e89a849a7b4502756ae64a4ee08ebab939d9d5d0a9fa
 # 安装健康检查所需的 curl。
 RUN sed -i -E 's#https?://(archive\.ubuntu\.com|security\.ubuntu\.com|ports\.ubuntu\.com|deb\.debian\.org)#https://mirrors.aliyun.com#g' \
       /etc/apt/sources.list /etc/apt/sources.list.d/*.sources /etc/apt/sources.list.d/*.list 2>/dev/null || true \
