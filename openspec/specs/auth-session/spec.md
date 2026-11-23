@@ -35,12 +35,38 @@
 
 ### Requirement: 授权留本地
 
-首登只创建无权限 USER 资料;角色/钱包/停服必须 (MUST) 由锦官管理员显式授予;不得 (MUST NOT) 从 token 接收产品角色、租户或钱包。
+首登必须 (MUST) 按 Keycloak client role 白名单映射建立本地角色:
+`jinguan-admin → ADMIN`、`jinguan-user → USER`,白名单外角色丢弃,无命中按 `USER`;
+角色以 IdP 为准,本地 `principals.role` 仅作缓存并在每次登录时同步。租户、钱包、账本归属、
+停服与 break-glass 必须 (MUST) 留本地,不得 (MUST NOT) 从 token 接收。
 
 #### Scenario: 首登无权限
 
+- **GIVEN** id_token 不含 `jinguan-admin`
 - **WHEN** 新 subject 首次登录
-- **THEN** 建立 USER 资料且无钱包/管理权限
+- **THEN** 建立 `USER` 资料且无钱包/管理权限
+
+#### Scenario: 首登角色映射
+
+- **GIVEN** id_token 的 `resource_access["jinguan-web"].roles` 含 `jinguan-admin`
+- **WHEN** 该 subject 首次登录
+- **THEN** 本地主体角色为 `ADMIN`
+
+#### Scenario: 未知角色丢弃
+
+- **WHEN** token 含 `jinguan-superuser` 等白名单外角色
+- **THEN** 忽略该角色;无白名单命中时按 `USER` 建号,登录不报错
+
+#### Scenario: 角色以 IdP 为准收敛
+
+- **GIVEN** 某主体本地缓存为 `ADMIN`
+- **WHEN** Keycloak 撤销其 `jinguan-admin` 后重新登录
+- **THEN** 本地缓存与自签 token 角色收敛为 `USER`
+
+#### Scenario: 租户与钱包不由 token 决定
+
+- **WHEN** id_token 携带任何租户或钱包类 claim
+- **THEN** 忽略;归属与余额以本地数据为准
 
 ### Requirement: 登录签发 JWT
 
@@ -120,9 +146,24 @@ break-glass 必须 (MUST) 默认关闭、凭据只从环境变量注入、签发
 
 ### Requirement: 签名密钥持久化与轮换
 
-生产签发私钥必须 (MUST) 经挂载 PKCS#8 文件提供;kid 必须 (MUST) 取 RFC 7638 公钥指纹;JWKS 必须 (MUST) 同时发布 active 与退役公钥,退役公钥保留至其签发 token 全部过期。
+生产签发私钥必须 (MUST) 经挂载 PKCS#8 文件提供;启用
+`jinguan.security.require-persistent-keys=true` 时,密钥目录缺失或空白必须 (MUST)
+拒绝启动,不得退化为进程内临时密钥;kid 必须 (MUST) 取 RFC 7638 公钥指纹;JWKS
+必须 (MUST) 同时发布 active 与退役公钥,退役公钥保留至其签发 token 全部过期。
 
 #### Scenario: 轮换后旧 token 仍可验签
 
 - **WHEN** 旧键退役后携旧 refresh 续期
 - **THEN** 验签通过直至 token 过期
+
+#### Scenario: 生产缺密钥拒绝启动
+
+- **GIVEN** `require-persistent-keys=true`
+- **WHEN** `jwt-keys-dir` 为空或未配置
+- **THEN** 应用启动失败,并明确指出缺少持久化密钥目录
+
+#### Scenario: 开发默认允许临时密钥
+
+- **GIVEN** `require-persistent-keys=false`(默认)
+- **WHEN** `jwt-keys-dir` 为空
+- **THEN** 使用进程内临时密钥并告警,应用可启动
