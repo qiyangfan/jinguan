@@ -29,7 +29,7 @@ class PrincipalJitConcurrencyTest {
   @Test
   void concurrentEnsureConvergesToSinglePrincipal() throws Exception {
     String subject = "sub-jit-race";
-    Callable<PrincipalEntity> call = () -> service.ensure(subject, "jit-race");
+    Callable<PrincipalEntity> call = () -> service.ensure(subject, "jit-race", "USER");
     try (var pool = Executors.newFixedThreadPool(2)) {
       var results = pool.invokeAll(List.of(call, call), 10, TimeUnit.SECONDS);
       for (var result : results) {

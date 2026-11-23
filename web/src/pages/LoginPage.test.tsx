@@ -12,7 +12,7 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("LoginPage", () => {
-  it("统一身份已配置时只展示虎符入口", async () => {
+  it("统一身份已配置时只展示统一身份入口", async () => {
     fetchMock.mockResolvedValue(
       new Response(JSON.stringify({ enabled: true }), {
         status: 200,

@@ -41,7 +41,7 @@ class OpsMetricsTestSupport {
 
   String registerFirstAdmin() {
     PrincipalEntity admin = users.save(PrincipalEntity.jit("sub-ops-admin", "ops-admin"));
-    admin.grantRole("ADMIN");
+    admin.syncRole("ADMIN");
     users.save(admin);
     return jwt.issueAccess(admin.getSubject(), admin.getUsername(), admin.getRole());
   }

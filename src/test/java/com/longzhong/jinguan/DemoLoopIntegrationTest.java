@@ -49,7 +49,7 @@ class DemoLoopIntegrationTest extends RefreshTestSupport {
   void registerFirstUserBecomesAdmin() {
     var principal =
         principals.save(com.longzhong.jinguan.user.PrincipalEntity.jit(adminSubject, "solvela"));
-    principal.grantRole("ADMIN");
+    principal.syncRole("ADMIN");
     adminToken = tokenIssuer.issue(principals.save(principal)).access();
     Assertions.assertNotNull(adminToken, "管理员必须取得 token");
   }

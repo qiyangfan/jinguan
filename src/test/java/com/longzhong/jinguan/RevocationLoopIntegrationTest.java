@@ -57,7 +57,7 @@ class RevocationLoopIntegrationTest extends RefreshTestSupport {
                     principals.save(
                         com.longzhong.jinguan.user.PrincipalEntity.jit(subject, username)));
     if (username.contains("admin")) {
-      principal.grantRole("ADMIN");
+      principal.syncRole("ADMIN");
       principal = principals.save(principal);
     }
     return tokenIssuer.issue(principal).access();

@@ -1,5 +1,6 @@
 package com.longzhong.jinguan.oidc;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -24,29 +25,48 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Date;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
-/** 虎符 OIDC RP:PKCE、state 单次、nonce/aud/iss 与 JWKS 验签的端到端测试。 */
+/** Keycloak OIDC RP:PKCE、state 单次、nonce/aud/iss 与 JWKS 验签的端到端测试。 */
 @SpringBootTest
-@SuppressWarnings({"PMD.ExcessiveImports", "PMD.TooManyMethods", "PMD.DoNotUseThreads"})
+@SuppressWarnings({
+  "PMD.ExcessiveImports",
+  "PMD.TooManyMethods",
+  "PMD.DoNotUseThreads",
+  "PMD.CouplingBetweenObjects",
+  "PMD.TooManyStaticImports"
+})
 class OidcLoginIntegrationTest {
 
   private static final String NONCE_CLAIM = "nonce";
   private static final String CLIENT_ID = "jinguan-rp";
+  private static final String ADMIN_CLIENT_ROLE = "jinguan-admin";
+  private static final String USER_CLIENT_ROLE = "jinguan-user";
+  private static final String ROLE_ADMIN = "ADMIN";
+  private static final String ROLE_USER = "USER";
   private static final HttpServer IDP = startIdp();
   private static final RSAKey KEY = generateKey();
   private static final AtomicReference<String> NONCE = new AtomicReference<>(NONCE_CLAIM);
   private static final AtomicReference<String> AUDIENCE = new AtomicReference<>(CLIENT_ID);
   private static final AtomicReference<Instant> EXPIRES = new AtomicReference<>();
-  private static final java.util.concurrent.atomic.AtomicInteger TOKEN_DELAY_MS =
-      new java.util.concurrent.atomic.AtomicInteger();
+  private static final AtomicReference<String> SUBJECT =
+      new AtomicReference<>("01900000-0000-7000-8000-000000000123");
+  private static final AtomicReference<Map<String, Object>> RESOURCE_ACCESS =
+      new AtomicReference<>();
+  private static final AtomicReference<Map<String, Object>> REALM_ACCESS = new AtomicReference<>();
+  private static final AtomicReference<Map<String, Object>> EXTRA_CLAIMS = new AtomicReference<>();
+  private static final AtomicInteger SUBJECT_SEQ = new AtomicInteger();
+  private static final AtomicInteger TOKEN_DELAY_MS = new AtomicInteger();
 
   static {
     IDP.createContext("/.well-known/openid-configuration", exchange -> json(exchange, discovery()));
@@ -107,6 +127,14 @@ class OidcLoginIntegrationTest {
     AUDIENCE.set(CLIENT_ID);
   }
 
+  @BeforeEach
+  void freshLogin() {
+    SUBJECT.set("01900000-0000-7000-8000-" + String.format("%012d", SUBJECT_SEQ.incrementAndGet()));
+    RESOURCE_ACCESS.set(null);
+    REALM_ACCESS.set(null);
+    EXTRA_CLAIMS.set(null);
+  }
+
   @Test
   @SuppressWarnings("PMD.UnitTestContainsTooManyAsserts")
   void startUsesPkceS256AndCallbackCreatesPrincipal() {
@@ -123,8 +151,62 @@ class OidcLoginIntegrationTest {
     TokenIssuer.TokenPair pair = login.callback(start.state(), "code-1");
     assertNotNull(pair.access(), "必须签发 access");
     assertNotNull(pair.refresh(), "必须签发 refresh");
-    assertTrue(
-        principals.findById("01900000-0000-7000-8000-000000000123").isPresent(), "首登必须建 principal");
+    assertTrue(principals.findById(SUBJECT.get()).isPresent(), "首登必须建 principal");
+    assertEquals(ROLE_USER, currentRole(), "无角色 claim 的首登按 USER");
+  }
+
+  @Test
+  void clientRoleAdminMapsToAdmin() {
+    RESOURCE_ACCESS.set(clientRoles(ADMIN_CLIENT_ROLE));
+    loginOnce("role-admin");
+    assertEquals(ROLE_ADMIN, currentRole(), "jinguan-admin 必须映射为 ADMIN");
+  }
+
+  @Test
+  void userUnknownAndRealmRolesStayUser() {
+    RESOURCE_ACCESS.set(clientRoles(USER_CLIENT_ROLE, "jinguan-owner"));
+    REALM_ACCESS.set(Map.of("roles", List.of(ADMIN_CLIENT_ROLE)));
+    loginOnce("role-user");
+    assertEquals(ROLE_USER, currentRole(), "未知 client role 与 realm role 均不得授予 ADMIN");
+  }
+
+  @Test
+  void adminWinsWhenClientRolesCoexist() {
+    RESOURCE_ACCESS.set(clientRoles(USER_CLIENT_ROLE, ADMIN_CLIENT_ROLE));
+    loginOnce("role-both");
+    assertEquals(ROLE_ADMIN, currentRole(), "同一 token 并存时 ADMIN 优先");
+  }
+
+  @Test
+  void roleChangesConvergeOnRelogin() {
+    RESOURCE_ACCESS.set(clientRoles(ADMIN_CLIENT_ROLE));
+    loginOnce("relogin-1");
+    assertEquals(ROLE_ADMIN, currentRole(), "授权后首登为 ADMIN");
+
+    RESOURCE_ACCESS.set(null);
+    loginOnce("relogin-2");
+    assertEquals(ROLE_USER, currentRole(), "撤销角色后重新登录必须降级为 USER");
+
+    RESOURCE_ACCESS.set(clientRoles(ADMIN_CLIENT_ROLE));
+    loginOnce("relogin-3");
+    assertEquals(ROLE_ADMIN, currentRole(), "重新授予后重新登录必须升级为 ADMIN");
+  }
+
+  @Test
+  void tenantAndWalletClaimsDoNotGrantRole() {
+    RESOURCE_ACCESS.set(null);
+    EXTRA_CLAIMS.set(
+        Map.of(
+            "tenant_id",
+            "tenant-1",
+            "wallet_id",
+            "wallet-1",
+            "roles",
+            List.of(ROLE_ADMIN),
+            "role",
+            ROLE_ADMIN));
+    loginOnce("role-foreign-claims");
+    assertEquals(ROLE_USER, currentRole(), "租户/钱包/同名角色 claim 一律不得授予 ADMIN");
   }
 
   @Test
@@ -132,8 +214,7 @@ class OidcLoginIntegrationTest {
     OidcLoginService.Start start = login.start("/wallet");
     NONCE.set(queryValue(URI.create(start.location()).getRawQuery(), NONCE_CLAIM));
     login.callback(start.state(), "code-return");
-    org.junit.jupiter.api.Assertions.assertEquals(
-        "/wallet", login.returnTo(start.state()), "安全本地回跳必须原样保留");
+    assertEquals("/wallet", login.returnTo(start.state()), "安全本地回跳必须原样保留");
   }
 
   @Test
@@ -204,6 +285,20 @@ class OidcLoginIntegrationTest {
     assertFalse(target.contains("id_token"), "不得携带令牌");
   }
 
+  private void loginOnce(String code) {
+    OidcLoginService.Start start = login.start(null);
+    NONCE.set(queryValue(URI.create(start.location()).getRawQuery(), NONCE_CLAIM));
+    login.callback(start.state(), code);
+  }
+
+  private String currentRole() {
+    return principals.findById(SUBJECT.get()).orElseThrow().getRole();
+  }
+
+  private static Map<String, Object> clientRoles(String... roles) {
+    return Map.of(CLIENT_ID, Map.of("roles", List.of(roles)));
+  }
+
   private static String issuer() {
     return "http://"
         + java.net.InetAddress.getLoopbackAddress().getHostAddress()
@@ -222,17 +317,27 @@ class OidcLoginIntegrationTest {
 
   private static String idToken() {
     try {
-      JWTClaimsSet claims =
+      JWTClaimsSet.Builder builder =
           new JWTClaimsSet.Builder()
               .issuer(issuer())
               .audience(AUDIENCE.get())
-              .subject("01900000-0000-7000-8000-000000000123")
+              .subject(SUBJECT.get())
               .claim(NONCE_CLAIM, NONCE.get())
-              .claim("preferred_username", "alice")
+              .claim("preferred_username", "alice-" + SUBJECT_SEQ.get())
               .issueTime(Date.from(Instant.now().minusSeconds(5)))
               .expirationTime(
-                  Date.from(EXPIRES.get() == null ? Instant.now().plusSeconds(300) : EXPIRES.get()))
-              .build();
+                  Date.from(
+                      EXPIRES.get() == null ? Instant.now().plusSeconds(300) : EXPIRES.get()));
+      if (RESOURCE_ACCESS.get() != null) {
+        builder.claim("resource_access", RESOURCE_ACCESS.get());
+      }
+      if (REALM_ACCESS.get() != null) {
+        builder.claim("realm_access", REALM_ACCESS.get());
+      }
+      if (EXTRA_CLAIMS.get() != null) {
+        EXTRA_CLAIMS.get().forEach(builder::claim);
+      }
+      JWTClaimsSet claims = builder.build();
       SignedJWT jwt =
           new SignedJWT(
               new JWSHeader.Builder(JWSAlgorithm.RS256)

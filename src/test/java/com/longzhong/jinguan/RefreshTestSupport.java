@@ -40,7 +40,7 @@ public class RefreshTestSupport {
   public TokenIssuer.TokenPair issue(String username, String role) {
     String subject = "sub-" + UUID.randomUUID();
     PrincipalEntity principal = principals.save(PrincipalEntity.jit(subject, username));
-    principal.grantRole(role);
+    principal.syncRole(role);
     principal = principals.save(principal);
     return tokenIssuer.issue(principal);
   }

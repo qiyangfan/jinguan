@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/** 虎符 OIDC RP 入口、回调与单点登出。 */
+/** Keycloak OIDC RP 入口、回调与单点登出。 */
 @RestController
 public class OidcController {
 

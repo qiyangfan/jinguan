@@ -18,9 +18,15 @@ import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 @Configuration
 public class JwtCryptoConfig {
 
-  /** 密钥库:挂载目录(`active.pem` + `retired/*.pem`)优先,未配置退化为进程内临时密钥。 */
+  /** 密钥库:挂载目录优先;开启 require-persistent-keys 后缺失即拒启,否则开发可用临时密钥。 */
   @Bean
-  public SigningKeys signingKeys(@Value("${jinguan.security.jwt-keys-dir:}") String keysDir) {
+  public SigningKeys signingKeys(
+      @Value("${jinguan.security.jwt-keys-dir:}") String keysDir,
+      @Value("${jinguan.security.require-persistent-keys:false}") boolean requirePersistentKeys) {
+    if (requirePersistentKeys && (keysDir == null || keysDir.isBlank())) {
+      throw new IllegalStateException(
+          "启用 require-persistent-keys 时必须配置 jinguan.security.jwt-keys-dir;" + "生产禁止使用进程内临时签名密钥");
+    }
     return SigningKeys.load(keysDir);
   }
 

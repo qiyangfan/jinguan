@@ -37,6 +37,8 @@ jinguan:
     # 签名密钥目录:active.pem(PKCS#8 私钥)+ retired/*.pem(退役公钥,保留至旧 token 过期)。
     # 未配置则使用进程内临时密钥,仅供开发,重启即失效。
     jwt-keys-dir: ${JINGUAN_JWT_KEYS_DIR:}
+    # 生产必须为 true:缺密钥目录即拒启,禁止静默退化为临时密钥。
+    require-persistent-keys: ${JINGUAN_REQUIRE_PERSISTENT_KEYS:false}
     # access 短期有效；refresh 通过 httpOnly cookie 轮换。
     jwt-access-ttl-minutes: ${JINGUAN_JWT_ACCESS_TTL_MINUTES:30}
     jwt-refresh-ttl-days: ${JINGUAN_JWT_REFRESH_TTL_DAYS:7}
@@ -52,7 +54,7 @@ jinguan:
       login-per-minute: ${JINGUAN_RATE_LIMIT_OIDC:20}
       trusted-proxy: ${JINGUAN_TRUSTED_PROXY:false}
   oidc:
-    # 虎符单一身份；secret 只走 JINGUAN_OIDC_CLIENT_SECRET。
+    # Keycloak单一身份；secret 只走 JINGUAN_OIDC_CLIENT_SECRET。
     enabled: ${JINGUAN_OIDC_ENABLED:false}
     issuer: ${JINGUAN_OIDC_ISSUER:}
     client-id: ${JINGUAN_OIDC_CLIENT_ID:}

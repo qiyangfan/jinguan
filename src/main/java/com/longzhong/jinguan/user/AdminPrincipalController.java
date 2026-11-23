@@ -1,8 +1,6 @@
 package com.longzhong.jinguan.user;
 
 import com.longzhong.jinguan.security.JwtService;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
@@ -11,11 +9,10 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/** 管理员维护本地授权：角色与禁用；不下发到虎符。 */
+/** 管理员维护本地禁用状态;角色由 Keycloak client roles 管理。 */
 @RestController
 @RequestMapping("/admin/users")
 @Validated
@@ -24,26 +21,12 @@ public class AdminPrincipalController {
 
   private static final Logger LOG = LoggerFactory.getLogger(AdminPrincipalController.class);
 
-  /** 角色变更请求。 */
-  public record RoleRequest(@NotBlank @Pattern(regexp = "USER|ADMIN") String role) {}
-
   private final PrincipalService principals;
   private final RefreshTokenService refreshTokens;
 
   public AdminPrincipalController(PrincipalService principals, RefreshTokenService refreshTokens) {
     this.principals = principals;
     this.refreshTokens = refreshTokens;
-  }
-
-  @PostMapping("/{subject}/role")
-  public ResponseEntity<Void> role(
-      @PathVariable String subject,
-      @RequestBody @Validated RoleRequest req,
-      @AuthenticationPrincipal JwtService.LoginUser actor) {
-    principals.grantRole(subject, req.role());
-    LOG.info(
-        "principal role changed actor={} subject={} role={}", actor.subject(), subject, req.role());
-    return ResponseEntity.noContent().build();
   }
 
   @PostMapping("/{subject}/disable")

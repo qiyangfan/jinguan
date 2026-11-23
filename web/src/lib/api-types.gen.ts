@@ -180,22 +180,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/admin/users/{subject}/role": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["role"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/admin/users/{subject}/enable": {
         parameters: {
             query?: never;
@@ -609,9 +593,6 @@ export interface components {
             LatencyTotalMs?: number;
             CreatedAt?: string;
             success?: boolean;
-        };
-        RoleRequest: {
-            role: string;
         };
         RevokeRequest: {
             reason: string;
@@ -1041,30 +1022,6 @@ export interface operations {
                         [key: string]: boolean;
                     };
                 };
-            };
-        };
-    };
-    role: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                subject: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RoleRequest"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
             };
         };
     };

@@ -40,7 +40,7 @@ class ApiKeyBindingContractTest {
 
   private String admin() {
     PrincipalEntity admin = principals.save(PrincipalEntity.jit("sub-bind-admin", "bind-admin"));
-    admin.grantRole("ADMIN");
+    admin.syncRole("ADMIN");
     principals.save(admin);
     return jwt.issueAccess(admin.getSubject(), admin.getUsername(), admin.getRole());
   }

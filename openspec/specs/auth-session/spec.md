@@ -1,12 +1,12 @@
 ## Purpose
 
-锦官本地会话与授权主体:人类身份只来自虎符 OIDC `sub`,本地只保存角色、禁用与停服;签发 RS256 双 token,refresh 轮换/重用检测;不提供本地密码、注册或改密。
+锦官本地会话与授权主体:人类身份只来自Keycloak OIDC `sub`,本地只保存角色、禁用与停服;签发 RS256 双 token,refresh 轮换/重用检测;不提供本地密码、注册或改密。
 
 ## Requirements
 
 ### Requirement: 无本地账号
 
-锦官不得 (MUST NOT) 提供注册、密码登录、改密或本地管理员账密;所有人类登录必须 (MUST) 经虎符 OIDC;主体主键必须 (MUST) 为虎符 `sub`。
+锦官不得 (MUST NOT) 提供注册、密码登录、改密或本地管理员账密;所有人类登录必须 (MUST) 经Keycloak OIDC;主体主键必须 (MUST) 为Keycloak `sub`。
 
 #### Scenario: 本地登录拒绝
 
@@ -16,7 +16,7 @@
 #### Scenario: subject 外键
 
 - **WHEN** 账本/订单/API key/refresh/用量写入
-- **THEN** 归属列为虎符 subject,且引用 `principals(subject)`
+- **THEN** 归属列为Keycloak subject,且引用 `principals(subject)`
 
 ### Requirement: OIDC RP 安全
 

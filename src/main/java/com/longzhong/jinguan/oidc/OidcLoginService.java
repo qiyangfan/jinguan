@@ -30,7 +30,7 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.util.UriComponentsBuilder;
 
-/** 虎符授权码 + PKCE 登录：state 单次、nonce/iss/aud/exp 校验与 JWKS 验签。 */
+/** Keycloak授权码 + PKCE 登录：state 单次、nonce/iss/aud/exp 校验与 JWKS 验签。 */
 @Service
 @SuppressWarnings({
   "PMD.CouplingBetweenObjects",
@@ -62,7 +62,7 @@ public class OidcLoginService {
             || blank(props.clientSecret())
             || blank(props.redirectUri()))) {
       throw new IllegalStateException(
-          "启用虎符 OIDC 时必须配置 issuer/client-id/client-secret/redirect-uri");
+          "启用Keycloak OIDC 时必须配置 issuer/client-id/client-secret/redirect-uri");
     }
     this.props = props;
     this.discovery = discovery;
@@ -74,7 +74,7 @@ public class OidcLoginService {
   /** 授权跳转地址与本次 state。 */
   public record Start(String location, String state) {}
 
-  /** 生成一次性 state、nonce 与 PKCE verifier 并返回虎符授权地址。 */
+  /** 生成一次性 state、nonce 与 PKCE verifier 并返回Keycloak授权地址。 */
   @Transactional
   public Start start(String returnTo) {
     requireEnabled();
@@ -126,7 +126,9 @@ public class OidcLoginService {
     if (blank(subject)) {
       throw new IllegalArgumentException("id_token 缺少 sub");
     }
-    PrincipalEntity principal = principals.ensure(subject, preferredUsername(jwt));
+    PrincipalEntity principal =
+        principals.ensure(
+            subject, preferredUsername(jwt), OidcRoleMapping.from(jwt, props.clientId()));
     return tokens.issue(principal);
   }
 
@@ -138,7 +140,7 @@ public class OidcLoginService {
     return states.findById(sha256(state)).map(OidcLoginState::getReturnTo).orElse(null);
   }
 
-  /** 本地登出后的虎符跳转地址；发现不可用或缺端点时返回 null。 */
+  /** 本地登出后的Keycloak跳转地址；发现不可用或缺端点时返回 null。 */
   public String endSessionLocation() {
     if (!props.enabled()) {
       return null;
@@ -221,7 +223,7 @@ public class OidcLoginService {
 
   private void requireEnabled() {
     if (!props.enabled()) {
-      throw new IllegalStateException("虎符 OIDC 未启用");
+      throw new IllegalStateException("Keycloak OIDC 未启用");
     }
   }
 

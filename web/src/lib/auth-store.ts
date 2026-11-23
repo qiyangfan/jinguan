@@ -1,4 +1,4 @@
-/* 认证态：登录只走虎符 OIDC；access 存内存，refresh 使用 httpOnly cookie。 */
+/* 认证态：登录只走统一身份 OIDC；access 存内存，refresh 使用 httpOnly cookie。 */
 
 import { create } from "zustand";
 

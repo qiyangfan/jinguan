@@ -8,7 +8,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-/** 本地授权主体持久化端口；主键为虎符 sub。 */
+/** 本地授权主体持久化端口；主键为Keycloak sub。 */
 public interface PrincipalRepository extends JpaRepository<PrincipalEntity, String> {
 
   Optional<PrincipalEntity> findByUsername(String username);

@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/** 本地会话：refresh 轮换与登出。登录入口只有虎符 OIDC。 */
+/** 本地会话：refresh 轮换与登出。登录入口只有Keycloak OIDC。 */
 @RestController
 public class AuthController {
 

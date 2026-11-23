@@ -56,7 +56,7 @@ class DemoAdminIntegrationTest extends RefreshTestSupport {
                     principals.save(
                         com.longzhong.jinguan.user.PrincipalEntity.jit(subject, username)));
     if (username.contains("solvela")) {
-      principal.grantRole("ADMIN");
+      principal.syncRole("ADMIN");
       principal = principals.save(principal);
     }
     return tokenIssuer.issue(principal).access();
@@ -223,21 +223,16 @@ class DemoAdminIntegrationTest extends RefreshTestSupport {
 
   @Test
   @Order(4)
-  void adminRoleGrantAndDisableWork() throws Exception {
-    mvc.perform(
-            post("/admin/users/sub-order-b/role")
-                .header(AUTHORIZATION, BEARER + secondaryUserToken)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"role\":\"ADMIN\"}"))
-        .andExpect(status().isForbidden());
+  void roleEndpointRetiredWhileDisableStillWorks() throws Exception {
+    // 角色改由 Keycloak client roles 管理,本地角色端点必须下线。
     mvc.perform(
             post("/admin/users/sub-order-b/role")
                 .header(AUTHORIZATION, BEARER + adminToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"role\":\"ADMIN\"}"))
-        .andExpect(status().isNoContent());
+        .andExpect(status().is4xxClientError());
     Assertions.assertEquals(
-        "ADMIN", principals.findById("sub-order-b").orElseThrow().getRole(), "管理员授予角色必须落库");
+        "USER", principals.findById("sub-order-b").orElseThrow().getRole(), "本地不得再授予角色");
     mvc.perform(post("/admin/users/sub-order-b/disable").header(AUTHORIZATION, BEARER + adminToken))
         .andExpect(status().isNoContent());
     Assertions.assertTrue(principals.findById("sub-order-b").orElseThrow().isDisabled(), "禁用必须落库");

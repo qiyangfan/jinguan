@@ -1,4 +1,4 @@
-/* 登录页只保留统一身份入口；未配置虎符时不展示本地账密。 */
+/* 登录页只保留统一身份入口；未配置统一身份时不展示本地账密。 */
 
 import { useEffect, useState } from "react";
 
@@ -41,7 +41,7 @@ export default function LoginPage() {
           )}
           {enabled === false && (
             <p className="text-sm text-destructive">
-              统一身份未配置，请联系运维；虎符不可用时无法新建登录。
+              统一身份未配置，请联系运维；统一身份不可用时无法新建登录。
             </p>
           )}
         </CardContent>

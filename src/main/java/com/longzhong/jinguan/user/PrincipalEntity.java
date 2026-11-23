@@ -6,7 +6,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
 
-/** 本地授权主体：subject 为虎符 sub，本地只保存角色、禁用与停服状态。 */
+/** 本地授权主体：subject 为Keycloak sub，本地只保存角色、禁用与停服状态。 */
 @Entity
 @Table(name = "principals")
 public class PrincipalEntity {
@@ -39,9 +39,13 @@ public class PrincipalEntity {
     this.createdAt = Instant.now();
   }
 
-  /** 首登只建无权限资料；角色由管理员显式授予。 */
+  /** 首登建基础资料;角色由 OIDC 映射结果决定。 */
   public static PrincipalEntity jit(String subject, String username) {
-    return new PrincipalEntity(subject, username, "USER");
+    return jit(subject, username, "USER");
+  }
+
+  public static PrincipalEntity jit(String subject, String username, String role) {
+    return new PrincipalEntity(subject, username, role);
   }
 
   public String getSubject() {
@@ -68,8 +72,8 @@ public class PrincipalEntity {
     return disabled;
   }
 
-  /** 管理员调整本地角色；不下发到虎符。 */
-  public void grantRole(String nextRole) {
+  /** 登录时点以 IdP 为准刷新本地角色缓存;不提供本地授予入口。 */
+  public void syncRole(String nextRole) {
     this.role = nextRole;
   }
 
