@@ -33,7 +33,7 @@ jobs:
       # 只编译主源码供提取;静态分析与测试由 ci 作业负责。
       - name: build
         run: mvn -B -DskipTests compile -Dspotless.check.skip=true -Djacoco.skip=true
-      - uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4
+      - uses: github/codeql-action/analyze@1bd86f2fdb4b86187fa4059f16f31a3202acc9ea # v4
         with:
           category: /language:java-kotlin
 
@@ -46,6 +46,6 @@ jobs:
       - uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4
         with:
           languages: javascript-typescript
-      - uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4
+      - uses: github/codeql-action/analyze@1bd86f2fdb4b86187fa4059f16f31a3202acc9ea # v4
         with:
           category: /language:javascript-typescript
