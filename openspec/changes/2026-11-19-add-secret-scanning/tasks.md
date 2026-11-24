@@ -19,6 +19,8 @@
       验证:`security.yml` 的 `on` 段与 ci.yml 并存且相互独立。
 - [ ] 2.2 推送后 GitHub Actions 实跑 `security` / `secrets` job 绿(需 push 授权;本批不提交不推送)。
       验证:CI run 页面 `secrets` 步骤 EXIT 0。
+      阻塞(2026-11-23):已随 `ab8d729` 推送并触发;job 未启动即失败,
+      annotation="The job was not started because your account is locked due to a billing issue."
 
 ## 3. 负向验收(等价 CI 命令)
 
@@ -29,9 +31,11 @@
 
 ## 4. 分支保护 required
 
-- [ ] 4.1 在仓库 ruleset / branch protection 把 `secrets` 设为 required status check(共享设置,需仓管理员授权后执行)。
-      验证:`gh api repos/{owner}/jinguan/branches/main/protection` 中 `required_status_checks.contexts` 含 `secrets`。
+- [x] 4.1 在仓库 ruleset / branch protection 把 `secrets` 设为 required status check(共享设置,需仓管理员授权后执行)。
+      验证(2026-11-23):`gh api repos/qiyangfan/jinguan/branches/main/protection` 的
+      `required_status_checks.contexts` 已含 `secrets`(共 9 项)。
 - [ ] 4.2 required 生效后自证:在 PR 上提交一次泄漏样例,检查合并按钮被 `secrets` 拦截(负向验证后回滚)。
+      阻塞(2026-11-23):billing 锁定期间 `secrets` check 无法实跑,负向自证不成立;PR 样例另需推送授权。
 
 ## 5. openspec
 

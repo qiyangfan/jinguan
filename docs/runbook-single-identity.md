@@ -98,7 +98,7 @@ export JINGUAN_BREAKGLASS_TOKEN="$(openssl rand -base64 32)"
 环境:Keycloak 26.8.2(`http://127.0.0.1:8080`,realm `longzhong`)+ 锦官 `:8090`,
 client `jinguan-web`;测试用户 `demo`(jinguan-admin)、`demo-user`(jinguan-user)。
 
-- ID token 默认不含 `resource_access`;已在 platform `setup-realm.sh` 为 `jinguan-web`
+- ID token 默认不含 `resource_access`;已在符节 `setup-realm.sh` 为 `jinguan-web`
   增加仅限本 client 的 ID token 角色 mapper(`id.token.claim=true`),幂等重跑通过。
 - 登录/refresh:demo → `role=ADMIN`;demo-user → `role=USER`;refresh 沿用缓存角色。
 - `USER` 调 `/admin/users/*/disable` 403;`ADMIN` 禁用/启用 204。
