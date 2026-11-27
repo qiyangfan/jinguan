@@ -1355,34 +1355,6 @@ export interface components {
             CreatedAt?: string;
             success?: boolean;
         };
-        JsonNode: {
-            number?: boolean;
-            floatingPointNumber?: boolean;
-            /** @enum {string} */
-            nodeType?: "ARRAY" | "BINARY" | "BOOLEAN" | "MISSING" | "NULL" | "NUMBER" | "OBJECT" | "POJO" | "STRING";
-            string?: boolean;
-            integralNumber?: boolean;
-            missingNode?: boolean;
-            valueNode?: boolean;
-            container?: boolean;
-            pojo?: boolean;
-            short?: boolean;
-            int?: boolean;
-            long?: boolean;
-            double?: boolean;
-            bigDecimal?: boolean;
-            bigInteger?: boolean;
-            /** @deprecated */
-            textual?: boolean;
-            boolean?: boolean;
-            binary?: boolean;
-            empty?: boolean;
-            array?: boolean;
-            null?: boolean;
-            object?: boolean;
-            float?: boolean;
-            embeddedValue?: boolean;
-        };
         HeartbeatAck: {
             serviceId?: string;
             instanceId?: string;
@@ -1421,7 +1393,7 @@ export interface components {
             action?: string;
             /** Format: int32 */
             actionSchemaVersion?: number;
-            params?: components["schemas"]["JsonNode"];
+            params?: Record<string, never>;
             reason?: string;
             actor?: string;
             status?: string;
@@ -1430,7 +1402,7 @@ export interface components {
             /** Format: int32 */
             maxAttempts?: number;
             claimedBy?: string;
-            result?: components["schemas"]["JsonNode"];
+            result?: Record<string, never>;
             error?: string;
             /** Format: date-time */
             createdAt?: string;
@@ -1481,7 +1453,7 @@ export interface components {
             status?: string;
             reason?: string;
             actor?: string;
-            context?: components["schemas"]["JsonNode"];
+            context?: Record<string, never>;
             /** Format: date-time */
             createdAt?: string;
             /** Format: date-time */
@@ -1502,7 +1474,7 @@ export interface components {
             /** Format: int32 */
             attempts?: number;
             error?: string;
-            params?: components["schemas"]["JsonNode"];
+            params?: Record<string, never>;
             /** Format: date-time */
             startedAt?: string;
             /** Format: date-time */
@@ -1662,7 +1634,7 @@ export interface components {
             observedAt?: string;
             /** Format: date-time */
             fetchedAt?: string;
-            sections?: components["schemas"]["JsonNode"];
+            sections?: Record<string, never>;
         };
         DirectoryEntry: {
             clientId?: string;
@@ -2045,7 +2017,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["JsonNode"];
+                "application/json": Record<string, never>;
             };
         };
         responses: {
@@ -2069,7 +2041,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["JsonNode"];
+                "application/json": Record<string, never>;
             };
         };
         responses: {
@@ -2093,7 +2065,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["JsonNode"];
+                "application/json": Record<string, never>;
             };
         };
         responses: {
@@ -2117,7 +2089,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["JsonNode"];
+                "application/json": Record<string, never>;
             };
         };
         responses: {
@@ -2143,7 +2115,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["JsonNode"];
+                "application/json": Record<string, never>;
             };
         };
         responses: {
@@ -2167,7 +2139,7 @@ export interface operations {
         };
         requestBody?: {
             content: {
-                "application/json": components["schemas"]["JsonNode"];
+                "application/json": Record<string, never>;
             };
         };
         responses: {
@@ -2598,7 +2570,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["JsonNode"];
+                "application/json": Record<string, never>;
             };
         };
         responses: {
@@ -2624,7 +2596,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["JsonNode"];
+                "application/json": Record<string, never>;
             };
         };
         responses: {
@@ -2668,7 +2640,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["JsonNode"];
+                "application/json": Record<string, never>;
             };
         };
         responses: {
@@ -2694,7 +2666,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["JsonNode"];
+                "application/json": Record<string, never>;
             };
         };
         responses: {
@@ -2720,7 +2692,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["JsonNode"];
+                "application/json": Record<string, never>;
             };
         };
         responses: {
@@ -2892,7 +2864,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["JsonNode"];
+                "application/json": Record<string, never>;
             };
         };
         responses: {
