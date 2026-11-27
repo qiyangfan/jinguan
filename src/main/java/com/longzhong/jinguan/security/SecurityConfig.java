@@ -50,16 +50,31 @@ public class SecurityConfig {
                         "/pricing",
                         "/topology",
                         "/keys",
+                        "/tenants",
+                        "/plans",
+                        "/policies",
+                        "/catalog",
+                        "/services",
+                        "/commands",
+                        "/sagas",
+                        "/audit",
                         "/login")
                     .permitAll()
-                    // muniu 拉取端点目前不带认证头，依赖部署网络隔离。
+                    // 历史数据面拉取端点仍按已登记契约匿名+网络隔离;新增控制端点一律服务身份认证。
                     .requestMatchers(
                         HttpMethod.GET,
                         "/control/v1/pricing",
                         "/control/v1/key-revocations",
                         "/control/v1/topology")
                     .permitAll()
-                    // ingest 使用独立静态 token，由 IngestController 校验。
+                    // 新控制面服务入口:控制器内做服务身份(scope)认证。
+                    .requestMatchers(
+                        "/control/v1/snapshot",
+                        "/control/v1/commands/**",
+                        "/control/v1/registry/**",
+                        "/control/v1/alerts/operational")
+                    .permitAll()
+                    // ingest 使用独立静态 token/服务身份,由控制器校验。
                     .requestMatchers("/ingest/**")
                     .permitAll()
                     // 渠道回调的签名由对应适配器校验。

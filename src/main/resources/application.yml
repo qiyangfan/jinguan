@@ -82,3 +82,76 @@ jinguan:
     initial-delay-ms: ${JINGUAN_SETTLEMENT_INITIAL_MS:30000} # 启动后首次扫描延迟。
     max-users: ${JINGUAN_SETTLEMENT_MAX_USERS:100}           # 每轮最大用户数。
     max-rows-per-user: ${JINGUAN_SETTLEMENT_MAX_ROWS:100}    # 每用户每轮最大行数。
+  # 服务身份目录:managed 走 Keycloak client credentials,local pre-shared 仅 localhost。
+  service-auth:
+    mode: ${JINGUAN_SERVICE_AUTH_MODE:local}
+    local-token: ${JINGUAN_SERVICE_AUTH_LOCAL_TOKEN:}
+    local-token-previous: ${JINGUAN_SERVICE_AUTH_LOCAL_TOKEN_PREVIOUS:}
+    managed:
+      issuer: ${JINGUAN_SERVICE_AUTH_ISSUER:}
+      jwk-set-uri: ${JINGUAN_SERVICE_AUTH_JWK_SET_URI:}
+    clients:
+      kongming-control:
+        service-id: kongming
+        scopes: registry,snapshot,command,usage
+        environment: ${JINGUAN_SERVICE_ENV:local}
+      muniu-control:
+        service-id: muniu
+        scopes: registry,snapshot,command,usage
+        environment: ${JINGUAN_SERVICE_ENV:local}
+      jinguan-read-kongming:
+        service-id: kongming
+        scopes: read
+        environment: ${JINGUAN_SERVICE_ENV:local}
+      jinguan-read-muniu:
+        service-id: muniu
+        scopes: read
+        environment: ${JINGUAN_SERVICE_ENV:local}
+  registry:
+    stale-after-seconds: ${JINGUAN_REGISTRY_STALE_SECONDS:90}
+    retention-days: ${JINGUAN_REGISTRY_RETENTION_DAYS:7}
+  commands:
+    max-attempts: ${JINGUAN_COMMAND_MAX_ATTEMPTS:3}
+    claim-timeout-seconds: ${JINGUAN_COMMAND_CLAIM_TIMEOUT_SECONDS:300}
+    retention-days: ${JINGUAN_COMMAND_RETENTION_DAYS:30}
+  audit:
+    online-retention-days: ${JINGUAN_AUDIT_RETENTION_DAYS:180}
+  usage:
+    raw-retention-days: ${JINGUAN_USAGE_RAW_RETENTION_DAYS:90}
+  sagas:
+    step-timeout-seconds: ${JINGUAN_SAGA_STEP_TIMEOUT_SECONDS:600}
+    retention-days: ${JINGUAN_SAGA_RETENTION_DAYS:90}
+  control:
+    # 控制面抗滥用:per-service/tenant/IP 固定窗口限流与请求体上限。
+    rate-limit:
+      per-minute: ${JINGUAN_CONTROL_RATE_LIMIT:600}
+      trusted-proxy: ${JINGUAN_TRUSTED_PROXY:false}
+    max-request-bytes: ${JINGUAN_CONTROL_MAX_REQUEST_BYTES:1048576}
+  services:
+    read:
+      # service_id → base_url 静态映射;缺省显示未知,不做服务发现。
+      base-urls: {}
+      stale-after-seconds: ${JINGUAN_READ_STALE_SECONDS:60}
+      ttl-seconds: ${JINGUAN_READ_TTL_SECONDS:30}
+      retention-days: ${JINGUAN_READ_RETENTION_DAYS:7}
+      timeout-millis: ${JINGUAN_READ_TIMEOUT_MILLIS:3000}
+      local-token: ${JINGUAN_READ_LOCAL_TOKEN:}
+      managed:
+        token-uri: ${JINGUAN_READ_TOKEN_URI:}
+        clients:
+          kongming:
+            client-id: ${JINGUAN_READ_KONGMING_CLIENT_ID:}
+            client-secret: ${JINGUAN_READ_KONGMING_CLIENT_SECRET:}
+          muniu:
+            client-id: ${JINGUAN_READ_MUNIU_CLIENT_ID:}
+            client-secret: ${JINGUAN_READ_MUNIU_CLIENT_SECRET:}
+  alerts:
+    webhook-url: ${JINGUAN_ALERT_WEBHOOK_URL:}
+    webhook-secret: ${JINGUAN_ALERT_WEBHOOK_SECRET:}
+    webhook-allowlist: ${JINGUAN_ALERT_WEBHOOK_ALLOWLIST:}
+    email-enabled: ${JINGUAN_ALERT_EMAIL_ENABLED:false}
+    email-to: ${JINGUAN_ALERT_EMAIL_TO:}
+    dedup-window-seconds: ${JINGUAN_ALERT_DEDUP_SECONDS:900}
+    max-attempts: ${JINGUAN_ALERT_MAX_ATTEMPTS:5}
+    delivery-interval-seconds: ${JINGUAN_ALERT_DELIVERY_INTERVAL:30}
+    operational-token: ${JINGUAN_ALERT_REPORT_TOKEN:}

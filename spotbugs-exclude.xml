@@ -76,7 +76,18 @@
     <Or>
       <Class name="com.longzhong.jinguan.oidc.OidcLoginService"/>
       <Class name="com.longzhong.jinguan.security.BreakGlassService"/>
+      <Class name="com.longzhong.jinguan.alerts.AlertsConfig"/>
+      <Class name="com.longzhong.jinguan.alerts.WebhookAlertChannel"/>
+      <Class name="com.longzhong.jinguan.command.CommandActionCatalog"/>
+      <Class name="com.longzhong.jinguan.serviceidentity.ManagedServiceAuthenticator"/>
+      <Class name="com.longzhong.jinguan.serviceidentity.ServiceAuthConfig"/>
     </Or>
+  </Match>
+
+  <!-- 请求 id 头由严格正则([A-Za-z0-9._-]{1,64})校验后回写,不构成头注入面。 -->
+  <Match>
+    <Bug pattern="HRS_REQUEST_PARAMETER_TO_HTTP_HEADER"/>
+    <Class name="com.longzhong.jinguan.common.RequestIdFilter"/>
   </Match>
 
   <!-- 测试里的 .formatted 目标是 JSON 请求体:换行只是合法空白,%n 会引入平台相关字符,

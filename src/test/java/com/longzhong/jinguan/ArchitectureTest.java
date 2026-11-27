@@ -25,7 +25,11 @@ class ArchitectureTest {
         .resideInAPackage(ROOT + ".common..")
         .should()
         .dependOnClassesThat()
-        .resideInAPackage(ROOT + ".(security|topology|payment|ingest|user|wallet|pricing)..")
+        .resideInAPackage(
+            ROOT
+                + ".(security|topology|payment|ingest|user|wallet|pricing|tenant|entitlement"
+                + "|registry|snapshot|command|audit|projection|policy|catalog|saga"
+                + "|serviceidentity|alerts|lease|controlversion)..")
         .because("common 是被各域共用的底座,反向依赖业务域会造成循环")
         .check(productionClasses());
   }
