@@ -11,6 +11,7 @@ export const client = createClient<paths>({
 
 let accessToken: string | null = null;
 let refreshing: Promise<boolean> | null = null;
+let lastAuditId: string | null = null;
 const sessionClearedListeners = new Set<() => void>();
 
 export function onSessionCleared(cb: () => void): () => void {
@@ -24,6 +25,11 @@ export function setAccessToken(token: string): void {
 
 export function getAccessToken(): string | null {
   return accessToken;
+}
+
+/** 最近一条控制面写审计 id;用于控制台展示回执。 */
+export function lastAuditIdValue(): string | null {
+  return lastAuditId;
 }
 
 export function clearAccessToken(): void {
@@ -59,6 +65,8 @@ const sessionMiddleware: Middleware = {
     return request;
   },
   async onResponse({ request, response }) {
+    const auditId = response.headers.get("X-Audit-Id");
+    if (auditId) lastAuditId = auditId;
     if (response.status !== 401) return;
     const path = new URL(request.url, "http://localhost").pathname;
     if (path.startsWith("/auth/")) return; // 认证端点不触发续期。

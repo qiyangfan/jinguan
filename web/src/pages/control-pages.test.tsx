@@ -1,8 +1,8 @@
 /* 控制台页面：列表、创建/变更表单与只读视图的最小交互。 */
 
 import { screen, waitFor } from "@testing-library/react";
-import { MemoryRouter } from "react-router";
 import userEvent from "@testing-library/user-event";
+import { MemoryRouter } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderWithQuery } from "@/test/render";

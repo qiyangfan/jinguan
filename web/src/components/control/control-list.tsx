@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { EmptyState } from "@/components/empty-state";
 import { ErrorAlert } from "@/components/error-alert";
 import { Skeleton } from "@/components/ui/skeleton";
-import { errorDetail } from "@/lib/api";
+import { errorDetail, lastAuditIdValue } from "@/lib/api";
 
 /** 列表查询三态：加载骨架、错误告警、空态；成功时渲染列表。 */
 export function ControlList<T>({
@@ -49,9 +49,11 @@ export function Feedback({ error, success }: { error: string; success: string })
     return <ErrorAlert text={error} />;
   }
   if (success) {
+    const auditId = lastAuditIdValue();
     return (
       <p role="status" className="rounded-md bg-success/15 px-3 py-2 text-sm text-success">
         {success}
+        {auditId ? <span className="ml-2 text-xs opacity-80">审计标识：{auditId}</span> : null}
       </p>
     );
   }

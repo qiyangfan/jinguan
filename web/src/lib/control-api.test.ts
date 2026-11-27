@@ -169,7 +169,8 @@ describe("控制面 API 路径", () => {
     await m.downloadProjection("kongming");
     expect(click).toHaveBeenCalled();
     await m.downloadAuditCsv({ actor: "a" });
-    const target = String(fetchMock.mock.calls.at(-1)?.[0]);
+    const raw = fetchMock.mock.calls.at(-1)?.[0];
+    const target = raw instanceof Request ? raw.url : typeof raw === "string" ? raw : "http://x";
     expect(new URL(target, "http://localhost").searchParams.get("actor")).toBe("a");
   });
 });
