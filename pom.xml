@@ -7,7 +7,7 @@
   <parent>
     <groupId>org.springframework.boot</groupId>
     <artifactId>spring-boot-starter-parent</artifactId>
-    <version>4.1.2</version>
+    <version>4.2.0</version>
     <relativePath/>
   </parent>
 
@@ -20,14 +20,14 @@
   <properties>
     <java.version>25</java.version>
     <!-- 集中管理门禁插件版本。 -->
-    <spotless.version>3.10.4</spotless.version>
-    <jacoco.version>0.8.15</jacoco.version>
+    <spotless.version>3.12.0</spotless.version>
+    <jacoco.version>0.8.16</jacoco.version>
     <maven-pmd.version>3.28.0</maven-pmd.version>
-    <maven-enforcer.version>3.6.3</maven-enforcer.version>
+    <maven-enforcer.version>3.7.0</maven-enforcer.version>
     <spotbugs.version>4.10.5.0</spotbugs.version>
-    <springdoc.version>3.1.1</springdoc.version>
+    <springdoc.version>3.2.1</springdoc.version>
     <testcontainers.version>1.21.4</testcontainers.version>
-    <archunit.version>1.4.2</archunit.version>
+    <archunit.version>1.5.1</archunit.version>
     <json-schema-validator.version>1.5.6</json-schema-validator.version>
   </properties>
 
@@ -36,7 +36,7 @@
       <dependency>
         <groupId>org.springframework.modulith</groupId>
         <artifactId>spring-modulith-bom</artifactId>
-        <version>2.1.1</version>
+        <version>2.2.0</version>
         <type>pom</type>
         <scope>import</scope>
       </dependency>
@@ -466,7 +466,7 @@
           <plugin>
             <groupId>org.springdoc</groupId>
             <artifactId>springdoc-openapi-maven-plugin</artifactId>
-            <version>1.4</version>
+            <version>1.6</version>
             <configuration>
               <apiDocsUrl>http://localhost:8090/v3/api-docs</apiDocsUrl>
               <outputDir>${project.basedir}</outputDir>
