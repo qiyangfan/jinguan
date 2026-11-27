@@ -1,14 +1,22 @@
 /* 应用外壳：桌面侧栏；移动端顶栏、底部导航和账户弹层。 */
 
 import {
+  FileSearch,
   KeyRound,
+  Layers,
+  LayoutDashboard,
+  ListChecks,
   LogOut,
   MessageSquareText,
   Moon,
   Network,
+  ScrollText,
+  ShieldCheck,
+  Store,
   Sun,
   Tags,
   UserRound,
+  Users,
   Wallet,
 } from "lucide-react";
 import { useState } from "react";
@@ -21,11 +29,20 @@ import { useAuth } from "@/lib/auth-store";
 import { useTheme } from "@/lib/theme-store";
 
 const NAV_ITEMS = [
-  { to: "/wallet", label: "钱包", icon: Wallet, admin: false },
-  { to: "/payments", label: "支付", icon: MessageSquareText, admin: false },
-  { to: "/pricing", label: "价目管理", icon: Tags, admin: true },
-  { to: "/topology", label: "渠道拓扑", icon: Network, admin: true },
-  { to: "/keys", label: "密钥绑定", icon: KeyRound, admin: true },
+  { to: "/wallet", label: "钱包", icon: Wallet, admin: false, mobile: true },
+  { to: "/payments", label: "支付", icon: MessageSquareText, admin: false, mobile: true },
+  { to: "/control", label: "控制台", icon: LayoutDashboard, admin: true, mobile: true },
+  { to: "/tenants", label: "租户", icon: Users, admin: true, mobile: false },
+  { to: "/plans", label: "套餐权益", icon: Layers, admin: true, mobile: false },
+  { to: "/policies", label: "策略包", icon: ShieldCheck, admin: true, mobile: false },
+  { to: "/catalog", label: "商店目录", icon: Store, admin: true, mobile: false },
+  { to: "/services", label: "服务", icon: Network, admin: true, mobile: true },
+  { to: "/commands", label: "命令", icon: ListChecks, admin: true, mobile: false },
+  { to: "/sagas", label: "跨域流程", icon: FileSearch, admin: true, mobile: false },
+  { to: "/audit", label: "审计", icon: ScrollText, admin: true, mobile: false },
+  { to: "/pricing", label: "价目管理", icon: Tags, admin: true, mobile: false },
+  { to: "/topology", label: "渠道拓扑", icon: Network, admin: true, mobile: false },
+  { to: "/keys", label: "密钥绑定", icon: KeyRound, admin: true, mobile: false },
 ];
 
 /** 未知角色显示原值。 */
@@ -41,6 +58,7 @@ export function AppShell() {
   const [accountOpen, setAccountOpen] = useState(false);
 
   const navItems = NAV_ITEMS.filter((item) => !item.admin || user?.role === "ADMIN");
+  const mobileItems = navItems.filter((item) => item.mobile);
 
   const navClass = ({ isActive }: { isActive: boolean }) =>
     `flex items-center gap-2 rounded-md px-3 py-2 text-md whitespace-nowrap ${
@@ -90,7 +108,7 @@ export function AppShell() {
             {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
           </Button>
         </div>
-        <nav className="flex flex-1 flex-col space-y-1 p-2">
+        <nav className="flex flex-1 flex-col space-y-1 overflow-y-auto p-2">
           {navItems.map((item) => (
             <NavLink key={item.to} to={item.to} className={navClass}>
               <item.icon className="size-4" />
@@ -127,7 +145,7 @@ export function AppShell() {
         aria-label="主导航"
         className="fixed inset-x-0 bottom-0 z-30 flex border-t bg-card pb-[env(safe-area-inset-bottom)] md:hidden"
       >
-        {navItems.map((item) => (
+        {mobileItems.map((item) => (
           <NavLink key={item.to} to={item.to} className={tabClass}>
             <item.icon className="size-5" aria-hidden />
             {item.label}

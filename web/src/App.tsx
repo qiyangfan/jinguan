@@ -3,10 +3,19 @@ import { Navigate, Route, Routes } from "react-router";
 
 import { AppShell } from "@/components/app-shell";
 import { useAuth } from "@/lib/auth-store";
+import AuditPage from "@/pages/AuditPage";
+import CatalogPage from "@/pages/CatalogPage";
+import CommandsPage from "@/pages/CommandsPage";
+import ControlHomePage from "@/pages/ControlHomePage";
 import KeysPage from "@/pages/KeysPage";
 import LoginPage from "@/pages/LoginPage";
 import PaymentsPage from "@/pages/PaymentsPage";
+import PlansPage from "@/pages/PlansPage";
+import PoliciesPage from "@/pages/PoliciesPage";
 import PricingPage from "@/pages/PricingPage";
+import SagasPage from "@/pages/SagasPage";
+import ServicesPage from "@/pages/ServicesPage";
+import TenantsPage from "@/pages/TenantsPage";
 import TopologyPage from "@/pages/TopologyPage";
 import WalletPage from "@/pages/WalletPage";
 
@@ -37,6 +46,78 @@ export default function App() {
       <Route element={<AppShell />}>
         <Route path="/wallet" element={<WalletPage />} />
         <Route path="/payments" element={<PaymentsPage />} />
+        <Route
+          path="/control"
+          element={
+            <RequireAdmin>
+              <ControlHomePage />
+            </RequireAdmin>
+          }
+        />
+        <Route
+          path="/tenants"
+          element={
+            <RequireAdmin>
+              <TenantsPage />
+            </RequireAdmin>
+          }
+        />
+        <Route
+          path="/plans"
+          element={
+            <RequireAdmin>
+              <PlansPage />
+            </RequireAdmin>
+          }
+        />
+        <Route
+          path="/policies"
+          element={
+            <RequireAdmin>
+              <PoliciesPage />
+            </RequireAdmin>
+          }
+        />
+        <Route
+          path="/catalog"
+          element={
+            <RequireAdmin>
+              <CatalogPage />
+            </RequireAdmin>
+          }
+        />
+        <Route
+          path="/services"
+          element={
+            <RequireAdmin>
+              <ServicesPage />
+            </RequireAdmin>
+          }
+        />
+        <Route
+          path="/commands"
+          element={
+            <RequireAdmin>
+              <CommandsPage />
+            </RequireAdmin>
+          }
+        />
+        <Route
+          path="/sagas"
+          element={
+            <RequireAdmin>
+              <SagasPage />
+            </RequireAdmin>
+          }
+        />
+        <Route
+          path="/audit"
+          element={
+            <RequireAdmin>
+              <AuditPage />
+            </RequireAdmin>
+          }
+        />
         <Route
           path="/pricing"
           element={
