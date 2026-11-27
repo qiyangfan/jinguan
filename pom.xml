@@ -26,7 +26,7 @@
     <maven-enforcer.version>3.6.3</maven-enforcer.version>
     <spotbugs.version>4.10.5.0</spotbugs.version>
     <springdoc.version>3.1.1</springdoc.version>
-    <testcontainers.version>1.21.4</testcontainers.version>
+    <testcontainers.version>2.0.5</testcontainers.version>
     <archunit.version>1.4.2</archunit.version>
     <json-schema-validator.version>1.5.6</json-schema-validator.version>
   </properties>
