@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://jinguan.longzhong/contracts/command-actions/catalog-sync/v1",
+  "x-action": "catalog_sync",
+  "x-version": 1,
+  "title": "catalog_sync params v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["entry_key"],
+  "properties": {
+    "entry_key": {
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 64
+    }
+  }
+}

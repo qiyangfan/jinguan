@@ -28,6 +28,7 @@
     <springdoc.version>3.1.1</springdoc.version>
     <testcontainers.version>1.21.4</testcontainers.version>
     <archunit.version>1.4.2</archunit.version>
+    <json-schema-validator.version>1.5.6</json-schema-validator.version>
   </properties>
 
   <dependencyManagement>
@@ -109,6 +110,19 @@
     <dependency>
       <groupId>com.github.ben-manes.caffeine</groupId>
       <artifactId>caffeine</artifactId>
+    </dependency>
+
+    <!-- 跨仓契约与命令 action 的 JSON Schema 校验(X-01 harness 与运行期共用)。 -->
+    <dependency>
+      <groupId>com.networknt</groupId>
+      <artifactId>json-schema-validator</artifactId>
+      <version>${json-schema-validator.version}</version>
+    </dependency>
+
+    <!-- 告警邮件通道;未配置 spring.mail.host 时不启用投递。 -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-mail</artifactId>
     </dependency>
 
     <!-- H2、MVC 和 Micrometer 测试支持。 -->

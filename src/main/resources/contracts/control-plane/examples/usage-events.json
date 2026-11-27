@@ -1,0 +1,15 @@
+{
+  "events": [
+    {
+      "eventId": "evt-2026-11-27-0001",
+      "tenantKey": "t1",
+      "subject": "sub-1",
+      "entitlementKey": "bot.basic",
+      "metric": "bot.run",
+      "quantity": 12,
+      "unit": "count",
+      "kind": "PRODUCT",
+      "occurredAt": "2026-11-27T08:00:00Z"
+    }
+  ]
+}

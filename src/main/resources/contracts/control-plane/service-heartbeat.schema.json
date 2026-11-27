@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://jinguan.longzhong/contracts/service-heartbeat/v1",
+  "title": "service heartbeat v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["serviceId", "instanceId"],
+  "properties": {
+    "serviceId": {"type": "string", "enum": ["kongming", "muniu"]},
+    "instanceId": {"type": "string", "minLength": 1, "maxLength": 128}
+  }
+}

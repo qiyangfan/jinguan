@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://jinguan.longzhong/contracts/health-event/v1",
+  "title": "health event v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["serviceId", "instanceId", "status", "observedAt"],
+  "properties": {
+    "serviceId": {"type": "string", "enum": ["kongming", "muniu"]},
+    "instanceId": {"type": "string", "minLength": 1, "maxLength": 128},
+    "status": {"type": "string", "enum": ["UP", "DEGRADED"]},
+    "observedAt": {"type": "string", "format": "date-time"}
+  }
+}

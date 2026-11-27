@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://jinguan.longzhong/contracts/service-registration/v1",
+  "title": "service registration v1 (不含 endpoint/凭据)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["serviceId", "instanceId", "environment", "version"],
+  "properties": {
+    "serviceId": {"type": "string", "enum": ["kongming", "muniu"]},
+    "instanceId": {"type": "string", "minLength": 1, "maxLength": 128},
+    "environment": {"type": "string", "minLength": 1, "maxLength": 32},
+    "version": {"type": "string", "minLength": 1, "maxLength": 64},
+    "capabilities": {
+      "type": "array",
+      "maxItems": 500,
+      "items": {"type": "string", "minLength": 1, "maxLength": 128}
+    },
+    "adminCapabilities": {
+      "type": "array",
+      "maxItems": 500,
+      "items": {"type": "string", "minLength": 1, "maxLength": 128}
+    }
+  }
+}

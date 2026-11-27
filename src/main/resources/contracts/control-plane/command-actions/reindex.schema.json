@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://jinguan.longzhong/contracts/command-actions/reindex/v1",
+  "x-action": "reindex",
+  "x-version": 1,
+  "title": "reindex params v1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "target": {
+      "type": "string",
+      "enum": ["all", "catalog", "usage"]
+    }
+  }
+}

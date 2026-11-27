@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://jinguan.longzhong/contracts/command-actions/plan-apply/v1",
+  "x-action": "plan_apply",
+  "x-version": 1,
+  "title": "plan_apply params v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["tenant_key", "plan_key"],
+  "properties": {
+    "tenant_key": {
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 64
+    },
+    "plan_key": {
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 64
+    }
+  }
+}

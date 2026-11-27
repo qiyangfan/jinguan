@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://jinguan.longzhong/contracts/command-ack/v1",
+  "title": "command ack request v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["status"],
+  "properties": {
+    "status": {"type": "string", "enum": ["SUCCEEDED", "FAILED"]},
+    "result": {"type": "object"},
+    "error": {"type": "string", "minLength": 1, "maxLength": 1024}
+  }
+}

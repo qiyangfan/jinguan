@@ -1,0 +1,60 @@
+{
+  "version": 7,
+  "observed_at": "2026-11-27T08:00:00Z",
+  "service_id": "kongming",
+  "etag": "\"7f3c2a9d4b6e1f08\"",
+  "security_sections": ["tenant_directory", "entitlements", "policy_packages"],
+  "sections": {
+    "tenant_directory": {
+      "tenantCount": 1,
+      "tenants": [
+        {
+          "id": "6f1c2f0e-2a4b-4c9d-8e7f-0a1b2c3d4e5f",
+          "tenantKey": "t1",
+          "name": "示例租户",
+          "status": "ACTIVE",
+          "updatedAt": "2026-11-27T08:00:00Z",
+          "members": [{"subject": "sub-1", "role": "OWNER", "status": "ACTIVE"}]
+        }
+      ]
+    },
+    "entitlements": {
+      "tenantCount": 1,
+      "tenants": [
+        {
+          "tenantKey": "t1",
+          "planKey": "pro",
+          "boundAt": "2026-11-27T08:00:00Z",
+          "quotas": [{"dimension": "requests_per_day", "unit": "count", "limit": 100000}],
+          "entitlementKeys": ["bot.basic"]
+        }
+      ]
+    },
+    "policy_packages": {
+      "packageCount": 1,
+      "packages": [
+        {
+          "packageKey": "shared-guard",
+          "serviceId": "kongming",
+          "scope": "GLOBAL",
+          "tenantKey": null,
+          "rulesetVersion": "v2",
+          "updatedAt": "2026-11-27T08:00:00Z"
+        }
+      ]
+    },
+    "market_catalog": {
+      "entryCount": 1,
+      "entries": [
+        {
+          "entryKey": "assistant",
+          "botKey": "bot-1",
+          "visibility": "PUBLIC",
+          "tenantKey": null,
+          "entitlementKey": "bot.basic",
+          "featured": true
+        }
+      ]
+    }
+  }
+}

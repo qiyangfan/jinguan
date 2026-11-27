@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://jinguan.longzhong/contracts/command-actions/tenant-provision/v1",
+  "x-action": "tenant_provision",
+  "x-version": 1,
+  "title": "tenant_provision params v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["tenant_key"],
+  "properties": {
+    "tenant_key": {
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 64
+    }
+  }
+}

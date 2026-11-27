@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://jinguan.longzhong/contracts/usage-events/v1",
+  "title": "generic usage events v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["events"],
+  "properties": {
+    "events": {
+      "type": "array",
+      "maxItems": 500,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["eventId", "metric", "quantity", "unit", "occurredAt"],
+        "properties": {
+          "eventId": {"type": "string", "minLength": 1, "maxLength": 128},
+          "tenantKey": {"type": ["string", "null"], "maxLength": 64},
+          "subject": {"type": ["string", "null"], "maxLength": 64},
+          "entitlementKey": {"type": ["string", "null"], "maxLength": 128},
+          "metric": {"type": "string", "pattern": "^[a-z][a-z0-9_.-]{1,63}$"},
+          "quantity": {"type": "integer", "minimum": 0},
+          "unit": {"type": "string", "minLength": 1, "maxLength": 32},
+          "kind": {"type": "string", "enum": ["PRODUCT", "LLM"]},
+          "occurredAt": {"type": "string", "format": "date-time"}
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://jinguan.longzhong/contracts/snapshot/v1",
+  "title": "control snapshot v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "observed_at",
+    "service_id",
+    "etag",
+    "security_sections",
+    "sections"
+  ],
+  "properties": {
+    "version": {"type": "integer", "minimum": 1},
+    "observed_at": {"type": "string", "format": "date-time"},
+    "service_id": {"type": "string", "enum": ["kongming", "muniu"]},
+    "etag": {"type": "string", "minLength": 3},
+    "security_sections": {
+      "type": "array",
+      "items": {"type": "string"},
+      "minItems": 3,
+      "uniqueItems": true
+    },
+    "sections": {
+      "type": "object",
+      "required": ["tenant_directory", "entitlements", "policy_packages"],
+      "additionalProperties": true,
+      "properties": {
+        "tenant_directory": {"type": "object"},
+        "entitlements": {"type": "object"},
+        "policy_packages": {"type": "object"},
+        "market_catalog": {"type": "object"},
+        "pricing": {"type": "object"},
+        "topology": {"type": "object"},
+        "key_revocations": {"type": "object"}
+      }
+    }
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "service_id": "kongming",
+  "version": "42",
+  "etag": "k-42",
+  "observed_at": "2026-11-27T08:00:00Z",
+  "sections": {
+    "bots": [{"bot_key": "bot-1", "name": "示例助手"}],
+    "data_sources": [{"name": "pg-main"}]
+  }
+}

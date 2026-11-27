@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://jinguan.longzhong/contracts/command-envelope/v1",
+  "title": "command envelope v1 (claim 响应条目 / 控制台视图)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "serviceId",
+    "action",
+    "actionSchemaVersion",
+    "params",
+    "reason",
+    "actor",
+    "status",
+    "attempts",
+    "maxAttempts",
+    "createdAt",
+    "updatedAt"
+  ],
+  "properties": {
+    "id": {"type": "string", "minLength": 1},
+    "serviceId": {"type": "string", "minLength": 1},
+    "action": {"type": "string", "minLength": 1},
+    "actionSchemaVersion": {"type": "integer", "minimum": 1},
+    "params": {"type": "object"},
+    "reason": {"type": "string", "minLength": 1, "maxLength": 512},
+    "actor": {"type": "string"},
+    "status": {
+      "type": "string",
+      "enum": ["PENDING", "CLAIMED", "SUCCEEDED", "FAILED", "DEAD_LETTER"]
+    },
+    "attempts": {"type": "integer", "minimum": 0},
+    "maxAttempts": {"type": "integer", "minimum": 1},
+    "claimedBy": {"type": ["string", "null"]},
+    "result": {"type": ["object", "null"]},
+    "error": {"type": ["string", "null"], "maxLength": 1024},
+    "createdAt": {"type": "string", "format": "date-time"},
+    "updatedAt": {"type": "string", "format": "date-time"},
+    "finishedAt": {"type": ["string", "null"], "format": "date-time"}
+  }
+}

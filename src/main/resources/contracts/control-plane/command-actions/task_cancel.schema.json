@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://jinguan.longzhong/contracts/command-actions/task-cancel/v1",
+  "x-action": "task_cancel",
+  "x-version": 1,
+  "title": "task_cancel params v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["task_id"],
+  "properties": {
+    "task_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "note": {
+      "type": "string",
+      "maxLength": 256
+    }
+  }
+}

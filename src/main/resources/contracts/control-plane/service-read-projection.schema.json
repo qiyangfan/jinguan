@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://jinguan.longzhong/contracts/service-read-projection/v1",
+  "title": "服务只读投影 v1(服务提供,jinguan 消费)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["service_id", "observed_at", "sections"],
+  "properties": {
+    "service_id": {"type": "string", "enum": ["kongming", "muniu"]},
+    "version": {"type": "string", "maxLength": 64},
+    "etag": {"type": "string", "maxLength": 128},
+    "observed_at": {"type": "string", "format": "date-time"},
+    "sections": {"type": "object"}
+  }
+}

@@ -55,3 +55,34 @@
 2. `openapi.json` `PricingView` properties ↔ muniu `internal/admin/pricing.go` 源码;
 3. 吊销快照键名(`version`/`revoked`)双端在位。
 职责边界:只抓字段名级漂移,不验语义;报红人工复核。
+
+## 控制面 S0 契约(X-01,2026-11-26 批次)
+
+> **单一来源**:`src/main/resources/contracts/control-plane/` 下的 JSON Schema 与示例;
+> `catalog.json` 给出每个契约的版本与 sha256。kongming/muniu 以该目录与哈希复现同一契约
+> 基线,任何字段/方向/错误码变更都先改这里再改消费端。
+> **Owner**:jinguan(X-01);失败报告须含字段、方向(provider/consumer)、契约版本与期望/实际。
+> **门禁**:`mvn -Dtest=ControlContractHarnessTest test` 必跑;禁止以「适用时」跳过快照/命令
+> (含 action)/用量/只读 API/注册五类契约。破坏性变更升版本并双方同步后才可合并。
+
+| # | 契约 | 文件 | 锦官端点/方向 | 消费方 |
+|---|---|---|---|---|
+| S-1 | 控制快照 | `snapshot.schema.json` | `GET /control/v1/snapshot` → 服务 | kongming/muniu |
+| S-2 | 命令 envelope/回执 | `command-envelope.schema.json`、`command-ack.schema.json` | `POST /control/v1/commands/claim`、`/{id}/ack` → 服务 | kongming/muniu |
+| S-2a | 命令 action params(独立版本) | `command-actions/*.schema.json`(`x-action`/`x-version`) | 提交/claim/执行共用 | kongming/muniu |
+| S-3 | 用量/健康事件 | `usage-events.schema.json`、`health-event.schema.json` | 服务 → `POST /ingest/events`、`POST /ingest/health` | kongming/muniu |
+| S-4 | 服务注册/心跳 | `service-registration.schema.json`、`service-heartbeat.schema.json` | 服务 → `POST /control/v1/registry/*` | kongming/muniu |
+| S-5 | 服务只读投影 | `service-read-projection.schema.json` | 服务提供 `GET {base}/service/v1/read-projection` → 锦官消费 | kongming/muniu |
+
+- **安全类清单固定**:快照 `security_sections` 由代码固定(kongming 3 项、muniu 4 项,含吊销);
+  消费者缺失/非法即 fail-closed。
+- **认证**:新控制端点全部要求服务身份(managed=Keycloak client credentials,JWKS 验签;
+  local pre-shared 仅 loopback);历史匿名管子(价目/吊销/拓扑,`/ingest/usage` 静态 token)
+  仍按已登记契约执行,收口需双方 change 同步,禁止单边改 wire。
+- **禁止字段**:契约 schema/示例不得含凭据、连接串、服务域配置;注册与用量不接受 endpoint/凭据
+  字段(严格字段白名单,未知字段 400)。
+- **action 版本**:`reindex`/`cache_purge`/`task_cancel` 与 saga 用
+  `tenant_provision`/`tenant_deprovision`/`plan_apply`/`plan_revert`/`catalog_sync` 各自独立
+  `x-version`,新增/破坏性调整只升该 action 版本。
+- **回滚**:破坏性变更保留上一契约版本(`catalog.json` 哈希 + 服务端兼容窗口),回滚演练见
+  `docs/control-ha.md`。

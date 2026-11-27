@@ -1,0 +1,18 @@
+{
+  "id": "3c9f1a52-4b3f-4a1e-9c1d-7e6f5a4b3c2d",
+  "serviceId": "kongming",
+  "action": "reindex",
+  "actionSchemaVersion": 1,
+  "params": {"target": "catalog"},
+  "reason": "目录索引重建",
+  "actor": "sub-admin",
+  "status": "PENDING",
+  "attempts": 0,
+  "maxAttempts": 3,
+  "claimedBy": null,
+  "result": null,
+  "error": null,
+  "createdAt": "2026-11-27T08:00:00Z",
+  "updatedAt": "2026-11-27T08:00:00Z",
+  "finishedAt": null
+}

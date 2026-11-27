@@ -1,0 +1,102 @@
+{
+  "contractVersion": "v1",
+  "generatedBy": "jinguan X-01 harness",
+  "contracts": [
+    {
+      "name": "command-ack",
+      "file": "command-ack.schema.json",
+      "version": "v1",
+      "sha256": "ef248071008d9fb497df05f3d8d4a78b1837e0529ac1a8584c42e7d2d225b78c"
+    },
+    {
+      "name": "command-actions/cache_purge",
+      "file": "command-actions/cache_purge.schema.json",
+      "version": "v1",
+      "sha256": "c190f142c18de8fe65b14cd8e47e2eb26ad70f17b86b83926a2bd87144ccd29e"
+    },
+    {
+      "name": "command-actions/catalog_sync",
+      "file": "command-actions/catalog_sync.schema.json",
+      "version": "v1",
+      "sha256": "d948385cfe606e93df2ec485afc91841c985d18bd2b6bf3b9bc5a7fef56a2468"
+    },
+    {
+      "name": "command-actions/plan_apply",
+      "file": "command-actions/plan_apply.schema.json",
+      "version": "v1",
+      "sha256": "5c73ffb239ab79d150e00bc45430c8dfe2f06781afd8755e2f7ff90581c857e5"
+    },
+    {
+      "name": "command-actions/plan_revert",
+      "file": "command-actions/plan_revert.schema.json",
+      "version": "v1",
+      "sha256": "760219bef5e4b2c88f8246d5bef7174cc638d659d5d4be17953b129cdc37142b"
+    },
+    {
+      "name": "command-actions/reindex",
+      "file": "command-actions/reindex.schema.json",
+      "version": "v1",
+      "sha256": "3a86a7bda9a33a1afb22b123459e3243b61daba6a85c5f13677ab87386750407"
+    },
+    {
+      "name": "command-actions/task_cancel",
+      "file": "command-actions/task_cancel.schema.json",
+      "version": "v1",
+      "sha256": "7e6291c9402a12d3f04f198319c4cf550faae00426ada8c226bdfc77d36b06da"
+    },
+    {
+      "name": "command-actions/tenant_deprovision",
+      "file": "command-actions/tenant_deprovision.schema.json",
+      "version": "v1",
+      "sha256": "88d483500f2a77ae267fd63eb37a3ae65b8b45b882ffa63c24a0f6c497f85dad"
+    },
+    {
+      "name": "command-actions/tenant_provision",
+      "file": "command-actions/tenant_provision.schema.json",
+      "version": "v1",
+      "sha256": "222024f8581b953dada735d304a8f812579d9dc6a1811e32a461ca2b426c9514"
+    },
+    {
+      "name": "command-envelope",
+      "file": "command-envelope.schema.json",
+      "version": "v1",
+      "sha256": "354941b9a89d490eab28f6e68cdc5f10f9f2f24652bff4e54638835a9a9698aa"
+    },
+    {
+      "name": "health-event",
+      "file": "health-event.schema.json",
+      "version": "v1",
+      "sha256": "615aea257fe01fc223a33327027533a2c6319fe050786ac5665d34113afc9336"
+    },
+    {
+      "name": "service-heartbeat",
+      "file": "service-heartbeat.schema.json",
+      "version": "v1",
+      "sha256": "0bb7f92170034c60aa4978681eebcb3d90e44cea4879d1b63ac72c548eb7c924"
+    },
+    {
+      "name": "service-read-projection",
+      "file": "service-read-projection.schema.json",
+      "version": "v1",
+      "sha256": "1df6488c8ddb4bd7d88ea58fd4f705e1b2e9a11d2a1c33baeba52c6939a854a4"
+    },
+    {
+      "name": "service-registration",
+      "file": "service-registration.schema.json",
+      "version": "v1",
+      "sha256": "ea796146226afc9a33c6c1797f632075149c62063fb98a317adbb76a3dca99c1"
+    },
+    {
+      "name": "snapshot",
+      "file": "snapshot.schema.json",
+      "version": "v1",
+      "sha256": "a2ebca0bb4247aac50e0ba5e00990c8aefe4ed6d6c64c795eb45f8cca673b98f"
+    },
+    {
+      "name": "usage-events",
+      "file": "usage-events.schema.json",
+      "version": "v1",
+      "sha256": "76dfff6e55b7c5a8c06165385ec4790c935e5cfc06c1db81a8604dd894221282"
+    }
+  ]
+}

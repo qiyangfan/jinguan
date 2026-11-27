@@ -1,0 +1,8 @@
+{
+  "serviceId": "kongming",
+  "instanceId": "kongming-0",
+  "environment": "prod",
+  "version": "1.4.0",
+  "capabilities": ["bot.basic", "bot.store"],
+  "adminCapabilities": ["data_source_read", "rules_read"]
+}
