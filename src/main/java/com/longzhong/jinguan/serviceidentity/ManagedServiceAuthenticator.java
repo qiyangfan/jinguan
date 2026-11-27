@@ -5,7 +5,9 @@ import java.util.List;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtClaimValidator;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.security.oauth2.jwt.JwtValidators;
@@ -44,7 +46,20 @@ class ManagedServiceAuthenticator {
     ServiceAuthProperties.Client entry = requireEnabledClient(clientId, requiredScope, request);
     List<String> scopes = entry.scopeList();
     rejector.requireScope(entry.serviceId(), scopes, requiredScope, request);
+    requireTokenScope(jwt, clientId, requiredScope, request);
     return new ServicePrincipal(entry.serviceId(), clientId, scopes);
+  }
+
+  /** token 必须实际携带端点对应 scope;仅有目录授权不等于本次 token 获授该 scope。 */
+  private void requireTokenScope(
+      Jwt jwt, String clientId, String requiredScope, HttpServletRequest request) {
+    String granted = Optional.ofNullable(jwt.getClaimAsString("scope")).orElse("");
+    String mapped = ServiceScopes.keycloakScope(requiredScope);
+    boolean present =
+        java.util.Arrays.stream(granted.split("\\s+")).anyMatch(scope -> scope.equals(mapped));
+    if (!present) {
+      throw rejector.reject(clientId, requiredScope, request, "服务 token 缺 scope: " + mapped, true);
+    }
   }
 
   private static String clientIdOf(Jwt jwt) {
@@ -76,7 +91,11 @@ class ManagedServiceAuthenticator {
           "managed 模式必须配置 jinguan.service-auth.managed.issuer 与 jwk-set-uri");
     }
     NimbusJwtDecoder jwtDecoder = NimbusJwtDecoder.withJwkSetUri(jwkSetUri).build();
-    jwtDecoder.setJwtValidator(JwtValidators.createDefaultWithIssuer(issuer));
+    jwtDecoder.setJwtValidator(
+        new DelegatingOAuth2TokenValidator<>(
+            JwtValidators.createDefaultWithIssuer(issuer),
+            new JwtClaimValidator<List<String>>(
+                "aud", aud -> aud != null && aud.contains("jinguan"))));
     return jwtDecoder;
   }
 }

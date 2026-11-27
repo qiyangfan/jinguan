@@ -56,7 +56,7 @@
 3. 吊销快照键名(`version`/`revoked`)双端在位。
 职责边界:只抓字段名级漂移,不验语义;报红人工复核。
 
-## 控制面 S0 契约(X-01,2026-11-26 批次)
+## 控制面 S0 契约(X-01,2026-11-27 冻结)
 
 > **单一来源**:`src/main/resources/contracts/control-plane/` 下的 JSON Schema 与示例;
 > `catalog.json` 给出每个契约的版本与 sha256。kongming/muniu 以该目录与哈希复现同一契约
@@ -68,16 +68,40 @@
 | # | 契约 | 文件 | 锦官端点/方向 | 消费方 |
 |---|---|---|---|---|
 | S-1 | 控制快照 | `snapshot.schema.json` | `GET /control/v1/snapshot` → 服务 | kongming/muniu |
-| S-2 | 命令 envelope/回执 | `command-envelope.schema.json`、`command-ack.schema.json` | `POST /control/v1/commands/claim`、`/{id}/ack` → 服务 | kongming/muniu |
+| S-2 | 命令 envelope/回执 | `command-envelope.schema.json`、`command-ack.schema.json` | `POST /control/v1/commands/claim`（响应为 envelope 数组）、`POST /control/v1/commands/{id}/ack` → 服务 | kongming/muniu |
 | S-2a | 命令 action params(独立版本) | `command-actions/*.schema.json`(`x-action`/`x-version`) | 提交/claim/执行共用 | kongming/muniu |
 | S-3 | 用量/健康事件 | `usage-events.schema.json`、`health-event.schema.json` | 服务 → `POST /ingest/events`、`POST /ingest/health` | kongming/muniu |
-| S-4 | 服务注册/心跳 | `service-registration.schema.json`、`service-heartbeat.schema.json` | 服务 → `POST /control/v1/registry/*` | kongming/muniu |
+| S-4 | 服务注册/心跳 | `service-registration.schema.json`、`service-heartbeat.schema.json` | 服务 → `POST /control/v1/registry/register`、`POST /control/v1/registry/heartbeat` | kongming/muniu |
 | S-5 | 服务只读投影 | `service-read-projection.schema.json` | 服务提供 `GET {base}/service/v1/read-projection` → 锦官消费 | kongming/muniu |
+
+**S-1 外壳**：`{"version","observed_at","service_id","etag","security_sections","sections"}`；
+`X-Jinguan-Signature` 为响应体 RSA-SHA256 PKCS#1 v1.5 裸签名，`X-Jinguan-Key-Id` 为签名 kid；
+消费者 MUST 按 kid 从 `GET /.well-known/jwks.json` 取公钥并缓存，未知 kid 强制刷新；
+不得固定单公钥，退役/轮换公钥在 JWKS 中并存至旧签名失效。
+`If-None-Match` + 304 原样返回同一签名。`sections` 按服务投影：kongming
+`tenant_directory/entitlements/policy_packages/market_catalog`，muniu
+`tenant_directory/entitlements/policy_packages/pricing/topology/key_revocations`。
+`tenant_directory.members.subject` 是 Keycloak sub，MUST 为 UUID；`members.status` 是
+租户级成员关系，消费方 MUST NOT 将其当作全局账号停用。目录快照只含 `enabled=true` 条目，
+`enabled` 即上架/货架可见，X-01 无 UNLISTED。配额维度由服务解释：kongming 用
+`calls_daily/calls_monthly/bot_calls_daily/tool_calls_per_minute`，muniu 用
+`rpm/tpm/daily_quota_credits`；未知维度不猜测，缺失维度按未配置处理。
+
+**S-2 命令**：claim 请求体仅 `{"limit":n}`；响应数组元素字段
+`id/serviceId/action/actionSchemaVersion/params/reason/actor/status/attempts/maxAttempts/...`；
+ack 只接受 `{"status":"SUCCEEDED"|"FAILED","result"?:{}, "error"?:""}`；服务身份绑定目标
+`serviceId`，终态重复回执返回 409（消费方按幂等处理）。
+
+**S-4 注册**：`register` 字段 `serviceId/instanceId/environment/version/capabilities/adminCapabilities`，
+不含 endpoint/凭据/`startedAt`；`heartbeat` 只含 `serviceId/instanceId`。健康状态走
+`POST /ingest/health`（`serviceId/instanceId/status(UP|DEGRADED)/observedAt`），失败不伪造 ready。
 
 - **安全类清单固定**:快照 `security_sections` 由代码固定(kongming 3 项、muniu 4 项,含吊销);
   消费者缺失/非法即 fail-closed。
-- **认证**:新控制端点全部要求服务身份(managed=Keycloak client credentials,JWKS 验签;
-  local pre-shared 仅 loopback);历史匿名管子(价目/吊销/拓扑,`/ingest/usage` 静态 token)
+- **认证**:新控制端点全部要求服务身份(managed=Keycloak client credentials,JWKS 验签,
+  `aud` 必须含 `jinguan`; local pre-shared 仅 loopback)；managed 出站 client 必须请求对应 scope：
+  `control:register`/`control:snapshot`/`control:command`/`control:usage`，锦官按端点强制校验；
+  读者面用 `service:read`。历史匿名管子(价目/吊销/拓扑,`/ingest/usage` 静态 token)
   仍按已登记契约执行,收口需双方 change 同步,禁止单边改 wire。
 - **禁止字段**:契约 schema/示例不得含凭据、连接串、服务域配置;注册与用量不接受 endpoint/凭据
   字段(严格字段白名单,未知字段 400)。

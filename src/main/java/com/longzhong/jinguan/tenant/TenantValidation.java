@@ -8,7 +8,9 @@ import java.util.regex.Pattern;
 final class TenantValidation {
 
   static final Pattern TENANT_KEY = Pattern.compile("[a-z0-9][a-z0-9_-]{1,62}");
-  static final Pattern SUBJECT = Pattern.compile("[A-Za-z0-9._:@-]{1,64}");
+  static final Pattern SUBJECT =
+      Pattern.compile(
+          "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}");
   private static final Set<String> ROLES = Set.of("OWNER", "ADMIN", "MEMBER");
   private static final int MAX_REASON = 512;
   private static final int MAX_NAME = 128;
@@ -33,7 +35,7 @@ final class TenantValidation {
 
   static void validateSubject(String subject) {
     if (subject == null || !SUBJECT.matcher(subject).matches()) {
-      throw new IllegalArgumentException("subject 非法");
+      throw new IllegalArgumentException("subject 必须是 Keycloak UUID");
     }
   }
 

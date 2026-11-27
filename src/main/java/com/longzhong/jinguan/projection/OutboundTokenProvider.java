@@ -69,7 +69,9 @@ public class OutboundTokenProvider {
         "grant_type=client_credentials&client_id="
             + URLEncoder.encode(clientConfig.clientId(), StandardCharsets.UTF_8)
             + "&client_secret="
-            + URLEncoder.encode(clientConfig.clientSecret(), StandardCharsets.UTF_8);
+            + URLEncoder.encode(clientConfig.clientSecret(), StandardCharsets.UTF_8)
+            + "&scope="
+            + URLEncoder.encode("service:read", StandardCharsets.UTF_8);
     HttpRequest request =
         HttpRequest.newBuilder(URI.create(properties.managed().tokenUri()))
             .timeout(Duration.ofSeconds(5))

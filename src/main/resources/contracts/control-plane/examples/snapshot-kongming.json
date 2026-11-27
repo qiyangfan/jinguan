@@ -14,7 +14,7 @@
           "name": "示例租户",
           "status": "ACTIVE",
           "updatedAt": "2026-11-27T08:00:00Z",
-          "members": [{"subject": "sub-1", "role": "OWNER", "status": "ACTIVE"}]
+          "members": [{"subject": "00000000-0000-4000-8000-000000000001", "role": "OWNER", "status": "ACTIVE"}]
         }
       ]
     },

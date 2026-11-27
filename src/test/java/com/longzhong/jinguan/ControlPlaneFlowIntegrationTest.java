@@ -87,13 +87,21 @@ class ControlPlaneFlowIntegrationTest extends ControlTestSupport {
             "{\"tenantKey\":\"t1\",\"name\":\"重复\",\"reason\":\"r\"}");
     expectStatus(409, duplicate);
 
-    MvcResult member =
+    MvcResult invalidMember =
         adminPost(
             adminToken,
             "/admin/tenants/" + tenantId + "/members",
             "{\"subject\":\"sub-1\",\"role\":\"OWNER\",\"reason\":\"邀请\"}");
+    expectStatus(400, invalidMember);
+
+    MvcResult member =
+        adminPost(
+            adminToken,
+            "/admin/tenants/" + tenantId + "/members",
+            "{\"subject\":\"00000000-0000-4000-8000-000000000001\","
+                + "\"role\":\"OWNER\",\"reason\":\"邀请\"}");
     expectStatus(200, member);
-    expectJson(member, "/members/0/subject", "sub-1");
+    expectJson(member, "/members/0/subject", "00000000-0000-4000-8000-000000000001");
 
     MvcResult audit = adminGet(adminToken, "/admin/audit-events?action=TENANT_CREATE");
     expectStatus(200, audit);
@@ -113,7 +121,8 @@ class ControlPlaneFlowIntegrationTest extends ControlTestSupport {
         adminPost(
             adminToken,
             "/admin/tenants/" + tenantId + "/members",
-            "{\"subject\":\"sub-2\",\"role\":\"MEMBER\",\"reason\":\"邀请\"}");
+            "{\"subject\":\"00000000-0000-4000-8000-000000000002\","
+                + "\"role\":\"MEMBER\",\"reason\":\"邀请\"}");
     expectStatus(409, blockedMember);
 
     MvcResult notFound = adminGet(adminToken, "/admin/tenants/does-not-exist");
