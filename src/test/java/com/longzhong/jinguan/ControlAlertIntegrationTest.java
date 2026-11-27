@@ -68,7 +68,12 @@ class ControlAlertIntegrationTest extends ControlTestSupport {
           exchange -> {
             String body =
                 new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
-            RECEIVED.add(exchange.getRequestHeaders().getFirst("X-Jinguan-Signature") + "|" + body);
+            RECEIVED.add(
+                exchange.getRequestHeaders().getFirst("X-Jinguan-Timestamp")
+                    + "|"
+                    + exchange.getRequestHeaders().getFirst("X-Jinguan-Signature")
+                    + "|"
+                    + body);
             if (FAILURES.getAndUpdate(value -> Math.max(0, value - 1)) > 0) {
               exchange.sendResponseHeaders(500, -1);
             } else {
@@ -203,11 +208,14 @@ class ControlAlertIntegrationTest extends ControlTestSupport {
             .findFirst()
             .orElse(null);
     expectTrue(received != null, "webhook 应收到告警");
-    String[] parts = received.split("\\|", 2);
-    expectTrue(parts[0].startsWith("sha256="), "webhook 必须携带签名");
-    expectTrue(parts[1].contains("docs/control-ha.md"), "webhook 载荷应含 runbook");
-    expectTrue(!parts[1].contains("secret"), "webhook 载荷不得含敏感值");
-    expectTrue(hmacOf(parts[1]).equals(parts[0].substring("sha256=".length())), "签名必须匹配共享密钥");
+    String[] parts = received.split("\\|", 3);
+    expectTrue(parts[1].startsWith("sha256="), "webhook 必须携带签名");
+    expectTrue(!parts[0].isBlank(), "webhook 必须携带时间戳");
+    expectTrue(parts[2].contains("docs/control-ha.md"), "webhook 载荷应含 runbook");
+    expectTrue(!parts[2].contains("secret"), "webhook 载荷不得含敏感值");
+    expectTrue(
+        hmacOf(parts[0] + "." + parts[2]).equals(parts[1].substring("sha256=".length())),
+        "签名必须覆盖时间戳与载荷");
   }
 
   @Test

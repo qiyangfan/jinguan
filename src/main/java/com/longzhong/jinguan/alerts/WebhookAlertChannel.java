@@ -7,6 +7,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import javax.crypto.Mac;
@@ -42,11 +43,13 @@ public class WebhookAlertChannel {
 
   void deliver(AlertEventEntity event) throws IOException, InterruptedException {
     byte[] body = mapper.writeValueAsString(bodyOf(event)).getBytes(StandardCharsets.UTF_8);
+    String timestamp = Long.toString(Instant.now().getEpochSecond());
     HttpRequest request =
         HttpRequest.newBuilder(URI.create(properties.webhookUrl()))
             .timeout(Duration.ofSeconds(5))
             .header("Content-Type", "application/json")
-            .header("X-Jinguan-Signature", "sha256=" + sign(body))
+            .header("X-Jinguan-Timestamp", timestamp)
+            .header("X-Jinguan-Signature", "sha256=" + sign(timestamp, body))
             .POST(HttpRequest.BodyPublishers.ofByteArray(body))
             .build();
     HttpResponse<Void> response = client.send(request, HttpResponse.BodyHandlers.discarding());
@@ -55,12 +58,13 @@ public class WebhookAlertChannel {
     }
   }
 
-  private String sign(byte[] body) {
+  private String sign(String timestamp, byte[] body) {
     try {
       Mac mac = Mac.getInstance("HmacSHA256");
       mac.init(
           new SecretKeySpec(
               properties.webhookSecret().getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+      mac.update((timestamp + ".").getBytes(StandardCharsets.UTF_8));
       return java.util.HexFormat.of().formatHex(mac.doFinal(body));
     } catch (java.security.GeneralSecurityException e) {
       throw new IllegalStateException("webhook 签名失败", e);

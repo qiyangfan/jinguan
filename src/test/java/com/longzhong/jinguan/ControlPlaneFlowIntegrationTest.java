@@ -77,6 +77,7 @@ class ControlPlaneFlowIntegrationTest extends ControlTestSupport {
             "{\"tenantKey\":\"t1\",\"name\":\"一号租户\",\"reason\":\"开通\"}");
     expectStatus(200, created);
     expectJson(created, "/tenantKey", "t1");
+    expectTrue(created.getResponse().getHeader("X-Audit-Id") != null, "写操作必须返回审计回执");
     tenantId = jsonString(created, "/id");
 
     MvcResult duplicate =

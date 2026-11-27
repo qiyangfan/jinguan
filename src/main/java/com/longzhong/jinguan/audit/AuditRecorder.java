@@ -9,12 +9,16 @@ import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.context.request.RequestAttributes;
+import org.springframework.web.context.request.RequestContextHolder;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 
 /** 写控制面审计:统一入口,summary 递归脱敏,request_id 取自 MDC。 */
 @Service
 public class AuditRecorder {
+
+  public static final String AUDIT_ID_ATTRIBUTE = "jinguan.auditId";
 
   private static final Logger log = LoggerFactory.getLogger(AuditRecorder.class);
 
@@ -29,7 +33,7 @@ public class AuditRecorder {
   /** 记录一条审计;结果为 SUCCESS/DENIED/FAILED。 */
   @SuppressWarnings("PMD.UseObjectForClearerAPI") // 审计字段均为独立必填维度,容器对象只增样板
   @Transactional
-  public void record(
+  public String record(
       AuditActor actor,
       String action,
       String targetType,
@@ -40,10 +44,11 @@ public class AuditRecorder {
       String result) {
     String summaryJson =
         summary == null || summary.isEmpty() ? null : serialize(Redaction.redact(summary));
+    String id = UUID.randomUUID().toString();
     repository.save(
         ControlAuditEntity.of(
             new AuditRecord(
-                UUID.randomUUID().toString(),
+                id,
                 Instant.now(),
                 actor,
                 action,
@@ -54,6 +59,11 @@ public class AuditRecorder {
                 summaryJson,
                 result,
                 MDC.get("requestId"))));
+    RequestAttributes attributes = RequestContextHolder.getRequestAttributes();
+    if (attributes != null) {
+      attributes.setAttribute(AUDIT_ID_ATTRIBUTE, id, RequestAttributes.SCOPE_REQUEST);
+    }
+    return id;
   }
 
   private String serialize(Map<String, Object> summary) {

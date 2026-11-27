@@ -78,8 +78,11 @@ bash scripts/control-restore.sh /backup/jinguan-2026-11-27.dump.enc
 
 ### 3.2 投递与安全
 
-- 通道：webhook（必需 allowlist + HMAC-SHA256 签名 `X-Jinguan-Signature`）与/或 email
-  （独立 `spring.mail` 认证）。未配置通道时告警记录标记 FAILED 以便排查，不静默丢弃。
+- 通道：webhook（必需 allowlist + HMAC-SHA256 签名）与/或 email（独立 `spring.mail` 认证）。
+  未配置通道时告警记录标记 FAILED 以便排查，不静默丢弃。
+- **防重放**：webhook 头 `X-Jinguan-Timestamp`（epoch 秒）参与签名，签名原文为
+  `"{timestamp}.{raw_body}"`；接收方须校验 HMAC 并拒绝时间戳偏差超过 ±300s 的请求，
+  同一 `dedup_key`/`id` 重复投递应幂等忽略。
 - 去重：`dedup_key` + `JINGUAN_ALERT_DEDUP_SECONDS`（默认 900s）；重试直到
   `JINGUAN_ALERT_MAX_ATTEMPTS`；成功后 `DELIVERED`，人工确认置 `ACKED`。
 - 载荷经脱敏（password/token/secret/credential/api_key/connection/dsn → `***`），
