@@ -81,7 +81,10 @@ public class PricingService {
 
   @Transactional(readOnly = true)
   public List<PricingView> list() {
-    return entries.findAll().stream().map(this::toView).toList();
+    return entries.findAll().stream()
+        .sorted(java.util.Comparator.comparing(PricingEntryEntity::getAlias))
+        .map(this::toView)
+        .toList();
   }
 
   private PricingView toView(PricingEntryEntity e) {

@@ -342,12 +342,25 @@ class ControlPlaneFlowIntegrationTest extends ControlTestSupport {
             .equals(snapshot.getResponse().getHeader("X-Jinguan-Key-Id")),
         "签名 key id 必须与 active kid 一致");
 
+    MvcResult repeated = serviceGet("kongming", "/control/v1/snapshot", null);
+    expectTrue(
+        bodyText.equals(repeated.getResponse().getContentAsString(StandardCharsets.UTF_8)),
+        "同版本快照响应体必须稳定（observed_at 随版本固化）");
+    expectTrue(
+        java.util.Objects.equals(
+            signature, repeated.getResponse().getHeader("X-Jinguan-Signature")),
+        "同版本快照签名必须稳定");
+
     String etag = snapshot.getResponse().getHeader("ETag");
     MvcResult notModified = serviceGet("kongming", "/control/v1/snapshot", etag);
     expectStatus(304, notModified);
     expectTrue(
         notModified.getResponse().getContentAsString(StandardCharsets.UTF_8).isEmpty(),
         "304 不应返回响应体");
+    expectTrue(
+        java.util.Objects.equals(
+            signature, notModified.getResponse().getHeader("X-Jinguan-Signature")),
+        "304 必须复用同一份已签名内容");
   }
 
   @Test

@@ -1,5 +1,6 @@
 package com.longzhong.jinguan.controlversion;
 
+import java.time.Instant;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,15 +24,25 @@ public class ControlVersionService {
         versions
             .findWithLockById(SNAPSHOT_SCOPE)
             .orElseThrow(() -> new IllegalStateException("控制快照版本水位缺失"));
-    row.increment();
+    row.increment(Instant.now());
     return versions.save(row).getVersion();
   }
 
   @Transactional(readOnly = true)
   public long current() {
+    return currentRow().getVersion();
+  }
+
+  /** 与版本同源固化的观察时间;同版本多次拉取保持一致。 */
+  @Transactional(readOnly = true)
+  public Instant observedAt() {
+    Instant observedAt = currentRow().getObservedAt();
+    return observedAt == null ? Instant.EPOCH : observedAt;
+  }
+
+  private ControlVersionEntity currentRow() {
     return versions
         .findById(SNAPSHOT_SCOPE)
-        .orElseThrow(() -> new IllegalStateException("控制快照版本水位缺失"))
-        .getVersion();
+        .orElseThrow(() -> new IllegalStateException("控制快照版本水位缺失"));
   }
 }

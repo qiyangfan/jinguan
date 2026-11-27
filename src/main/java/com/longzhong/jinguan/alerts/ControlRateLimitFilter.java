@@ -111,7 +111,7 @@ public class ControlRateLimitFilter extends OncePerRequestFilter {
     }
     String serviceId = request.getHeader("X-Service-Id");
     if (serviceId != null && !serviceId.isBlank()) {
-      return "service:" + serviceId;
+      return "service:" + serviceId + ":" + clientIp(request);
     }
     return "ip:" + clientIp(request);
   }

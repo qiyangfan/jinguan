@@ -17,6 +17,8 @@ import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
+import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 
@@ -61,9 +63,11 @@ public class SnapshotService {
     this.mapper = mapper;
   }
 
-  /** 构建签名后的快照;etag 与签名都基于同一份序列化字节。 */
+  /** 构建签名后的快照;版本/观察时间/投影在同一只读事务内读取,ETag 与签名基于同一份字节。 */
+  @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
   public ControlSnapshot.Signed build(String serviceId) {
     final long version = versions.current();
+    final Instant observedAt = versions.observedAt();
     Map<String, Object> sections = new LinkedHashMap<>();
     sections.put("tenant_directory", tenants.snapshot());
     sections.put("entitlements", entitlements.snapshot());
@@ -80,7 +84,7 @@ public class SnapshotService {
     ControlSnapshot snapshot =
         new ControlSnapshot(
             version,
-            Instant.now(),
+            observedAt,
             serviceId,
             etag,
             ControlSnapshot.securitySectionsFor(serviceId),

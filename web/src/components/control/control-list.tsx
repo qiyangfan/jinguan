@@ -53,7 +53,7 @@ export function Feedback({ error, success }: { error: string; success: string })
     return (
       <p role="status" className="rounded-md bg-success/15 px-3 py-2 text-sm text-success">
         {success}
-        {auditId ? <span className="ml-2 text-xs opacity-80">审计标识：{auditId}</span> : null}
+        {auditId ? <span className="ml-2 text-xs opacity-80">最近审计标识：{auditId}</span> : null}
       </p>
     );
   }

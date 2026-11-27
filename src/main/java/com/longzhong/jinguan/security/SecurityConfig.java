@@ -50,6 +50,7 @@ public class SecurityConfig {
                         "/pricing",
                         "/topology",
                         "/keys",
+                        "/control",
                         "/tenants",
                         "/plans",
                         "/policies",
